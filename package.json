@@ -1,8 +1,8 @@
 {
   "name": "agent-ops-patterns",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Operational patterns for running LLM agents in production: output-boundary secret redaction, agent-memory integrity linting, fail-soft detector discipline, skill regression testing.",
+  "description": "Operational patterns for running LLM agents in production: output-boundary secret redaction (JS + Python), scoped fail-closed capability grants, staleness-basis discipline, agent-memory integrity linting, fail-soft detector discipline, skill regression testing.",
   "type": "module",
   "license": "MIT",
   "author": "David Kooi",
@@ -15,7 +15,9 @@
     "secret-redaction",
     "agent-memory",
     "observability",
-    "fail-soft"
+    "fail-soft",
+    "capability-grant",
+    "staleness"
   ],
   "scripts": {
     "test": "node --test"

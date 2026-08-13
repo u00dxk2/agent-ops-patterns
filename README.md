@@ -10,7 +10,10 @@ Agent frameworks get you to the demo. These patterns are about what happens afte
 |---|---|---|
 | [`lib/snippet-redact.mjs`](./lib/snippet-redact.mjs) | Redacts secret-shaped text (API keys, JWTs, DB URIs, PEM blocks…) at the output boundary of any recall/search path, with named shape tokens (`[redacted:github-token]`) so hits stay findable. Defense-in-depth, not DLP — see [Coverage and limits](#coverage-and-limits). | **Use as-is** — vendor the one file (zero deps, pure function) |
 | [`lib/memory-integrity.mjs`](./lib/memory-integrity.mjs) | Zero-LLM integrity pass over a markdown agent-memory dir (MEMORY.md-style index + per-fact files + `[[wiki-links]]` — the Claude Code auto-memory shape): dead links, silent merges, over-budget index, orphans, near-duplicates; plus a backlink graph and **suggest-only** repairs. | **Use as-is** — vendor the one file; wire a thin CLI to your memory dir |
-| [`patterns/fail-soft-detectors.md`](./patterns/fail-soft-detectors.md) | The discipline for zero-LLM health detectors around agent fleets: PRESENCE-not-judgment, declared failure postures, structural no-LLM enforcement, alert dedup, no watchdog stacks, resurrect-else-reap, kill-switches. | **Read and apply** — protocol, with the two libs as reference implementations |
+| [`lib/secret_redaction.py`](./lib/secret_redaction.py) | The same output-boundary redaction for Python recall paths (agent-memory layers, log excerpting) — a faithful port of `snippet-redact.mjs`, kept in sync; extracted while proposing this boundary upstream to a Python memory framework ([mem0ai/mem0#6817](https://github.com/mem0ai/mem0/issues/6817)). | **Use as-is** — vendor the one file (stdlib-only); `python lib/secret_redaction.py` runs its self-check |
+| [`lib/capability-grant.mjs`](./lib/capability-grant.mjs) | Scoped, single-use, TTL-bounded capability grants for human-gated agent actions: an approval relayed through a chat/bus message is not authorization, so a direct human "go" mints a grant bound to the sha256 of one exact command, honored once. Fail-closed: any ambiguity falls through to your normal permission prompt. | **Use as-is** — vendor the one file (pure logic); wire a thin mint CLI + permission hook for your harness |
+| [`lib/stale-basis.mjs`](./lib/stale-basis.mjs) | One staleness chain for tracker/memory items — newest of the declared *signal* dates (fields stamped only when an item was actually looked at), with bulk-write `updated` timestamps deliberately excluded so a mass edit can't silently re-date the whole tracker. Verdicts name which basis won. | **Use as-is** — vendor the one file; import it from EVERY reader (two hand-rolled copies of a staleness chain will drift) |
+| [`patterns/fail-soft-detectors.md`](./patterns/fail-soft-detectors.md) | The discipline for zero-LLM health detectors around agent fleets: PRESENCE-not-judgment, declared failure postures, structural no-LLM enforcement, alert dedup, no watchdog stacks, resurrect-else-reap, kill-switches. | **Read and apply** — protocol, with `snippet-redact` + `memory-integrity` as reference implementations |
 | [`patterns/checks-that-cant-fail.md`](./patterns/checks-that-cant-fail.md) | Why a green check nobody has seen go red is not evidence, and the guard for four ways a check silently stops running while still reporting "clean": the never-red monitor, the dead-instrument zero (positive controls), the sweep that reached nothing (NOTHING SWEPT), and the config-absent silent disable. | **Read and apply** — protocol; the operations analog of mutation testing |
 | [`patterns/skill-regression-testing.md`](./patterns/skill-regression-testing.md) | Treating agent skills/prompts as process code: TDD-against-a-watched-failure, benchmark-gated edits, shadow-A/B with auto-rollback, anti-rationalization red flags. | **Read and apply** — the thinnest layer in the systems we surveyed (July 2026) |
 
@@ -34,17 +37,22 @@ const { findings } = lintMemoryIntegrity(input);      // WARN/INFO findings
 const { suggestions } = suggestMemoryRepairs(input);  // concrete fixes — suggest-only, never auto-applied
 ```
 
-Run the tests: `npm test` (built-in `node:test`, no dev dependencies, Node ≥ 20).
+Run the tests: `npm test` (built-in `node:test`, no dev dependencies, Node ≥ 20). The Python lib carries its own assert-based self-check — `python lib/secret_redaction.py` (stdlib-only, Python ≥ 3.10) — asserting the same contract the JS suite pins, documented limits included.
 
 ## Design rules the code follows
 
 - **PRESENCE, not JUDGMENT** — detectors flag absence/inconsistency; correctness stays human.
 - **Fail-soft** — every ambiguity resolves to no finding; a bug in a guard can only under-report. Tested behavior, not a comment.
+- **Fail-closed at gates** — the inverse posture for anything that *authorizes* an action (`capability-grant`): every ambiguity resolves to "no", so a bug can only fail-to-approve, never wrongly approve. Also tested behavior.
 - **Zero LLM calls** on watch/lint paths — deterministic, free to run every session.
 - **Suggest, never auto-apply** — repair output names the fix; a human applies it.
 - **Output-boundary redaction** — protect the display path; never mutate stored or executed text.
 
 ## Coverage and limits
+
+Every artifact here names what it does NOT do, and each named limit is a tested expectation, not a footnote.
+
+### snippet-redact (and its Python port)
 
 `snippet-redact` is **defense-in-depth, not a DLP guarantee.** A shape-matcher cannot recognize a secret it has no shape for, and the honest boundary is a tested contract here, not a footnote — each limit below has an explicit test in [`test/snippet-redact.test.mjs`](./test/snippet-redact.test.mjs).
 
@@ -55,6 +63,20 @@ Run the tests: `npm test` (built-in `node:test`, no dev dependencies, Node ≥ 2
 - **Not for text that will be executed or stored.** Redacting a command or a config file corrupts it. Display boundary only.
 
 No catastrophic backtracking: every pattern is boundary-guarded, literal-prefixed, and free of nested quantifiers, with a test asserting linear behavior on 200k-character adversarial inputs. Output is a fixed point — re-redacting redacted text is a no-op, including across adjacent padded base64 runs.
+
+`secret_redaction.py` shares every limit above (same shapes, same skips, same self-checked contract). The JS file is canonical; edits to either must be synced to the other.
+
+### capability-grant
+
+- **No cryptographic boundary on a single user account.** If the agent process runs as the same OS user who mints grants, the agent could in principle write a grant file itself. The boundary is operational and needs all three legs: mint from a terminal *outside* any agent session, deny the agent the mint CLI in your harness's permission config, and append every mint/consume/deny to an audit log. If you need a hard boundary, put the grant store behind a different principal.
+- **No semantic matching, deliberately.** The sha256 binds the exact normalized string; a benign variation of the approved command misses and falls through to your normal permission prompt. Safe, and occasionally annoying — that is the trade.
+- **An empty class allowlist denies everything.** There is no "allow all" spelling; widening scope is an edit to your code, visible in review.
+
+### stale-basis
+
+- **A dishonest signal defeats it.** If a writer stamps a signal field during a bulk write, the clock resets and no chain can tell. The convention — signal fields are stamped only by disposition-changing reads — lives in your writers; the function only enforces the chain.
+- **A future-dated signal wins, unclamped** — clamping would hide the writer bug that produced it. Lint for future dates upstream if your writers might emit them.
+- **`{date: null, basis: "none"}` is a distinct verdict, not "fresh".** Treating no-basis as fresh rebuilds the dead-instrument zero from [checks-that-cant-fail](./patterns/checks-that-cant-fail.md).
 
 ## Evidence and lineage
 
