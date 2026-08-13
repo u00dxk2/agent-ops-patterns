@@ -50,7 +50,7 @@ Run the tests: `npm test` (built-in `node:test`, no dev dependencies, Node ≥ 2
 
 ## Coverage and limits
 
-Every artifact here names what it does NOT do, and each named limit is a tested expectation, not a footnote.
+Every artifact here names what it does NOT do. Behavioral limits carry tests; operational limits (the ones that live in your deployment, not in this code — like the grant lib's single-user-account boundary) are labeled as what they are. Neither kind is a footnote.
 
 ### snippet-redact (and its Python port)
 
@@ -62,15 +62,16 @@ Every artifact here names what it does NOT do, and each named limit is a tested 
 - **Generic base64 inside URLs, `data:` URIs, and hash-integrity strings (`sha512-…`) passes**, as do digit-free letter runs — those are overwhelmingly webhook paths, inline assets, lockfile hashes, and identifiers, and mid-URL redaction mangles benign text. URL-shaped credentials want their own shape rule (Slack incoming-webhook URLs have one; credentialed DB URIs are covered).
 - **Not for text that will be executed or stored.** Redacting a command or a config file corrupts it. Display boundary only.
 
-No catastrophic backtracking: every pattern is boundary-guarded, literal-prefixed, and free of nested quantifiers, with a test asserting linear behavior on 200k-character adversarial inputs. Output is a fixed point — re-redacting redacted text is a no-op, including across adjacent padded base64 runs.
+No catastrophic backtracking: every pattern is boundary-guarded and free of nested quantifiers (most are literal-prefixed; the generic base64/hex rules are bounded character classes instead), with a test asserting linear behavior on 200k-character adversarial inputs. Output is a fixed point — re-redacting redacted text is a no-op, including across adjacent padded base64 runs.
 
-`secret_redaction.py` shares every limit above (same shapes, same skips, same self-checked contract). The JS file is canonical; edits to either must be synced to the other.
+`secret_redaction.py` shares every limit above (same shapes, same skips, same self-checked contract), and compiles its patterns in ASCII mode so JS and Python agree on word boundaries — an adversarial review caught Python's Unicode `\b` hiding a key behind an `é`. Two bounded divergences remain by choice and are documented in the file header (the URL-lookback window's units, and non-ASCII whitespace); both only move skip decisions on exotic Unicode text. The JS file is canonical; edits to either must be synced to the other.
 
 ### capability-grant
 
 - **No cryptographic boundary on a single user account.** If the agent process runs as the same OS user who mints grants, the agent could in principle write a grant file itself. The boundary is operational and needs all three legs: mint from a terminal *outside* any agent session, deny the agent the mint CLI in your harness's permission config, and append every mint/consume/deny to an audit log. If you need a hard boundary, put the grant store behind a different principal.
-- **No semantic matching, deliberately.** The sha256 binds the exact normalized string; a benign variation of the approved command misses and falls through to your normal permission prompt. Safe, and occasionally annoying — that is the trade.
-- **An empty class allowlist denies everything.** There is no "allow all" spelling; widening scope is an edit to your code, visible in review.
+- **No semantic matching, deliberately.** The sha256 binds the command byte-exact after trimming — internal whitespace included, because collapsing it would make a two-line command hash like its one-line concatenation (an adversarial review demonstrated exactly that against an earlier draft). A benign re-indent misses and falls through to your normal permission prompt. Safe, and occasionally annoying — that is the trade.
+- **Single-use requires your store to consume atomically.** `matchGrant` finds, it does not consume; two concurrent hooks can both match before either deletes the grant file. Delete-before-execute (or an exclusive rename) in the hook is part of the security boundary, and it is yours.
+- **An empty class allowlist denies everything.** There is no "allow all" spelling; widening scope is an edit to your code, visible in review. Scope and action class are likewise required on every match query — omitting them is a null, not a wildcard.
 
 ### stale-basis
 

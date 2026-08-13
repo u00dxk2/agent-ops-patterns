@@ -1,11 +1,25 @@
 """secret_redaction.py — secret-shape redaction at the OUTPUT boundary (Python).
 
-A faithful port of ``lib/snippet-redact.mjs`` for Python recall paths —
-agent-memory layers, log excerpting, session search — anywhere stored text is
-recalled back into a display surface or model context. The JS file is the
-canonical implementation; keep the SHAPES list and skip rules in sync when
-editing either. Extracted while proposing this same boundary upstream to a
-Python agent-memory framework (mem0ai/mem0#6817).
+A port of ``lib/snippet-redact.mjs`` for Python recall paths — agent-memory
+layers, log excerpting, session search — anywhere stored text is recalled
+back into a display surface or model context. The JS file is the canonical
+implementation; keep the SHAPES list and skip rules in sync when editing
+either.  Extracted while proposing this same boundary upstream to a Python
+agent-memory framework (mem0ai/mem0#6817).
+
+CROSS-LANGUAGE FIDELITY (adversarial-review finding, pinned in the
+self-check): every pattern compiles with ``re.ASCII`` so ``\\b``/``\\w``/
+``\\S`` mean what they mean in JavaScript regexes (an ``é`` before ``AKIA…``
+must not hide the key the way Python's Unicode ``\\b`` would). Two bounded
+divergences remain, deliberately, because closing them costs more than they
+protect: (1) the 2,048-char URL-lookback window counts UTF-16 code units in
+JS and code points here, so astral-plane-heavy text near the window edge can
+make the two implementations disagree about whether a base64 run sits inside
+a URL; (2) non-ASCII whitespace (NBSP and friends) is whitespace to JS
+``\\s`` but not to ASCII-mode Python, which can shift where a db-uri match
+or URL scan stops on exotic-whitespace text. Both divergences only move
+skip/boundary decisions on unusual Unicode; ASCII and typical text behave
+identically, and the self-check asserts the cases that used to differ.
 
 The chokepoint pattern: anything that recalls stored text passes through
 ``redact_secret_shapes()`` at the last moment before it's shown. Index-time
@@ -59,8 +73,9 @@ class Redaction(NamedTuple):
     shapes: list[str]
 
 
-_URL_BEFORE = re.compile(r"(?:https?|wss?|ftp)://\S*$", re.IGNORECASE)
+_URL_BEFORE = re.compile(r"(?:https?|wss?|ftp)://\S*$", re.IGNORECASE | re.ASCII)
 _PURE_HEX = re.compile(r"^[0-9a-fA-F]+$")
+_SRI_BEFORE = re.compile(r"\bsha(?:256|384|512)-$", re.ASCII)
 
 
 def _skip_base64(match: re.Match[str]) -> bool:
@@ -74,32 +89,34 @@ def _skip_base64(match: re.Match[str]) -> bool:
         return True  # inside a URL — mid-URL redaction mangles benign text
     if before.endswith(";base64,"):
         return True  # data: URI payload
-    if re.search(r"\bsha(?:256|384|512)-$", before):
+    if _SRI_BEFORE.search(before):
         return True  # npm/SRI hash-integrity string
     return False
 
 
 # Order matters: sk-ant… (Anthropic) before the generic sk-… (OpenAI).
+# Every pattern carries re.ASCII — see the fidelity note in the module docstring.
+_A = re.ASCII
 _SHAPES: list[tuple[str, re.Pattern[str], Callable[[re.Match[str]], bool] | None]] = [
-    ("private-key", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)"), None),
-    ("db-uri-creds", re.compile(r"\b(?:mongodb(?:\+srv)?|postgres(?:ql)?|mysql|redis|amqps?)://[^\s:/@]*:[^\s@]+@[^\s\"')\]]+"), None),
-    ("aws-key", re.compile(r"\bAKIA[0-9A-Z]{16}\b"), None),
-    ("stripe-key", re.compile(r"\b[srp]k_(?:live|test)_[0-9a-zA-Z]{16,}\b"), None),
-    ("github-token", re.compile(r"\b(?:gh[pousr]_[0-9A-Za-z]{36,}|github_pat_[0-9A-Za-z_]{40,})\b"), None),
-    ("google-api-key", re.compile(r"\bAIza[0-9A-Za-z\-_]{35}\b"), None),
-    ("slack-token", re.compile(r"\bxox[baprs]-[0-9A-Za-z-]{10,}\b"), None),
+    ("private-key", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)", _A), None),
+    ("db-uri-creds", re.compile(r"\b(?:mongodb(?:\+srv)?|postgres(?:ql)?|mysql|redis|amqps?)://[^\s:/@]*:[^\s@]+@[^\s\"')\]]+", _A), None),
+    ("aws-key", re.compile(r"\bAKIA[0-9A-Z]{16}\b", _A), None),
+    ("stripe-key", re.compile(r"\b[srp]k_(?:live|test)_[0-9a-zA-Z]{16,}\b", _A), None),
+    ("github-token", re.compile(r"\b(?:gh[pousr]_[0-9A-Za-z]{36,}|github_pat_[0-9A-Za-z_]{40,})\b", _A), None),
+    ("google-api-key", re.compile(r"\bAIza[0-9A-Za-z\-_]{35}\b", _A), None),
+    ("slack-token", re.compile(r"\bxox[baprs]-[0-9A-Za-z-]{10,}\b", _A), None),
     # A Slack incoming-webhook URL IS a credential — its own shape (the generic
     # base64 rule skips URL interiors).
-    ("slack-webhook", re.compile(r"\bhttps://hooks\.slack\.com/services/[A-Za-z0-9/]+"), None),
-    ("anthropic-key", re.compile(r"\bsk-ant-[A-Za-z0-9_-]{10,}"), None),
-    ("openai-key", re.compile(r"\bsk-(?:proj-|admin-|svcacct-)?[A-Za-z0-9_-]{20,}"), None),
-    ("jwt", re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}\b"), None),
+    ("slack-webhook", re.compile(r"\bhttps://hooks\.slack\.com/services/[A-Za-z0-9/]+", _A), None),
+    ("anthropic-key", re.compile(r"\bsk-ant-[A-Za-z0-9_-]{10,}", _A), None),
+    ("openai-key", re.compile(r"\bsk-(?:proj-|admin-|svcacct-)?[A-Za-z0-9_-]{20,}", _A), None),
+    ("jwt", re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}\b", _A), None),
     # ≥48 hex: sha256-length tokens redact; 40-hex git SHAs deliberately pass.
-    ("long-hex", re.compile(r"\b[0-9a-fA-F]{48,}\b"), None),
+    ("long-hex", re.compile(r"\b[0-9a-fA-F]{48,}\b", _A), None),
     # ≥40-char base64 run at a token boundary. NEGATIVE lookbehind (not another
     # base64 char) rather than a delimiter allowlist: recall snippets are cut
     # mid-text, so the token can sit at index 0 or behind a bracket.
-    ("long-base64", re.compile(r"(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{40,}={0,2}(?![A-Za-z0-9+/=])"), _skip_base64),
+    ("long-base64", re.compile(r"(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{40,}={0,2}(?![A-Za-z0-9+/=])", _A), _skip_base64),
 ]
 
 
@@ -202,6 +219,16 @@ def _self_check() -> None:
         assert redact_secret_shapes(line).text == line  # data: URI + SRI hash pass
     ident = "const VERYLONGCONSTANTNAMEWITHOUTANYDIGITSATALLXYZ = value"
     assert redact_secret_shapes(ident).text == ident  # LIMIT: digit-free runs pass
+    assert redact_secret_shapes('t="QWJjMTIzZGVmNDU2Z2hpNzg5amts"').shapes == []  # LIMIT: base64 under 40 chars passes
+    assert redact_secret_shapes("ghp_abcdefghij").shapes == []  # LIMIT: a secret split across a snippet boundary passes
+
+    # CROSS-LANGUAGE FIDELITY — cases that diverged from the JS before re.ASCII.
+    e_aws = redact_secret_shapes("éAKIAIOSFODNN7EXAMPLE")  # pragma: allowlist secret
+    assert "aws-key" in e_aws.shapes, "Unicode \\b must not hide an ASCII-adjacent key"
+    e_sri = f"ésha512-{b64}"
+    assert redact_secret_shapes(e_sri).text == e_sri, "SRI skip must apply behind a non-ASCII char"
+    ctrl_url = f"https://x.example/a\x1c{b64_padded}"
+    assert redact_secret_shapes(ctrl_url).text == ctrl_url, "U+001C is not whitespace in JS; the URL skip must still reach back"
 
     # Linear on adversarial input (no catastrophic backtracking).
     started = time.monotonic()

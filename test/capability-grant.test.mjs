@@ -18,6 +18,7 @@ import {
 const NOW = Date.parse("2026-06-06T23:30:00.000Z");
 const CMD = "deploy --env production";
 const CLASSES = ["deploy", "prod-write-probe"];
+const QUERY = { command: CMD, scope: "my-app", actionClass: "deploy", nowMs: NOW };
 
 function mint(overrides = {}) {
   return buildGrant({
@@ -31,20 +32,28 @@ function mint(overrides = {}) {
   });
 }
 
-describe("normalizeCommand", () => {
-  it("trims and collapses internal whitespace", () => {
-    assert.equal(normalizeCommand("  deploy   --env production  "), CMD);
-    assert.equal(normalizeCommand("deploy\t--env\nproduction"), CMD);
+describe("normalizeCommand — trim only, internal bytes preserved", () => {
+  it("trims leading/trailing whitespace and nothing else", () => {
+    assert.equal(normalizeCommand("  deploy --env production  "), CMD);
+    assert.equal(normalizeCommand("deploy  --env production"), "deploy  --env production");
   });
-  it("is null/garbage safe", () => {
+  it("is null/garbage safe (non-strings normalize to empty)", () => {
     assert.equal(normalizeCommand(null), "");
     assert.equal(normalizeCommand(undefined), "");
+    assert.equal(normalizeCommand(42), "");
   });
 });
 
-describe("commandHash", () => {
-  it("is stable across benign whitespace differences (normalize-then-hash)", () => {
-    assert.equal(commandHash(CMD), commandHash("  deploy   --env production "));
+describe("commandHash — byte-exact binding", () => {
+  it("internal whitespace is SIGNIFICANT: re-spaced and multi-line variants hash differently", () => {
+    // The adversarial-review repro: collapsing whitespace made a two-line
+    // command (two shell commands) hash identically to a one-line echo.
+    assert.notEqual(commandHash("echo SAFE rm -rf ./victim"), commandHash("echo SAFE\nrm -rf ./victim"));
+    assert.notEqual(commandHash("run 'safe  text'"), commandHash("run 'safe text'"));
+    assert.notEqual(commandHash("deploy  --env production"), commandHash(CMD));
+  });
+  it("leading/trailing whitespace alone does not change the hash", () => {
+    assert.equal(commandHash(CMD), commandHash(`  ${CMD}  `));
   });
   it("differs for a different command (exact binding)", () => {
     assert.notEqual(commandHash(CMD), commandHash("deploy --env staging"));
@@ -85,9 +94,17 @@ describe("buildGrant", () => {
     assert.equal(g.mintedBy, "operator-terminal");
   });
 
-  it("normalizes the stored command", () => {
-    const g = mint({ command: "  deploy   --env production " });
-    assert.equal(g.command, CMD);
+  it("stores the trimmed command; internal whitespace survives verbatim", () => {
+    const g = mint({ command: "  deploy  --env production " });
+    assert.equal(g.command, "deploy  --env production");
+    assert.equal(g.commandSha256, commandHash("deploy  --env production"));
+  });
+
+  it("THROWS on an explicit invalid ttl — an invalid request must not silently widen to the default", () => {
+    assert.throws(() => mint({ ttlMs: 0 }), /ttlMs/);
+    assert.throws(() => mint({ ttlMs: -1 }), /ttlMs/);
+    assert.throws(() => mint({ ttlMs: Number.NaN }), /ttlMs/);
+    assert.throws(() => mint({ ttlMs: "900000" }), /ttlMs/);
   });
 
   it("THROWS on an out-of-allowlist class (no silent over-broad grant)", () => {
@@ -99,11 +116,13 @@ describe("buildGrant", () => {
     assert.throws(() => mint({ allowedClasses: [] }), /actionClass/);
   });
 
-  it("THROWS on empty command / missing scope / missing id / bad clock", () => {
-    assert.throws(() => mint({ command: "   " }), /empty command/);
+  it("THROWS on empty/non-string command / missing scope / missing id / bad clock", () => {
+    assert.throws(() => mint({ command: "   " }), /command/);
+    assert.throws(() => mint({ command: { toString: () => CMD } }), /command/);
     assert.throws(() => mint({ scope: "" }), /scope/);
     assert.throws(() => mint({ id: "" }), /id/);
     assert.throws(() => mint({ nowMs: Number.NaN }), /nowMs/);
+    assert.throws(() => mint({ nowMs: "1000" }), /nowMs/);
   });
 });
 
@@ -129,6 +148,30 @@ describe("serializeGrant / parseGrant", () => {
     assert.equal(parseGrant(JSON.stringify({ ...mint(), expiresAtMs: "soon" }), CLASSES), null);
   });
 
+  it("FAIL-CLOSED: exact types, no coercion — the adversarial-review repro grant parses to null", () => {
+    // String "v", string expiresAtMs, missing id/command/mintedAtMs: every
+    // one of these coerced its way past an earlier draft.
+    const repro = {
+      v: "1",
+      commandSha256: commandHash(CMD),
+      scope: "prod",
+      actionClass: "deploy",
+      expiresAtMs: "1001000",
+    };
+    assert.equal(parseGrant(JSON.stringify(repro), CLASSES), null);
+    assert.equal(parseGrant(JSON.stringify({ ...mint(), v: "1" }), CLASSES), null);
+    assert.equal(parseGrant(JSON.stringify({ ...mint(), id: "" }), CLASSES), null);
+    assert.equal(parseGrant(JSON.stringify({ ...mint(), mintedAtMs: "0" }), CLASSES), null);
+    assert.equal(parseGrant(JSON.stringify({ ...mint(), consumedAtMs: "later" }), CLASSES), null);
+  });
+
+  it("FAIL-CLOSED: a hash that is not the hash of the stored command parses to null", () => {
+    // The stored command is audit-visible; the hash is what matches. They
+    // must be the same command or the audit trail can lie.
+    const g = { ...mint(), command: "echo harmless-looking" };
+    assert.equal(parseGrant(JSON.stringify(g), CLASSES), null);
+  });
+
   it("FAIL-CLOSED: a valid grant file parses to null under an empty allowlist", () => {
     assert.equal(parseGrant(serializeGrant(mint()), []), null);
   });
@@ -147,72 +190,110 @@ describe("isGrantLive", () => {
     assert.equal(isGrantLive(markConsumed(mint(), NOW), NOW), false);
   });
 
-  it("FAIL-CLOSED: false for null grant / non-finite clock", () => {
+  it("FAIL-CLOSED: false for null/malformed grant / non-finite clock", () => {
     assert.equal(isGrantLive(null, NOW), false);
+    assert.equal(isGrantLive({ expiresAtMs: NOW + 9e9 }, NOW), false); // shape-invalid fragment
     assert.equal(isGrantLive(mint(), Number.NaN), false);
+  });
+
+  it("FAIL-CLOSED: a non-number clock is rejected, never coerced — null must not become epoch 0", () => {
+    const g = mint();
+    assert.equal(isGrantLive(g, null), false);
+    assert.equal(isGrantLive(g, false), false);
+    assert.equal(isGrantLive(g, ""), false);
+    assert.equal(isGrantLive(g, String(NOW)), false);
+  });
+
+  it("FAIL-CLOSED: a NaN consumedAtMs reads as consumed/invalid, never as unconsumed", () => {
+    assert.equal(isGrantLive({ ...mint(), consumedAtMs: Number.NaN }, NOW), false);
   });
 });
 
 describe("matchGrant — exact-command authorization", () => {
-  it("matches the exact pre-authorized command (normalized) within scope + TTL", () => {
-    const m = matchGrant([mint()], {
-      command: "  deploy   --env production ",
-      scope: "my-app",
-      actionClass: "deploy",
-      nowMs: NOW,
-    }, CLASSES);
+  it("matches the exact pre-authorized command within scope + class + TTL", () => {
+    const m = matchGrant([mint()], { ...QUERY, command: `  ${CMD}  ` }, CLASSES);
     assert.notEqual(m, null);
     assert.equal(m.id, "grant-abc123");
   });
 
   it("does NOT match a different command (exact binding — the security boundary)", () => {
     const grants = [mint()];
-    assert.equal(
-      matchGrant(grants, { command: "deploy --env staging", scope: "my-app", actionClass: "deploy", nowMs: NOW }, CLASSES),
-      null,
-    );
+    assert.equal(matchGrant(grants, { ...QUERY, command: "deploy --env staging" }, CLASSES), null);
     // a superset/dangerous command must NOT ride a narrow grant
-    assert.equal(
-      matchGrant(grants, { command: "deploy --env production && rm -rf /", scope: "my-app", actionClass: "deploy", nowMs: NOW }, CLASSES),
-      null,
-    );
+    assert.equal(matchGrant(grants, { ...QUERY, command: `${CMD} && rm -rf /` }, CLASSES), null);
+    // a re-spaced or multi-line variant is a DIFFERENT command now — safe miss
+    assert.equal(matchGrant(grants, { ...QUERY, command: "deploy  --env production" }, CLASSES), null);
+    assert.equal(matchGrant(grants, { ...QUERY, command: "deploy\n--env production" }, CLASSES), null);
+  });
+
+  it("REQUIRES scope and actionClass on the query — omitting either is a null, not a wildcard", () => {
+    // An unscoped match let a grant minted for app A authorize the same
+    // command string in app B (directory-dependent commands differ).
+    const grants = [mint()];
+    assert.equal(matchGrant(grants, { command: CMD, nowMs: NOW }, CLASSES), null);
+    assert.equal(matchGrant(grants, { command: CMD, scope: "my-app", nowMs: NOW }, CLASSES), null);
+    assert.equal(matchGrant(grants, { command: CMD, actionClass: "deploy", nowMs: NOW }, CLASSES), null);
   });
 
   it("does NOT match a wrong scope or wrong class", () => {
     const grants = [mint()];
-    assert.equal(matchGrant(grants, { command: CMD, scope: "other-app", actionClass: "deploy", nowMs: NOW }, CLASSES), null);
-    assert.equal(matchGrant(grants, { command: CMD, scope: "my-app", actionClass: "git-push", nowMs: NOW }, CLASSES), null);
+    assert.equal(matchGrant(grants, { ...QUERY, scope: "other-app" }, CLASSES), null);
+    assert.equal(matchGrant(grants, { ...QUERY, actionClass: "git-push" }, CLASSES), null);
   });
 
   it("does NOT match an expired or consumed grant", () => {
-    assert.equal(matchGrant([mint()], { command: CMD, scope: "my-app", nowMs: NOW + DEFAULT_GRANT_TTL_MS }, CLASSES), null);
-    assert.equal(matchGrant([markConsumed(mint(), NOW)], { command: CMD, scope: "my-app", nowMs: NOW }, CLASSES), null);
+    assert.equal(matchGrant([mint()], { ...QUERY, nowMs: NOW + DEFAULT_GRANT_TTL_MS }, CLASSES), null);
+    assert.equal(matchGrant([markConsumed(mint(), NOW)], QUERY, CLASSES), null);
   });
 
-  it("matches without scope/class filters supplied (command + live + allowlisted is enough)", () => {
-    assert.notEqual(matchGrant([mint()], { command: CMD, nowMs: NOW }, CLASSES), null);
+  it("REJECTS a non-string command — a stateful toString() must never reach the hash", () => {
+    let call = 0;
+    const shifty = { toString: () => (call++ === 0 ? "nonempty" : CMD) };
+    assert.equal(matchGrant([mint()], { ...QUERY, command: shifty }, CLASSES), null);
   });
 
   it("FAIL-CLOSED: empty command, garbage list, bad clock, malformed grants, empty allowlist", () => {
-    assert.equal(matchGrant([mint()], { command: "", scope: "my-app", nowMs: NOW }, CLASSES), null);
-    assert.equal(matchGrant([mint()], { command: CMD, nowMs: Number.NaN }, CLASSES), null);
-    assert.equal(matchGrant(null, { command: CMD, nowMs: NOW }, CLASSES), null);
-    assert.notEqual(matchGrant([null, { actionClass: "git-push" }, mint()], { command: CMD, nowMs: NOW }, CLASSES), null); // skips the bad, finds the good
-    assert.equal(matchGrant([null, { actionClass: "git-push" }], { command: CMD, nowMs: NOW }, CLASSES), null);
-    assert.equal(matchGrant([mint()], { command: CMD, nowMs: NOW }, []), null); // empty allowlist denies
-    assert.equal(matchGrant([mint()], { command: CMD, nowMs: NOW }), null); // absent allowlist denies
+    assert.equal(matchGrant([mint()], { ...QUERY, command: "" }, CLASSES), null);
+    assert.equal(matchGrant([mint()], { ...QUERY, nowMs: Number.NaN }, CLASSES), null);
+    assert.equal(matchGrant([mint()], { ...QUERY, nowMs: null }, CLASSES), null);
+    assert.equal(matchGrant(null, QUERY, CLASSES), null);
+    assert.notEqual(matchGrant([null, { actionClass: "git-push" }, mint()], QUERY, CLASSES), null); // skips the bad, finds the good
+    assert.equal(matchGrant([null, { actionClass: "git-push" }], QUERY, CLASSES), null);
+    assert.equal(matchGrant([mint()], QUERY, []), null); // empty allowlist denies
+    assert.equal(matchGrant([mint()], QUERY), null); // absent allowlist denies
+  });
+
+  it("SKIPS (never throws on) a grant with wrong-typed fields, even a numeric hash", () => {
+    const rogueHash = { ...mint(), commandSha256: 12345 };
+    assert.equal(matchGrant([rogueHash], QUERY, CLASSES), null);
   });
 
   it("skips an out-of-allowlist-class grant even if the hash matches (defense in depth)", () => {
-    // A grant object hand-crafted with a disallowed class never authorizes anything.
     const rogue = { ...mint(), actionClass: "git-push" };
-    assert.equal(matchGrant([rogue], { command: CMD, nowMs: NOW }, CLASSES), null);
+    assert.equal(matchGrant([rogue], QUERY, CLASSES), null);
+  });
+
+  it("skips a grant whose hash does not match its own stored command (integrity binding)", () => {
+    const lying = { ...mint(), command: "echo harmless-looking" };
+    assert.equal(matchGrant([lying], { ...QUERY, command: "echo harmless-looking" }, CLASSES), null); // hash is of CMD, not this
+    assert.equal(matchGrant([lying], QUERY, CLASSES), null); // and the CMD query fails shape validation too
+  });
+
+  it("LIMIT: matching mutates nothing — single-use enforcement is the caller's atomic store", () => {
+    const grants = [mint()];
+    assert.notEqual(matchGrant(grants, QUERY, CLASSES), null);
+    assert.notEqual(matchGrant(grants, QUERY, CLASSES), null); // still matches: consume-then-execute is YOUR hook's job
   });
 });
 
 describe("markConsumed + composeAuditLine", () => {
   it("markConsumed stamps consumedAtMs", () => {
     assert.equal(markConsumed(mint(), NOW + 5000).consumedAtMs, NOW + 5000);
+  });
+
+  it("markConsumed THROWS on a non-finite clock — NaN would read as unconsumed downstream", () => {
+    assert.throws(() => markConsumed(mint(), Number.NaN), /nowMs/);
+    assert.throws(() => markConsumed(mint(), "now"), /nowMs/);
   });
 
   it("composeAuditLine emits parseable NDJSON with the event + command + hash", () => {

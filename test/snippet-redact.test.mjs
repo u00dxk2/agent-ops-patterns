@@ -147,6 +147,14 @@ test("LIMIT: digit-free 40+ char letter runs pass (identifier/prose, not token-s
   assert.equal(redactSecretShapes(line).text, line);
 });
 
+test("LIMIT: base64 under 40 chars passes (the documented floor)", () => {
+  assert.equal(redactSecretShapes('t="QWJjMTIzZGVmNDU2Z2hpNzg5amts"').shapes.length, 0); // pragma: allowlist secret
+});
+
+test("LIMIT: a secret split across a snippet boundary passes (each fragment is under-shape)", () => {
+  assert.equal(redactSecretShapes("ghp_abcdefghij").shapes.length, 0); // truncated github token fragment
+});
+
 test("no catastrophic backtracking on adversarial input", () => {
   // Every SHAPE regex is anchored and free of nested quantifiers. Guard the
   // property so a future shape can't quietly introduce a ReDoS.

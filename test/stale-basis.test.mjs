@@ -58,6 +58,15 @@ describe("pickStaleBasis — the bulk-write exclusion (the point of the lib)", (
 });
 
 describe("pickStaleBasis — fail-soft on malformed input", () => {
+  it("tolerates malformed OPTIONS too: null opts / non-array fields fall back to defaults, never throw", () => {
+    assert.deepEqual(pickStaleBasis({}, null), { date: null, basis: "none" });
+    assert.deepEqual(pickStaleBasis({}, { signalFields: null }), { date: null, basis: "none" });
+    assert.deepEqual(pickStaleBasis({}, { externalSignals: null }), { date: null, basis: "none" });
+    const item = { lastEvaluated: "2026-07-01T00:00:00Z" };
+    assert.equal(pickStaleBasis(item, { signalFields: "lastEvaluated" }).basis, "lastEvaluated"); // non-array → defaults, which include it
+    assert.equal(pickStaleBasis(item, { createdField: 7 }).basis, "lastEvaluated");
+  });
+
   it("skips unparseable / empty / non-string dates instead of throwing", () => {
     const item = {
       lastEvaluated: "not a date",
