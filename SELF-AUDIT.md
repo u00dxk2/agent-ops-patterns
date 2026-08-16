@@ -22,23 +22,46 @@ Copy the prompt below, or just point your agent at this file's URL and say "run 
 >   a useful answer - say what you looked for and where you looked.
 > - Do not grade generously. A partial mitigation is a FAIL with a note, not a PASS.
 > - Quote real lines. Do not paraphrase code into existence.
-> - At the end, give me a score out of five and the single highest-leverage fix,
->   with the smallest change that would move one FAIL to a PASS.
+> - At the end, score it: **one point per question that is a clean PASS**, out of
+>   five. A CAN'T TELL scores zero and is reported as a coverage gap, not rounded
+>   toward either verdict. Then name the single highest-leverage fix, with the
+>   smallest change that would move one FAIL to a PASS.
 >
 > **Question 1 - what comes back when you search my history for secrets?**
-> Search my agent's stored conversations, memory, and logs for the shapes of live
-> credentials: `sk-`, `AKIA`, `ghp_`, `postgres://`, `-----BEGIN`, `xox`, JWTs.
-> Report the count and the shapes, never the values. Then find the code on the recall
-> path - search, quote, excerpt, memory read - and tell me whether anything redacts at
-> the moment of recall. Index-time scrubbing does not count: the store is already
-> dirty and you cannot clean it retroactively.
+> **Read this constraint before you run anything.** Do not print, quote, echo or
+> otherwise bring a matched value into your own context. Use a command that emits
+> only counts and shape names - `grep -c`, or `grep -o` piped through a classifier
+> you write - never one that prints matching lines. A raw credential in an audit
+> transcript is the exact failure this question is about, and pasting one here
+> would mean the audit caused it.
+>
+> With that constraint: enumerate every store the agent can recall from -
+> conversations, memory files, logs, vector indexes, caches - and count matches for
+> credential shapes (`sk-`, `AKIA`, `ghp_`, `postgres://`, `-----BEGIN`, `xox`,
+> JWTs). Then enumerate **every** path that can return their contents: search,
+> quote, excerpt, memory read, error messages, debug dumps. PASS only if redaction
+> is applied at the final boundary of **every** in-scope path - one protected path
+> is not a pass. Report any store you could not reach as a coverage gap, not as
+> clean. Note also that a shape match does not mean the credential is live; treat
+> the count as an upper bound on exposure, not a confirmed breach.
+>
+> Index-time scrubbing does not count: the store is already dirty and you cannot
+> clean it retroactively.
 >
 > **Question 2 - which of my health checks has never been seen red?**
-> List every check, monitor, watchdog, or gate in this system. For each: is there
-> evidence it has ever failed - a test that exercises the failure branch, a logged
-> incident, a fixture with bad input? A check that has only ever been green is a
-> status light, not a check. Also flag any check that makes an LLM call, and say what
-> a counter and a timestamp would do instead.
+> List every check, monitor, watchdog, or gate in this system. For each, report two
+> things separately, because they fail independently:
+> - **Code-path red proof** - a test exercising the failure branch, a fixture with
+>   bad input, a logged incident.
+> - **Operational red proof** - is the deployed check actually invoked on a
+>   schedule, over the subjects you think it covers, under the configuration you
+>   think it uses, and does a known-red result reach a human through the real
+>   reporting path? Report expected / reached / skipped / errored subject counts.
+>
+> A unit fixture proves a function *can* return red. It says nothing about whether
+> the thing is wired up, which is how an unscheduled monitor passes an audit. Both
+> must be true. Also flag any check that makes an LLM call, and say what a counter
+> and a timestamp would do instead.
 >
 > **Question 3 - what happens to "stale" after a bulk edit?**
 > Find how this system decides something is stale, out of date, or needs attention.
@@ -47,9 +70,20 @@ Copy the prompt below, or just point your agent at this file's URL and say "run 
 >
 > **Question 4 - what did my last "yes" actually authorize?**
 > Find the permission or approval mechanism. For any grant, allowlist, or approved
-> action, tell me: does it name one specific action or a category? Does it expire?
-> Can it be used twice? And - the one people miss - between the check and the
-> execution, can the thing being executed change?
+> action: does it name one specific action or a category? Does it expire? Can it be
+> used twice? And - the one people miss - between the check and the execution, can
+> the thing being executed change?
+>
+> Those four can all answer well while the whole mechanism is bypassable, so do not
+> PASS on them alone. Also establish: every gated execution path must go **through**
+> the hook with no way around it; the agent cannot mint, edit, replay or delete its
+> own grants or the policy and audit records; the human who approved is
+> authenticated **and** authorized to approve that class; consumption is atomic
+> before execution; the value that was checked is the value that runs; and the
+> mutable context around it - working directory, PATH, environment, the shell, the
+> files it reads - is either bound into the approval or independently trusted. A
+> command hash does not bind a command's *effect* when any of those can change
+> underneath it.
 >
 > **Question 5 - who checks the agent's memory for rot?**
 > Find where this agent stores what it remembers. Is anything linting it? Look for

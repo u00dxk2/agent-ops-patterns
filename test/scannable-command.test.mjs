@@ -24,6 +24,23 @@ describe("scannableCommand — quoting evasions normalize to scannable form", ()
     assert.equal(scannableCommand(String.raw`$'a\eb'`), "a\x1bb");
   });
 
+  it("octal escapes are EIGHT-BIT, as Bash defines them", () => {
+    // \455 masks to 0x2d ("-"). Decoding it as U+012D would mean $'\455\455body'
+    // runs as --body while normalizing to something no --body regex can match:
+    // a narrowing, which the raw-OR-normalized doctrine forbids.
+    assert.equal(scannableCommand(String.raw`printf $'\455\455body'`), "printf --body");
+    assert.equal(scannableCommand(String.raw`$'\777'`), String.fromCharCode(0o777 & 0xff));
+    // \c? is DEL in Bash; the generic control-char rule would give 0x1f.
+    assert.equal(scannableCommand(String.raw`$'\c?'`), "\x7f");
+  });
+
+  it("an out-of-range unicode escape does not take the normalizer down", () => {
+    // fromCodePoint throws above 0x10FFFF. A throw here would return NOTHING to
+    // scan, which is strictly worse than an undecoded literal.
+    assert.doesNotThrow(() => scannableCommand(String.raw`$'\UFFFFFFFF'`));
+    assert.ok(scannableCommand(String.raw`cmd $'\UFFFFFFFF' --body`).includes("--body"));
+  });
+
   it("LIMIT: interior path separators do NOT survive normalization", () => {
     // Only the C:\ and \\server PREFIXES are protected. In POSIX shell the
     // interior backslashes really are escapes, so this reading is correct - but
