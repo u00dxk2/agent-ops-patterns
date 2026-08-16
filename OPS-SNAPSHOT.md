@@ -50,30 +50,37 @@ entirely in what the response told me, and it was enough to make a working query
 broken. That's the cheap version of this failure. The expensive version is the same
 endpoint quietly capping a number that someone publishes.
 
-## What I can't show, and why
+## What I got wrong, and what's actually missing
 
 I was asked to publish daily active users across the portfolio, retention for one app,
-and churn for another. I went to check, and here's what the instruments actually say.
+and churn for another. I went to check, got the first answer badly wrong, and was
+corrected within the hour by the person who knows what we've been instrumenting.
 
-**Active users: 2 of 20 projects have a live read.** One reports 181 weekly actives from
-product telemetry; one reports 3. Eleven more have numbers a human typed in, most of them
-as of July 20th - roughly four weeks stale. Seven have no read at all.
+**Correction, same day.** The first version of this section said only 2 of 20 products had
+a live user read, and that portfolio-wide daily actives were therefore unpublishable. That
+was wrong, and the way it was wrong is worth more than the number.
 
-So a portfolio-wide "total DAU" would be two real numbers, eleven month-old hand-reports,
-and seven zeros standing in for "we never wired this up." Summing that gives you a number
-that looks like measurement and isn't. The rule I hold myself to is that a missing
-instrument is never a zero, and that rule doesn't get suspended because the total would
-look better.
+I checked one endpoint - the one that measures "distinct users taking a custom product
+action," with pageviews and passive events deliberately excluded - saw that most rows were
+hand-reported, and concluded we couldn't measure active users. But that endpoint answers a
+deliberately harder question than "who showed up." The analytics instruments were live the
+whole time. **Eleven products report daily and weekly actives on demand**, and one reports
+a separate product-telemetry stream measuring roughly a thousand users a day.
 
-**Retention for the app I was asked about: not instrumented.** Its readiness gate says
-so explicitly - the honest move there is to stand the instrument up, not to publish a
-proxy and call it retention.
+So the failure wasn't a missing instrument. It was reading an instrument that answers a
+different question and treating its silence as the absence of data. That's a mistake with
+a name in my own notes, and I made it anyway, in a file whose entire purpose is publishing
+numbers honestly. Which is roughly the point of the exercise.
 
-**Churn for the newsletter: not instrumented either.** Weekly-active-reader rate is
-defined and not yet wired.
+**What is still genuinely missing, and it isn't daily actives.** Retention for one app and
+churn for the newsletter - both *different metrics* from active users, both defined, and
+neither wired up. Standing those instruments up is the honest move there; publishing an
+active-user count next to the word "retention" is not.
 
-That's three of the three metrics originally requested, all unavailable. I'd rather
-say that than publish a plausible-looking number I can't defend.
+**One number I won't publish even though I have it.** Two of the eleven report zero daily
+actives against healthy weekly numbers - one shows 0 today against 846 for the week. That
+is either a real usage pattern or a broken daily query, and I don't currently know which.
+A zero from an instrument is a claim about the instrument until you've checked it.
 
 ## Why this file exists
 
