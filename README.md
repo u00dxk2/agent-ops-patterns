@@ -29,7 +29,7 @@ both fixes are in the history.
 | [`lib/snippet-redact.mjs`](./lib/snippet-redact.mjs) | Redacts secret-shaped text (API keys, JWTs, DB URIs, PEM blocks…) at the output boundary of any recall/search path, with named shape tokens (`[redacted:github-token]`) so hits stay findable. Defense-in-depth, not DLP — see [Coverage and limits](#coverage-and-limits). | **Use as-is** — vendor the one file (zero deps, pure function) |
 | [`lib/memory-integrity.mjs`](./lib/memory-integrity.mjs) | Zero-LLM integrity pass over a markdown agent-memory dir (MEMORY.md-style index + per-fact files + `[[wiki-links]]` — the Claude Code auto-memory shape): dead links, silent merges, over-budget index, orphans, near-duplicates; plus a backlink graph and **suggest-only** repairs. | **Use as-is** — vendor the one file; wire a thin CLI to your memory dir |
 | [`lib/secret_redaction.py`](./lib/secret_redaction.py) | The same output-boundary redaction for Python recall paths (agent-memory layers, log excerpting) — a faithful port of `snippet-redact.mjs`, kept in sync; extracted while proposing this boundary upstream to a Python memory framework ([mem0ai/mem0#6817](https://github.com/mem0ai/mem0/issues/6817)). | **Use as-is** — vendor the one file (stdlib-only); `python lib/secret_redaction.py` runs its self-check |
-| [`lib/capability-grant.mjs`](./lib/capability-grant.mjs) | Scoped, single-use, TTL-bounded capability grants for human-gated agent actions: an approval relayed through a chat/bus message is not authorization, so a direct human "go" mints a grant bound to the sha256 of one exact command, honored once. Fail-closed: any ambiguity falls through to your normal permission prompt. | **Use as-is** — vendor the one file (pure logic); wire a thin mint CLI + permission hook for your harness |
+| [`lib/capability-grant.mjs`](./lib/capability-grant.mjs) | Scoped, single-use, TTL-bounded capability grants for human-gated agent actions: an approval relayed through a chat/bus message is not authorization, so a direct human "go" mints a grant bound to the sha256 of one exact command, honored once. Fail-closed: any ambiguity falls through to your normal permission prompt. | **Reference logic** — the file is pure and complete, but it is not an authorization boundary on its own. You supply the rest: an authenticated mint path outside any agent session, a grant store the agent cannot write, random ids, scope and class resolution, an atomic consume-before-execute, an audit sink, and a fallback to your normal prompt. Budget real work here, not a wrapper |
 | [`lib/stale-basis.mjs`](./lib/stale-basis.mjs) | One staleness chain for tracker/memory items — newest of the declared *signal* dates (fields stamped only when an item was actually looked at), with bulk-write `updated` timestamps deliberately excluded so a mass edit can't silently re-date the whole tracker. Verdicts name which basis won. | **Use as-is** — vendor the one file; import it from EVERY reader (two hand-rolled copies of a staleness chain will drift) |
 | [`lib/rrf-fuse.mjs`](./lib/rrf-fuse.mjs) | Reciprocal rank fusion (k=60) of a recency ranking and a relevance ranking for agent-recall paths — because recency-only recall buries the relevant old hit under marginal recent ones. Fuses ranks, not magnitudes, so a dumb regex match-count works as the second signal. | **Use as-is** — vendor the one file (zero deps, pure function) |
 | [`lib/memory-usage-ledger.mjs`](./lib/memory-usage-ledger.mjs) | Usage evidence for agent-memory eviction: session close records which memory files carried load, the tally reports counts / last touch / never-touched over a window. The tally is EVIDENCE for an eviction pass, never a verdict — and an empty ledger reports itself as absence of evidence, not rot. | **Use as-is** — vendor the one file; wire a thin touch/tally CLI (the lib is pure) |
@@ -38,8 +38,8 @@ both fixes are in the history.
 | [`patterns/shadow-screen-states.md`](./patterns/shadow-screen-states.md) | Ship gates watching before enforcing, with vocabulary that keeps the log decidable: reviewing `would_block` rows before promotion, refusing to count `unscreened` as a pass, and treating a rising unscreened rate as the outage it is. | **Read and apply** — `shadow-screen` is the state helper |
 | [`patterns/fail-soft-detectors.md`](./patterns/fail-soft-detectors.md) | The discipline for zero-LLM health detectors around agent fleets: PRESENCE-not-judgment, declared failure postures, structural no-LLM enforcement, alert dedup, no watchdog stacks, resurrect-else-reap, kill-switches. | **Read and apply** — protocol, with `snippet-redact` + `memory-integrity` as reference implementations |
 | [`patterns/checks-that-cant-fail.md`](./patterns/checks-that-cant-fail.md) | Why a green check nobody has seen go red is not evidence, and the guard for four ways a check silently stops running while still reporting "clean": the never-red monitor, the dead-instrument zero (positive controls), the sweep that reached nothing (NOTHING SWEPT), and the config-absent silent disable. | **Read and apply** — protocol; the operations analog of mutation testing |
-| [`patterns/skill-regression-testing.md`](./patterns/skill-regression-testing.md) | Treating agent skills/prompts as process code: TDD-against-a-watched-failure, benchmark-gated edits, shadow-A/B with auto-rollback, anti-rationalization red flags. | **Read and apply** — the thinnest layer in the systems we surveyed (July 2026) |
-| [`patterns/durability-tiered-write-governance.md`](./patterns/durability-tiered-write-governance.md) | Gate agent actions by how hard they are to undo, on a three-rung ladder: reads never gated, schema-bounded writes machine-approved, substrate/irreversible writes human-direct via minted grants. Replaces case-law permission accretion with an admission test per rule. | **Read and apply** — `capability-grant` is the rung-3 mechanism |
+| [`patterns/skill-regression-testing.md`](./patterns/skill-regression-testing.md) | Treating agent skills/prompts as process code: TDD-against-a-watched-failure, benchmark-gated edits, shadow-A/B with auto-rollback, anti-rationalization red flags. | **Read and apply** — the thinnest layer in the systems we looked at informally (July 2026; a look around, not a survey) |
+| [`patterns/durability-tiered-write-governance.md`](./patterns/durability-tiered-write-governance.md) | Gate agent actions by how hard they are to undo, on a three-rung ladder: effect-free authorized reads never sent for approval, schema-bounded reversible writes machine-approved, substrate/irreversible writes human-direct via minted grants. Replaces case-law permission accretion with an admission test per rule. | **Read and apply** — `capability-grant` is the rung-3 mechanism |
 
 ## Quickstart
 
@@ -50,15 +50,47 @@ const { text, shapes } = redactSecretShapes(snippet);
 // → text with secret-shaped runs replaced by [redacted:<shape>]; benign text passes byte-identical.
 // Display boundary ONLY — never run over text that will be executed or stored.
 
-// Lint a memory directory (caller does the I/O; the lib is pure):
+// Lint a memory directory (caller does the I/O; the lib is pure).
+// This block runs as written — copy it into a file and point MEMORY_DIR at
+// your own directory.
+import fs from "node:fs";
+import path from "node:path";
 import { lintMemoryIntegrity, suggestMemoryRepairs } from "./lib/memory-integrity.mjs";
+
+const MEMORY_DIR = "./memory";
+const indexPath = path.join(MEMORY_DIR, "MEMORY.md");
+
+// Regular .md files only. readdirSync returns directories too, and
+// readFileSync on a directory throws — which is how a lint run turns into a
+// crash on someone else's machine.
+const files = fs
+  .readdirSync(MEMORY_DIR, { withFileTypes: true })
+  .filter((e) => e.isFile() && e.name.endsWith(".md"))
+  .map((e) => ({
+    name: e.name,
+    content: fs.readFileSync(path.join(MEMORY_DIR, e.name), "utf8"),
+  }));
+
 const input = {
-  indexText: fs.readFileSync("MEMORY.md", "utf8"),
-  files: fs.readdirSync(dir).map((name) => ({ name, content: fs.readFileSync(path.join(dir, name), "utf8") })),
-  indexByteLength: fs.statSync("MEMORY.md").size,
+  indexText: fs.existsSync(indexPath) ? fs.readFileSync(indexPath, "utf8") : "",
+  files,
+  indexByteLength: fs.existsSync(indexPath) ? fs.statSync(indexPath).size : 0,
 };
-const { findings } = lintMemoryIntegrity(input);      // WARN/INFO findings
-const { suggestions } = suggestMemoryRepairs(input);  // concrete fixes — suggest-only, never auto-applied
+
+const { findings, swept, coverage } = lintMemoryIntegrity(input);
+
+// Check `swept` BEFORE findings. An empty findings list means either "nothing
+// was wrong" or "nothing was read", and those deserve opposite reactions.
+if (!swept) {
+  console.error(`NOTHING SWEPT — no readable memory files under ${MEMORY_DIR}`);
+  process.exitCode = 4;                                  // probe-blind, not clean
+} else {
+  console.log(`swept ${coverage.reached} files (${coverage.skipped} skipped)`);
+  for (const f of findings) console.log(`${f.severity}: ${f.message}`);
+  process.exitCode = findings.length > 0 ? 3 : 0;        // 3 = findings, 0 = clean
+}
+
+const { suggestions } = suggestMemoryRepairs(input);     // suggest-only, never auto-applied
 ```
 
 Run the tests: `npm test` (built-in `node:test`, no dev dependencies). The Python lib carries its own assert-based self-check - `python lib/secret_redaction.py` (stdlib only) - asserting the same contract the JS suite pins, documented limits included. The self-check refuses to run under `-O`, where Python compiles every `assert` out and a broken implementation would still print "all assertions passed."
@@ -88,7 +120,7 @@ Every artifact here names what it does NOT do. The libraries pin representative 
 - **Generic base64 inside URLs, `data:` URIs, and hash-integrity strings (`sha512-…`) passes**, as do digit-free letter runs - those are overwhelmingly webhook paths, inline assets, lockfile hashes, and identifiers, and mid-URL redaction mangles benign text. URL-shaped credentials want their own shape rule (Slack incoming-webhook URLs have one; credentialed DB URIs are covered). The URL skip is a lookback, not a parser: it searches the preceding 2,048 characters for a scheme, so a token sitting further than that from its own `https://` is not recognized as being in a URL and gets redacted anyway. Long enough URLs mangle.
 - **Not for text that will be executed or stored.** Redacting a command or a config file corrupts it. Display boundary only.
 
-No catastrophic backtracking: every pattern is boundary-guarded and free of nested quantifiers (most are literal-prefixed; the generic base64/hex rules are bounded character classes instead), with a test asserting linear behavior on 200k-character adversarial inputs. Output is a fixed point **up to a bounded scan**: adjacent padded base64 runs peel one per pass, so N adjacent runs need N passes, and the scan stops at `MAX_REDACTION_PASSES` (64). Within that bound, re-redacting redacted text is a no-op. Past it the result carries `fixedPoint: false` (`fixed_point` in Python) and a run may remain unredacted — the caller is told rather than left assuming an idempotency it did not get. Both boundary cases are pinned, in the JS suite and in the Python self-check.
+Guarded against catastrophic backtracking: every pattern is boundary-guarded and free of nested quantifiers (most are literal-prefixed; the generic base64/hex rules are bounded character classes instead). The test behind that sentence runs five 200k-character adversarial probes and requires them to finish inside two seconds - a regression bound, which is a useful thing to have and is not a proof of linear complexity. If you need the proof, read the patterns; the test only tells you they haven't gotten slower. Output is a fixed point **up to a bounded scan**: adjacent padded base64 runs peel one per pass, so N adjacent runs need N passes, and the scan stops at `MAX_REDACTION_PASSES` (64). Within that bound, re-redacting redacted text is a no-op. Past it the result carries `fixedPoint: false` (`fixed_point` in Python) and a run may remain unredacted — the caller is told rather than left assuming an idempotency it did not get. Both boundary cases are pinned, in the JS suite and in the Python self-check.
 
 `secret_redaction.py` shares every limit above (same shapes, same skips, same self-checked contract), and compiles its patterns in ASCII mode so JS and Python agree on word boundaries — an adversarial review caught Python's Unicode `\b` hiding a key behind an `é`. Two bounded divergences remain by choice and are documented in the file header (the URL-lookback window's units, and non-ASCII whitespace); both only move skip decisions on exotic Unicode text. The JS file is canonical; edits to either must be synced to the other.
 
@@ -115,7 +147,7 @@ Each pinned in [`test/rrf-fuse.test.mjs`](./test/rrf-fuse.test.mjs).
 
 ### memory-usage-ledger
 
-- **An empty ledger is absence of evidence, not evidence of rot.** With zero rows read every file lands never-touched; the tally reports `rowsRead` exactly so a consumer refuses that read (tested). A never-touched list means something only after sessions have recorded for a meaningful fraction of the window.
+- **An empty ledger is absence of evidence, not evidence of rot.** With zero rows read every file lands never-touched, which looks exactly like a directory of dead memories. The tally reports `rowsRead` so that a consumer *can* refuse the read - the zero is tested, and the refusing is yours to write. A library cannot make a caller check the number it hands back. A never-touched list means something only after sessions have recorded for a meaningful fraction of the window.
 - **Touches are self-reported** — a session that forgets to record under-counts; one that touches everything it merely loaded over-counts. The convention (touch = load-bearing, not merely-present-in-context) lives in your session-close discipline, not in this code — operational limit.
 - **Future-dated touches count, unclamped** (tested) — same doctrine as stale-basis: hide the writer bug and you'll never fix it.
 - **It counts; it does not judge.** No thresholds, no auto-evict. PEEK (below) shows one way to make the policy deterministic once you have the evidence.
