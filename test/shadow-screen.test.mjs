@@ -11,6 +11,20 @@ describe("screenDecision — the four mode×outcome states", () => {
     assert.deepEqual(screenDecision({ mode: "enforce", ran: true, flagged: false }), { verdict: "allow", proceed: true });
   });
 
+  it("ran:false is unscreened whatever `flagged` says — BOTH operands are load-bearing", () => {
+    // Dropping `o.ran === true` from the predicate left `typeof flagged ===
+    // "boolean"` sufficient, so {ran:false, flagged:false} became a real
+    // `allow`: a screener explicitly reported as NOT RUN reading green. The
+    // suite did not catch it because it only tested ran:false with a
+    // non-boolean flagged.
+    for (const flagged of [true, false]) {
+      assert.equal(screenDecision({ mode: "enforce", ran: false, flagged }).verdict, "unscreened");
+      assert.equal(screenDecision({ mode: "shadow", ran: false, flagged }).verdict, "unscreened");
+    }
+    // And enforce-mode unscreened must not proceed unless explicitly allowed.
+    assert.equal(screenDecision({ mode: "enforce", ran: false, flagged: false }).proceed, false);
+  });
+
   it("an accessor-backed `flagged` cannot be type-checked as a finding and enforced as clean", () => {
     // The screener said "flagged". Before the read-once fix, `flagged` was read
     // twice: the typeof gate saw true, the verdict branch saw the second read.

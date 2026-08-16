@@ -37,6 +37,51 @@ for (const [shape, secret] of CASES) {
   });
 }
 
+// One fixture per SHAPE left most of the ALTERNATIVES inside each regex
+// untested: deleting `mysql|redis|amqps?` from the DB rule, or `pk_`/`rk_` from
+// Stripe, or `github_pat_`, or the unterminated-key `|$` branch, changed nothing
+// the suite could see. Each row below is a distinct alternative.
+const ALTERNATIVES = [
+  ["db-uri-creds", "mongodb+srv://u:hunter22secret@cluster0.example.net/db"], // pragma: allowlist secret
+  ["db-uri-creds", "mysql://root:hunter22secret@10.0.0.4:3306/app"], // pragma: allowlist secret
+  ["db-uri-creds", "redis://default:hunter22secret@cache.example:6379"], // pragma: allowlist secret
+  ["db-uri-creds", "amqps://svc:hunter22secret@broker.example/vhost"], // pragma: allowlist secret
+  ["stripe-key", "pk_test_FAKEfakeFAKEfake0123456789"], // pragma: allowlist secret
+  // rk_TEST_, not rk_live_: GitHub's push protection flags the live-mode
+  // restricted-key shape even on an obviously synthetic body, and it is right
+  // to. The regex covers (?:live|test), so this still exercises the rk_ branch.
+  ["stripe-key", "rk_test_FAKEfakeFAKEfake0123456789"], // pragma: allowlist secret
+  ["github-token", "github_pat_11ABCDEFG0abcdefghijklmnopqrstuvwxyz0123456789"], // pragma: allowlist secret
+  ["github-token", "gho_abcdefghijklmnopqrstuvwxyz0123456789ab"], // pragma: allowlist secret
+  ["slack-token", "xoxp-123456789012-abcdefghijklmnop"], // pragma: allowlist secret
+  ["slack-token", "xoxr-123456789012-abcdefghijklmnop"], // pragma: allowlist secret
+  ["openai-key", "sk-admin-abcdefghijklmnopqrstuvwxyz1234"], // pragma: allowlist secret
+  ["openai-key", "sk-svcacct-abcdefghijklmnopqrstuvwxyz1234"], // pragma: allowlist secret
+  ["openai-key", "sk-abcdefghijklmnopqrstuvwxyz123456"], // pragma: allowlist secret (bare, no project prefix)
+];
+
+for (const [shape, secret] of ALTERNATIVES) {
+  test(`redacts the ${shape} alternative: ${secret.slice(0, 14)}…`, () => {
+    const { text, shapes } = redactSecretShapes(`before ${secret} after`);
+    assert.ok(shapes.includes(shape), `expected ${shape} in ${JSON.stringify(shapes)}`);
+    assert.ok(!text.includes(secret.slice(-12)), "the secret tail must not survive");
+    assert.ok(text.includes("before") && text.includes("after"));
+  });
+}
+
+test("an UNTERMINATED private key redacts to end-of-snippet, taking trailing text with it", () => {
+  // The `|$` branch: a recall snippet cut mid-key has no END line, and the rule
+  // deliberately swallows everything after the BEGIN marker rather than leave
+  // key material visible. Anything following the key is collateral — the safe
+  // direction, and worth pinning because deleting the branch was invisible to
+  // the suite.
+  const snippet = "before -----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXk\nafter"; // pragma: allowlist secret
+  const { text, shapes } = redactSecretShapes(snippet);
+  assert.ok(shapes.includes("private-key"));
+  assert.equal(text, "before [redacted:private-key]");
+  assert.ok(!text.includes("b3BlbnNzaC1rZXk"), "no key material may survive");
+});
+
 test("passes benign text through byte-identical", () => {
   const benign =
     "R-071 closed at commit 0c71e3a — feed restored; see docs/specs/x.md and https://example.com/path?utm_source=bus";

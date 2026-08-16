@@ -312,6 +312,54 @@ describe("matchGrant — exact-command authorization", () => {
     );
   });
 
+  it("EVERY query field is read once, not just command", () => {
+    // The first accessor test only covered `command`, so re-reading scope,
+    // actionClass or nowMs was still an uncaught mutation — and each is enough
+    // to authorize against a different grant than the one that was checked.
+    for (const field of ["scope", "actionClass", "nowMs"]) {
+      let reads = 0;
+      const good = { scope: "my-app", actionClass: CLASSES[0], nowMs: NOW }[field];
+      const evil = { scope: "other-app", actionClass: "git-push", nowMs: NOW + 10_000_000 }[field];
+      const query = {
+        command: CMD,
+        scope: "my-app",
+        actionClass: CLASSES[0],
+        nowMs: NOW,
+        get [field]() {
+          reads += 1;
+          return reads === 1 ? evil : good;
+        },
+      };
+      assert.equal(matchGrant([mint()], query, CLASSES), null, `${field}: hostile first read must deny`);
+      assert.equal(reads, 1, `${field} must be read exactly once`);
+    }
+  });
+
+  it("a consumed grant stays dead across serialize/parse", () => {
+    // Round-tripping never appeared in the suite, so dropping consumedAtMs (or
+    // forcing singleUse:false) in parseGrant was invisible: a spent grant came
+    // back live, and every single-use grant came back reusable.
+    const consumed = markConsumed(mint(), NOW + 1);
+    const parsed = parseGrant(serializeGrant(consumed), CLASSES);
+    assert.equal(parsed.consumedAtMs, NOW + 1, "the consumption timestamp must survive the round trip");
+    assert.equal(isGrantLive(parsed, NOW + 2), false);
+    assert.equal(matchGrant([parsed], QUERY, CLASSES), null);
+  });
+
+  it("singleUse survives serialize/parse in BOTH directions", () => {
+    assert.equal(parseGrant(serializeGrant(mint()), CLASSES).singleUse, true);
+    const multi = buildGrant({
+      command: CMD,
+      scope: "my-app",
+      actionClass: CLASSES[0],
+      allowedClasses: CLASSES,
+      id: "multi",
+      nowMs: NOW,
+      singleUse: false,
+    });
+    assert.equal(parseGrant(serializeGrant(multi), CLASSES).singleUse, false);
+  });
+
   it("a stateful allowlist cannot widen itself between the length check and the lookup", () => {
     // `.length` was read for the emptiness check and again inside .includes(),
     // so a Proxy returning 1 then 2 admitted a class the caller never declared.

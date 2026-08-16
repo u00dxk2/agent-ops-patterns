@@ -125,7 +125,10 @@ _SHAPES: list[tuple[str, re.Pattern[str], Callable[[re.Match[str]], bool] | None
     # base64 rule skips URL interiors).
     ("slack-webhook", re.compile(r"\bhttps://hooks\.slack\.com/services/[A-Za-z0-9/]+", _A), None),
     ("anthropic-key", re.compile(r"\bsk-ant-[A-Za-z0-9_-]{10,}", _A), None),
-    ("openai-key", re.compile(r"\bsk-(?:proj-|admin-|svcacct-)?[A-Za-z0-9_-]{20,}", _A), None),
+    # No (?:proj-|admin-|svcacct-)? alternation, deliberately: "-" is in the
+    # trailing class, so the generic form already matches every prefixed
+    # variant. Spelling them out looked like coverage and was dead regex.
+    ("openai-key", re.compile(r"\bsk-[A-Za-z0-9_-]{20,}", _A), None),
     ("jwt", re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}\b", _A), None),
     # ≥48 hex: sha256-length tokens redact; 40-hex git SHAs deliberately pass.
     ("long-hex", re.compile(r"\b[0-9a-fA-F]{48,}\b", _A), None),
@@ -191,8 +194,25 @@ def redact_secret_shapes(text: str | None, *, max_passes: int | None = None) -> 
     return Redaction(NONCONVERGENT_TOKEN, [*shapes, "nonconvergent-snippet"])
 
 
+def _refuse_if_assertions_disabled() -> None:
+    """Refuse to run the self-check when ``assert`` has been compiled out.
+
+    This guard lives INSIDE _self_check, not under ``if __name__ == "__main__"``.
+    It used to live there, which meant ``python -O -c "import secret_redaction as
+    s; s._self_check()"`` sailed straight past it and printed "all assertions
+    passed" against a no-op implementation. A guard reachable by only one of the
+    two ways to call the thing is not a guard.
+    """
+    if not __debug__:
+        raise SystemExit(
+            "secret_redaction.py self-check: refusing to run with assertions disabled "
+            "(-O / PYTHONOPTIMIZE). Re-run without optimization."
+        )
+
+
 def _self_check() -> None:
     """Assert the same contract the JS test suite pins, limits included."""
+    _refuse_if_assertions_disabled()
     import time
 
     cases = [
@@ -310,12 +330,4 @@ def _self_check() -> None:
 
 
 if __name__ == "__main__":
-    # Refuse to "pass" with assertions compiled out. Under `python -O` or
-    # PYTHONOPTIMIZE, every assert below vanishes and the success line would
-    # print against a no-op implementation — a check that cannot go red.
-    if not __debug__:
-        raise SystemExit(
-            "secret_redaction.py self-check: refusing to run with assertions disabled "
-            "(-O / PYTHONOPTIMIZE). Re-run without optimization."
-        )
-    _self_check()
+    _self_check()  # the -O refusal lives inside it, so importers get it too
