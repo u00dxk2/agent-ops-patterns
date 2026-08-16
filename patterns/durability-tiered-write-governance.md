@@ -2,7 +2,7 @@
 
 Agent permission systems accrete as case law. An agent does something scary, a rule appears; six months later you have thirty rules, nobody remembers which incidents produced them, and the list is simultaneously over-gated (human approval burning on trivia) and under-gated (the genuinely irreversible action nobody happened to get burned by yet). The missing organizing principle is not "how risky does this feel" — it is **how durable is the write**.
 
-Place every action an agent can take on a three-rung ladder, and put the governance where the durability is. The tiers come from Cliff Rosen's ["The Agent in the Middle"](https://www.orchestratorstudios.ai/articles/the-agent-in-the-middle.html) (Orchestrator Studios), which names them presentation / capability / substrate for agent workspaces; what follows is the operational form we converged on running a 15-product portfolio, plus the tests that make each rung enforceable rather than aspirational.
+Place every action an agent can take on a three-rung ladder, and put the governance where the durability is. The tiers come from Cliff Rosen's ["The Agent in the Middle"](https://www.orchestratorstudios.ai/articles/the-agent-in-the-middle.html) (Orchestrator Studios), which names them presentation / capability / substrate for agent workspaces; what follows is the operational form we converged on running a 22-product portfolio, plus the tests that make each rung enforceable rather than aspirational.
 
 ## The ladder
 

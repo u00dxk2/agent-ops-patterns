@@ -2,7 +2,7 @@
 
 [![tests](https://github.com/u00dxk2/agent-ops-patterns/actions/workflows/tests.yml/badge.svg)](https://github.com/u00dxk2/agent-ops-patterns/actions/workflows/tests.yml)
 
-Operational patterns for running LLM agents in production, extracted from a live system: a 15-product software portfolio operated by one person through ~14 concurrent Claude Code agent sessions, a Postgres message bus, and a zero-LLM health-detector layer — running daily since spring 2026.
+Operational patterns for running LLM agents in production, extracted from a live system: a 22-product software portfolio operated by one person through dozens of concurrent Claude Code agent sessions, a Postgres message bus, and a zero-LLM health-detector layer — running daily since spring 2026.
 
 Agent frameworks get you to the demo. These patterns are about what happens after: recalled transcripts leaking secrets into context, agent memory rotting into duplicates and dead links, health monitoring that costs more than the work, and instruction files edited daily with no regression safety. Each pattern here earned its place by catching real failures in production.
 

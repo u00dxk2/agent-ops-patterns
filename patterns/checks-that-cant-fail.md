@@ -2,7 +2,7 @@
 
 The most dangerous line in an agent-ops system is a health check that has always been green. Not because green is a lie — because you have no idea whether it *can* be red. A check that has never fired is not passing; it is unfalsified. And in a system where an LLM reads that green as "all clear" and moves on, an unfalsifiable check is worse than no check: it manufactures confidence you didn't earn.
 
-This pattern is the discipline that separates a check that ran from a check that only *looks* like it ran. It comes from a system running ~14 concurrent Claude Code agent sessions across a 15-product portfolio, where every one of the four failure modes below shipped a false "clean" to a human or an agent before we built the guard against it.
+This pattern is the discipline that separates a check that ran from a check that only *looks* like it ran. It comes from a system running dozens of concurrent Claude Code agent sessions across a 22-product portfolio, where every one of the four failure modes below shipped a false "clean" to a human or an agent before we built the guard against it.
 
 The unifying thesis: **a check that didn't really run is byte-for-byte indistinguishable from a check that passed — unless you engineer the difference in.** All four modes are the same bug wearing different clothes.
 
