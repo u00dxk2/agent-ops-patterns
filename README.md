@@ -17,6 +17,11 @@ Two essays frame the territory these patterns assume. Cliff Rosen's ["The Agent 
 | [`lib/secret_redaction.py`](./lib/secret_redaction.py) | The same output-boundary redaction for Python recall paths (agent-memory layers, log excerpting) — a faithful port of `snippet-redact.mjs`, kept in sync; extracted while proposing this boundary upstream to a Python memory framework ([mem0ai/mem0#6817](https://github.com/mem0ai/mem0/issues/6817)). | **Use as-is** — vendor the one file (stdlib-only); `python lib/secret_redaction.py` runs its self-check |
 | [`lib/capability-grant.mjs`](./lib/capability-grant.mjs) | Scoped, single-use, TTL-bounded capability grants for human-gated agent actions: an approval relayed through a chat/bus message is not authorization, so a direct human "go" mints a grant bound to the sha256 of one exact command, honored once. Fail-closed: any ambiguity falls through to your normal permission prompt. | **Use as-is** — vendor the one file (pure logic); wire a thin mint CLI + permission hook for your harness |
 | [`lib/stale-basis.mjs`](./lib/stale-basis.mjs) | One staleness chain for tracker/memory items — newest of the declared *signal* dates (fields stamped only when an item was actually looked at), with bulk-write `updated` timestamps deliberately excluded so a mass edit can't silently re-date the whole tracker. Verdicts name which basis won. | **Use as-is** — vendor the one file; import it from EVERY reader (two hand-rolled copies of a staleness chain will drift) |
+| [`lib/rrf-fuse.mjs`](./lib/rrf-fuse.mjs) | Reciprocal rank fusion (k=60) of a recency ranking and a relevance ranking for agent-recall paths — because recency-only recall buries the relevant old hit under marginal recent ones. Fuses ranks, not magnitudes, so a dumb regex match-count works as the second signal. | **Use as-is** — vendor the one file (zero deps, pure function) |
+| [`lib/memory-usage-ledger.mjs`](./lib/memory-usage-ledger.mjs) | Usage evidence for agent-memory eviction: session close records which memory files carried load, the tally reports counts / last touch / never-touched over a window. The tally is EVIDENCE for an eviction pass, never a verdict — and an empty ledger reports itself as absence of evidence, not rot. | **Use as-is** — vendor the one file; wire a thin touch/tally CLI (the lib is pure) |
+| [`lib/scannable-command.mjs`](./lib/scannable-command.mjs) | De-obfuscates command text before policy regexes scan it (quote-split tokens, ANSI-C `$'…'`, backslash escapes — path shapes preserved), under the raw-OR-normalized doctrine: a hit on either form counts, so normalization can only widen detection, never narrow it. A speed bump against mistakes and injection, not a sandbox boundary. | **Use as-is** — vendor the one file |
+| [`lib/shadow-screen.mjs`](./lib/shadow-screen.mjs) | The four-state gate vocabulary (`would_block`/`shadow_allow` watching; `block`/`allow` enforcing) plus the explicit `unscreened` verdict when the screener never ran — a check that never ran must never read as a pass. Fail-closed on unscreened in enforce mode; fail-open is a declared edit, never a default. | **Use as-is** — vendor the one file; the pattern doc below says how to read the log |
+| [`patterns/shadow-screen-states.md`](./patterns/shadow-screen-states.md) | Ship gates watching before enforcing, with vocabulary that keeps the log decidable: reviewing `would_block` rows before promotion, refusing to count `unscreened` as a pass, and treating a rising unscreened rate as the outage it is. | **Read and apply** — `shadow-screen` is the state helper |
 | [`patterns/fail-soft-detectors.md`](./patterns/fail-soft-detectors.md) | The discipline for zero-LLM health detectors around agent fleets: PRESENCE-not-judgment, declared failure postures, structural no-LLM enforcement, alert dedup, no watchdog stacks, resurrect-else-reap, kill-switches. | **Read and apply** — protocol, with `snippet-redact` + `memory-integrity` as reference implementations |
 | [`patterns/checks-that-cant-fail.md`](./patterns/checks-that-cant-fail.md) | Why a green check nobody has seen go red is not evidence, and the guard for four ways a check silently stops running while still reporting "clean": the never-red monitor, the dead-instrument zero (positive controls), the sweep that reached nothing (NOTHING SWEPT), and the config-absent silent disable. | **Read and apply** — protocol; the operations analog of mutation testing |
 | [`patterns/skill-regression-testing.md`](./patterns/skill-regression-testing.md) | Treating agent skills/prompts as process code: TDD-against-a-watched-failure, benchmark-gated edits, shadow-A/B with auto-rollback, anti-rationalization red flags. | **Read and apply** — the thinnest layer in the systems we surveyed (July 2026) |
@@ -84,14 +89,44 @@ No catastrophic backtracking: every pattern is boundary-guarded and free of nest
 - **A future-dated signal wins, unclamped** — clamping would hide the writer bug that produced it. Lint for future dates upstream if your writers might emit them.
 - **`{date: null, basis: "none"}` is a distinct verdict, not "fresh".** Treating no-basis as fresh rebuilds the dead-instrument zero from [checks-that-cant-fail](./patterns/checks-that-cant-fail.md).
 
+### rrf-fuse
+
+- **Fuses RANKS, not magnitudes** — a score of 1000 and a score of 5 are both rank-1 in their ranking; if magnitude should matter, encode it in the relevance ranking before fusion.
+- **Cannot rescue an empty relevance signal** — all-zero scores degrade to pure recency; the score's quality stays the caller's.
+- **Ranks only the pool it is given** — a hit truncated away before fusion cannot surface. Over-collect (we use 3× the final limit per source) before calling it.
+
+Each pinned in [`test/rrf-fuse.test.mjs`](./test/rrf-fuse.test.mjs).
+
+### memory-usage-ledger
+
+- **An empty ledger is absence of evidence, not evidence of rot.** With zero rows read every file lands never-touched; the tally reports `rowsRead` exactly so a consumer refuses that read (tested). A never-touched list means something only after sessions have recorded for a meaningful fraction of the window.
+- **Touches are self-reported** — a session that forgets to record under-counts; one that touches everything it merely loaded over-counts. The convention (touch = load-bearing, not merely-present-in-context) lives in your session-close discipline, not in this code — operational limit.
+- **Future-dated touches count, unclamped** (tested) — same doctrine as stale-basis: hide the writer bug and you'll never fix it.
+- **It counts; it does not judge.** No thresholds, no auto-evict. PEEK (below) shows one way to make the policy deterministic once you have the evidence.
+
+### scannable-command
+
+Honest framing first, quoted from its upstream (qm): **a speed bump against mistakes and injection, not a sandbox boundary.** A determined adversary defeats any text-level normalizer; the real boundary is your sandbox/permission layer. Tested misses, each pinned in [`test/scannable-command.test.mjs`](./test/scannable-command.test.mjs):
+
+- **Space-separated tokens** — `--bo dy` stays two tokens; joining adjacent words would turn prose mentions into matches and train operators to dismiss the alarm.
+- **Variable expansion** — `X=--body; cmd $X` is opaque without executing the shell.
+- **Encoded payloads** — base64 piped to an interpreter is data until it runs; no decode pass exists (qm re-scans interpreter-fed payloads; this port does not).
+- **Heredoc quoting semantics** — `<<'EOF'` and `<<EOF` normalize identically; heredoc bodies stay visible to your regexes, but a policy that depends on whether a heredoc *expands* cannot use this pass.
+
+### shadow-screen
+
+- **It classifies one decision; it does not log, aggregate, or enforce.** A caller that computes `proceed` and ignores it has a shadow screen wearing an enforce label, and no pure function can see its caller — operational limit, named in the pattern doc.
+- **It cannot judge screener quality** — a screener that never flags yields wall-to-wall allows. Prove the screener can fire before trusting its quiet ([checks-that-cant-fail](./patterns/checks-that-cant-fail.md)).
+- **`isPass` refuses `unscreened` and `would_block`** (tested), so a pass-rate dashboard cannot absorb a dark screener into its green number.
+
 ## Evidence and lineage
 
 These shipped inside a production system, not as a framework exercise: the silent-merge check found a live instance in our own memory index the day it was written; the redaction lib guards our cross-session search path.
 
-Pattern lineage is credited in each file. The output-boundary scrub reimplements an index-boundary pattern from [CorvinOS](https://github.com/CorvinLabs/CorvinOS); the link graph and suggest-only repair adapt [gbrain](https://github.com/garrytan/gbrain)'s self-wiring graph and dream-cycle repair to zero-LLM pattern-matching. The fail-soft discipline is independently corroborated by two public sources we did not author: Katherine Cass's [*Field Notes From an Eng Manager Building Her First Autonomous Agent System*](https://k4therin2.github.io/agent-system-v1-retrospective.html) — the retrospective on her 11-agent system, quoted in [`patterns/fail-soft-detectors.md`](./patterns/fail-soft-detectors.md) — and Dan Lorenc's [multiclaude](https://dlorenc.medium.com/a-gentle-introduction-to-multiclaude-36491514ba89) daemon design.
+Pattern lineage is credited in each file. The output-boundary scrub reimplements an index-boundary pattern from [CorvinOS](https://github.com/CorvinLabs/CorvinOS); the link graph and suggest-only repair adapt [gbrain](https://github.com/garrytan/gbrain)'s self-wiring graph and dream-cycle repair to zero-LLM pattern-matching. The August 2026 additions are one-way ports with upstreams credited in each header: `scannable-command` and `shadow-screen` port the command-normalization and screen-state vocabulary from [yc-software/qm](https://github.com/yc-software/qm) (whose contribution-as-intent governance [CONTRIBUTING.md](./CONTRIBUTING.md) also adopts); `rrf-fuse` was prompted by [TencentCloud/TencentDB-Agent-Memory](https://github.com/TencentCloud/TencentDB-Agent-Memory)'s hybrid retrieval, with the fusion itself per Cormack, Clarke & Buettcher (SIGIR 2009); `memory-usage-ledger` is the convergent core of [PEEK](https://arxiv.org/abs/2605.19932)'s usage-scored evictor and qm's memory-strategy bench — two systems independently arriving at score-memory-by-use is why we trust the shape. The fail-soft discipline is independently corroborated by two public sources we did not author: Katherine Cass's [*Field Notes From an Eng Manager Building Her First Autonomous Agent System*](https://k4therin2.github.io/agent-system-v1-retrospective.html) — the retrospective on her 11-agent system, quoted in [`patterns/fail-soft-detectors.md`](./patterns/fail-soft-detectors.md) — and Dan Lorenc's [multiclaude](https://dlorenc.medium.com/a-gentle-introduction-to-multiclaude-36491514ba89) daemon design.
 
 ## Posture
 
-Reference patterns with runnable implementations — **not a supported framework**. Issues and PRs are welcome; response is not guaranteed. If you adopt something and it catches a failure for you, an issue saying so is the most useful contribution.
+Reference patterns with runnable implementations — **not a supported framework**. Issues are welcome; response is not guaranteed. Feature proposals travel as human-written intent documents, not code — see [CONTRIBUTING.md](./CONTRIBUTING.md). If you adopt something and it catches a failure for you, an issue saying so is the most useful contribution.
 
 MIT © David Kooi
