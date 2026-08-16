@@ -37,6 +37,53 @@ describe("rrfFuse — the relevant old hit surfaces (the point of the lib)", () 
   });
 });
 
+describe("rrfFuse — it is actually FUSING (a single-signal sorter must fail here)", () => {
+  // The tests above are all satisfied by a plain relevance-only sort, which an
+  // adversarial reviewer pointed out — so they prove the fixture, not the lib.
+  // This fixture separates all three candidate implementations:
+  //   pure recency → a,b,c,d
+  //   pure relevance → b,c,d,a
+  //   true RRF → b,a,c,d   (a is worst-scored but newest, so fusion lifts it
+  //                          above two mid-ranked items; b wins both rankings)
+  const pool = [
+    { id: "a", score: 0 },
+    { id: "b", score: 9 },
+    { id: "c", score: 8 },
+    { id: "d", score: 7 },
+  ];
+
+  it("produces the fused order, which is neither ranking on its own", () => {
+    const got = rrfFuse(pool, 4).map((h) => h.id);
+    assert.deepEqual(got, ["b", "a", "c", "d"]);
+    assert.notDeepEqual(got, ["a", "b", "c", "d"], "that is pure recency");
+    assert.notDeepEqual(got, ["b", "c", "d", "a"], "that is pure relevance");
+  });
+
+  it("fuses RANKS, not magnitudes — scaling a score without moving its rank changes nothing", () => {
+    // The README claims rank fusion specifically, which is what lets a dumb
+    // regex match-count work as the second signal. Any implementation that
+    // reaches for score VALUES fails this.
+    const scaled = pool.map((it) => (it.id === "b" ? { ...it, score: 900_000 } : it));
+    assert.deepEqual(rrfFuse(scaled, 4).map((h) => h.id), rrfFuse(pool, 4).map((h) => h.id));
+  });
+
+  it("the k constant is applied, not decorative", () => {
+    // k damps how much a top rank is worth. A fixture where the newest item is
+    // also the worst-scored separates them: at k=60 it stays buried, at k=1 the
+    // recency term dominates and it surfaces to second.
+    const ids = "abcdefghij".split("");
+    const scores = [0, 8, 7, 9, 6, 5, 4, 3, 2, 1];
+    const wide = ids.map((id, i) => ({ id, score: scores[i] }));
+    assert.deepEqual(rrfFuse(wide, 4, 60).map((h) => h.id), ["b", "d", "c", "e"]);
+    assert.deepEqual(rrfFuse(wide, 4, 1).map((h) => h.id), ["d", "a", "b", "c"]);
+  });
+
+  it("equal scores fall back to recency order, not to arbitrary sort order", () => {
+    const flat = [{ id: "x", score: 3 }, { id: "y", score: 3 }, { id: "z", score: 3 }];
+    assert.deepEqual(rrfFuse(flat, 3).map((h) => h.id), ["x", "y", "z"]);
+  });
+});
+
 describe("rrfFuse — edges", () => {
   it("empty pool → empty result; limit beyond pool length → whole pool", () => {
     assert.deepEqual(rrfFuse([], 5), []);

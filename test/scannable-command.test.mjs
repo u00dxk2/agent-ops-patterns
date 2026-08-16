@@ -10,6 +10,31 @@ describe("scannableCommand — quoting evasions normalize to scannable form", ()
     assert.equal(scannableCommand("$'--body'"), "--body");
   });
 
+  it("decodes ANSI-C hex, octal and unicode spellings, not just the five common escapes", () => {
+    // The decoder used to handle \n \t \r \\ \' and strip the backslash from
+    // everything else, so $'\x2d\x2dbody' normalized to "x2dx2dbody" — the
+    // --body it actually runs never reached the scanner. That is a NARROWING,
+    // which the raw-OR-normalized doctrine forbids.
+    const BODY = /--body/;
+    assert.equal(scannableCommand(String.raw`printf $'\x2d\x2dbody'`), "printf --body");
+    assert.equal(scannableCommand(String.raw`printf $'\055\055body'`), "printf --body");
+    assert.equal(scannableCommand(String.raw`printf $'\u002d\u002dbody'`), "printf --body");
+    assert.equal(matchesRawOrScannable(BODY, String.raw`printf $'\x2d\x2dbody'`), true);
+    // \a \b \e \f \v are real ANSI-C escapes too; they must not survive as letters.
+    assert.equal(scannableCommand(String.raw`$'a\eb'`), "a\x1bb");
+  });
+
+  it("LIMIT: interior path separators do NOT survive normalization", () => {
+    // Only the C:\ and \\server PREFIXES are protected. In POSIX shell the
+    // interior backslashes really are escapes, so this reading is correct - but
+    // it means the normalized form is useless for path-shaped policy rules, and
+    // the header used to claim "path shapes survive" without that caveat.
+    assert.equal(scannableCommand(String.raw`type C:\Users\me\notes.txt`), String.raw`type C:\Usersmenotes.txt`);
+    assert.equal(scannableCommand(String.raw`type docs\specs\plan.md`), "type docsspecsplan.md");
+    // Which is survivable only because the doctrine scans the RAW text too.
+    assert.equal(matchesRawOrScannable(/docs\\specs/, String.raw`type docs\specs\plan.md`), true);
+  });
+
   it("decodes common ANSI-C escapes inside $'…'", () => {
     assert.equal(scannableCommand("$'a\\tb'"), "a\tb");
     assert.equal(scannableCommand("$'line1\\nline2'"), "line1\nline2");
