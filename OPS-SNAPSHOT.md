@@ -18,7 +18,7 @@ re-measures becomes a lie on a schedule.
 | **168** shared libraries | The `cc-*` primitives those detectors are built from | `ls src/lib/cc-*` |
 | **580** agent messages in 24 hours | Traffic on the Postgres bus the agents coordinate over | `GET /api/cc/agent-msg?since=<24h>` → `matchedCount` |
 | **4,013** agent messages in 7 days | Same endpoint, wider window (~573/day) | as above, `since=<7d>` |
-| **23** distinct projects posting to the bus | Over the same window | same query, grouped |
+| **at least 23** distinct projects posting to the bus | Over the same window - a FLOOR, see below | same query, grouped over the returned page |
 
 Two of those numbers need their caveats said out loud, because the caveat is the
 interesting part.
@@ -49,6 +49,13 @@ Worth saying plainly: the window argument was working the whole time. The bug wa
 entirely in what the response told me, and it was enough to make a working query look
 broken. That's the cheap version of this failure. The expensive version is the same
 endpoint quietly capping a number that someone publishes.
+
+Which is exactly what I then did. A reviewer caught it: the distinct-project count in
+the table above was computed by grouping **the returned page** - 500 rows out of 3,948 -
+so it is a floor and not a count. I fixed the message totals, understood precisely why
+the cap was dangerous, wrote a paragraph about it, and left the number sitting next door
+that was derived from the same truncated read. The row now says "at least." Knowing the
+failure mode is not the same as having swept for it.
 
 ## What I got wrong, and what's actually missing
 

@@ -274,6 +274,71 @@ describe("matchGrant — exact-command authorization", () => {
     assert.equal(reads, 1, "matchGrant must read query.command exactly once");
   });
 
+  it("an accessor cannot validate one value and store another (mint path)", () => {
+    // buildGrant used to re-read opts after validating them, so a getter could
+    // pass the allowlist check as "deploy" and land "git-push" in the grant,
+    // or validate a 1s TTL and store one that never expires.
+    let classReads = 0;
+    assert.equal(
+      buildGrant({
+        command: CMD,
+        scope: "my-app",
+        allowedClasses: CLASSES,
+        id: "g1",
+        nowMs: NOW,
+        get actionClass() {
+          return ++classReads === 1 ? CLASSES[0] : "git-push";
+        },
+      }).actionClass,
+      CLASSES[0],
+      "the stored class must be the one that passed the allowlist",
+    );
+
+    let ttlReads = 0;
+    assert.equal(
+      buildGrant({
+        command: CMD,
+        scope: "my-app",
+        actionClass: CLASSES[0],
+        allowedClasses: CLASSES,
+        id: "g2",
+        nowMs: NOW,
+        get ttlMs() {
+          return ++ttlReads === 1 ? 1000 : Number.MAX_SAFE_INTEGER;
+        },
+      }).expiresAtMs,
+      NOW + 1000,
+      "the stored TTL must be the one that was validated",
+    );
+  });
+
+  it("a stateful allowlist cannot widen itself between the length check and the lookup", () => {
+    // `.length` was read for the emptiness check and again inside .includes(),
+    // so a Proxy returning 1 then 2 admitted a class the caller never declared.
+    let lengthReads = 0;
+    const shifty = new Proxy(["deploy", "git-push"], {
+      get(target, prop, recv) {
+        if (prop === "length") return ++lengthReads === 1 ? 1 : 2;
+        return Reflect.get(target, prop, recv);
+      },
+    });
+    assert.equal(isAllowedGrantClass("git-push", shifty), false);
+  });
+
+  it("an expired grant cannot read as live via an accessor clock", () => {
+    // hasValidShape read expiresAtMs, then the comparison read it again. A
+    // getter returning a finite future value and then NaN made `nowMs >= NaN`
+    // false, which reads as "not expired".
+    let reads = 0;
+    const grant = {
+      ...mint(),
+      get expiresAtMs() {
+        return ++reads === 1 ? NOW + 1000 : Number.NaN;
+      },
+    };
+    assert.equal(isGrantLive(grant, NOW), false);
+  });
+
   it("FAIL-CLOSED: empty command, garbage list, bad clock, malformed grants, empty allowlist", () => {
     assert.equal(matchGrant([mint()], { ...QUERY, command: "" }, CLASSES), null);
     assert.equal(matchGrant([mint()], { ...QUERY, nowMs: Number.NaN }, CLASSES), null);

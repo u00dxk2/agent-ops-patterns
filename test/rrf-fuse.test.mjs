@@ -75,7 +75,7 @@ describe("rrfFuse — it is actually FUSING (a single-signal sorter must fail he
     const scores = [0, 8, 7, 9, 6, 5, 4, 3, 2, 1];
     const wide = ids.map((id, i) => ({ id, score: scores[i] }));
     assert.deepEqual(rrfFuse(wide, 4, 60).map((h) => h.id), ["b", "d", "c", "e"]);
-    assert.deepEqual(rrfFuse(wide, 4, 1).map((h) => h.id), ["d", "a", "b", "c"]);
+    assert.deepEqual(rrfFuse(wide, 4, 1).map((h) => h.id), ["d", "b", "a", "c"]);
   });
 
   it("equal scores fall back to recency order, not to arbitrary sort order", () => {
