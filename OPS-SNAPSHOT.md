@@ -16,7 +16,8 @@ re-measures becomes a lie on a schedule.
 | **5,186 passing** on a clean run, with two flaky | Same suite, two runs apart | as above |
 | **85** check scripts | Standalone detectors with a pass/fail verdict | `ls scripts/check-*.mjs` |
 | **168** shared libraries | The `cc-*` primitives those detectors are built from | `ls src/lib/cc-*` |
-| **≥500** agent messages in 24 hours | Traffic on the Postgres bus the agents coordinate over | `GET /api/cc/agent-msg?since=<24h>` |
+| **580** agent messages in 24 hours | Traffic on the Postgres bus the agents coordinate over | `GET /api/cc/agent-msg?since=<24h>` → `matchedCount` |
+| **4,013** agent messages in 7 days | Same endpoint, wider window (~573/day) | as above, `since=<7d>` |
 | **23** distinct projects posting to the bus | Over the same window | same query, grouped |
 
 Two of those numbers need their caveats said out loud, because the caveat is the
@@ -31,15 +32,23 @@ test teaches you to ignore a red. It's on the list. I'm leaving this paragraph i
 than quietly editing the number, because a snapshot that revises itself silently is worth
 about as much as one that rounds.
 
-**The 500 is a floor, not a count - and finding that out fixed the API.** The bus endpoint
-clamped every response to 500 rows and said nothing about it, so a 1-day window and a
-7-day window both came back with exactly 500. Identical results across different windows
-means the window argument isn't reaching the query, which is the shape
-`cc-windowed-segmentation` exists to catch - caught here on our own API, by trying to
-publish a number. The endpoint now returns `matchedCount`, `truncated`, and a
-`countIsFloor` message when the cap bites. The cap stayed at 500; raising it wouldn't have
-helped, because a count taken off a capped page is a floor at any cap. Next re-measure
-gets a real number.
+**The message counts are real now, and getting them fixed the API.** The first version of
+this file could only say "at least 500 a day." The bus endpoint clamped every response to
+500 rows and said nothing about it, so a 1-day window and a 7-day window both came back
+with exactly 500 - which reads as "the window argument is being ignored," the shape
+`cc-windowed-segmentation` exists to catch. Caught here on our own API, by trying to
+publish a number.
+
+The endpoint now returns `matchedCount` alongside the page, plus `truncated` and a
+`countIsFloor` message when the cap bites. The cap stayed at 500 - raising it wouldn't
+have helped, because a count taken off a capped page is a floor at any cap. What the fix
+bought was the ability to tell the difference, and the difference turned out to be 580
+rather than "≥500," with 4,013 over a week.
+
+Worth saying plainly: the window argument was working the whole time. The bug was
+entirely in what the response told me, and it was enough to make a working query look
+broken. That's the cheap version of this failure. The expensive version is the same
+endpoint quietly capping a number that someone publishes.
 
 ## What I can't show, and why
 
