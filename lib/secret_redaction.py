@@ -75,14 +75,18 @@ from typing import Callable, NamedTuple
 class Redaction(NamedTuple):
     text: str
     shapes: list[str]
-    fixed_point: bool = True
 
 
-# Maximum redaction passes. N adjacent padded base64 runs need N passes to
-# converge, so this is also the longest adjacency chain that reaches a fixed
-# point. Beyond it the result carries fixed_point=False and one or more runs
-# may remain unredacted. Mirrors MAX_REDACTION_PASSES in snippet-redact.mjs.
-MAX_REDACTION_PASSES = 64
+# Pass cap for the stability scan. Not load-bearing in normal operation: since
+# the base64 boundary stopped vetoing on "=", every input we know of reaches a
+# fixed point on the FIRST pass and the second only confirms it. The cap exists
+# so an unknown future shape interaction cannot spin forever - and because it
+# should never be hit, hitting it is a fault, not a partial result.
+# Mirrors MAX_REDACTION_PASSES in snippet-redact.mjs.
+MAX_REDACTION_PASSES = 8
+
+#: What the text is replaced with when the scan cannot reach a fixed point.
+NONCONVERGENT_TOKEN = "[redacted:nonconvergent-snippet]"
 
 
 _URL_BEFORE = re.compile(r"(?:https?|wss?|ftp)://\S*$", re.IGNORECASE | re.ASCII)
@@ -128,30 +132,40 @@ _SHAPES: list[tuple[str, re.Pattern[str], Callable[[re.Match[str]], bool] | None
     # ≥40-char base64 run at a token boundary. NEGATIVE lookbehind (not another
     # base64 char) rather than a delimiter allowlist: recall snippets are cut
     # mid-text, so the token can sit at index 0 or behind a bracket.
-    ("long-base64", re.compile(r"(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{40,}={0,2}(?![A-Za-z0-9+/=])", _A), _skip_base64),
+    # The trailing lookahead deliberately does NOT reject "=". It used to, and
+    # that one character caused two bugs at once: a run followed by any extra
+    # "=" failed to match AT ALL (so <secret>== + = + <secret> returned the
+    # FIRST secret raw while reporting a clean fixed point), and two adjacent
+    # padded runs could only be redacted one per pass, which is the entire
+    # reason this scan ever needed multiple passes. Mirrors snippet-redact.mjs.
+    ("long-base64", re.compile(r"(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{40,}={0,2}(?![A-Za-z0-9+/])", _A), _skip_base64),
 ]
 
 
-def redact_secret_shapes(text: str | None) -> Redaction:
+def redact_secret_shapes(text: str | None, *, max_passes: int | None = None) -> Redaction:
     """Redact secret-shaped runs in a text snippet.
 
     Idempotent; benign text passes through byte-identical. Returns the
     redacted text plus one shape name per replacement, in scan order.
+
+    FAIL-CLOSED on non-convergence: if the scan cannot stabilize within
+    ``max_passes``, the ENTIRE snippet is replaced with NONCONVERGENT_TOKEN
+    rather than returned partially redacted. That is also why there is no
+    ``fixed_point`` field on the result - a flag only protects callers who read
+    it, and at a security output boundary the ones who don't are exactly the
+    ones who leak. Losing a snippet is recoverable; displaying a secret is not.
+
+    ``max_passes`` is a test seam: no real input is known to reach the
+    fail-closed branch, so it exists to let that branch be driven red on
+    demand. A guard nobody can make fire is a guard nobody has checked.
     """
     if not isinstance(text, str) or not text:
-        return Redaction(text or "", [], True)
+        return Redaction(text or "", [])
+    limit = max_passes if isinstance(max_passes, int) and max_passes > 0 else MAX_REDACTION_PASSES
     out = text
     shapes: list[str] = []
 
-    # Scan to a fixed point: a replacement can expose a boundary the first
-    # pass couldn't match (two adjacent padded base64 runs — the first run's
-    # trailing "=" blocks the lookahead until the second run is replaced).
-    # Each changing pass peels one layer of adjacency, so N adjacent runs need
-    # N passes. The cap guards against pathological oscillation; when it is
-    # reached the text is NOT a fixed point and fixed_point=False says so,
-    # rather than letting a caller assume idempotency it did not get.
-    fixed_point = False
-    for _ in range(MAX_REDACTION_PASSES):
+    for _ in range(limit):
         before = out
         for shape, pattern, skip in _SHAPES:
 
@@ -163,9 +177,9 @@ def redact_secret_shapes(text: str | None) -> Redaction:
 
             out = pattern.sub(_replace, out)
         if out == before:
-            fixed_point = True
-            break
-    return Redaction(out, shapes, fixed_point)
+            return Redaction(out, shapes)
+    # Never stabilized. Assume the worst about what is still in ``out``.
+    return Redaction(NONCONVERGENT_TOKEN, [*shapes, "nonconvergent-snippet"])
 
 
 def _self_check() -> None:
@@ -188,10 +202,7 @@ def _self_check() -> None:
         ("long-base64", 'TOKEN="QWxhZGRpbjpvcGVuIHNlc2FtZUFsYWRkaW46b3BlbiBzZXNhbWU="'),  # pragma: allowlist secret
     ]
     for shape, secret in cases:
-        # Attribute access, not 2-tuple unpacking: Redaction carries a third
-        # field (fixed_point) as of the adjacency fix, so `a, b = ...` raises.
-        result = redact_secret_shapes(f"…context before {secret} context after…")
-        text, shapes = result.text, result.shapes
+        text, shapes = redact_secret_shapes(f"…context before {secret} context after…")
         assert shape in shapes, f"expected {shape} in {shapes}"
         assert f"[redacted:{shape}]" in text
         assert "context before" in text and "context after" in text
@@ -199,7 +210,7 @@ def _self_check() -> None:
 
     # Benign text passes byte-identical.
     benign = "R-071 closed at commit 0c71e3a — feed restored; see docs/specs/x.md and https://example.com/path?utm_source=bus"
-    assert redact_secret_shapes(benign) == (benign, [], True)
+    assert redact_secret_shapes(benign) == (benign, [])
 
     # 40-hex git SHA passes; 64-hex redacts (floor 48).
     sha_line = "shipped at f6efe271a1277aca79586ee51ef9db30592ac1c5 on main"
@@ -215,22 +226,34 @@ def _self_check() -> None:
     assert b64[-12:] not in adj.text
     assert redact_secret_shapes(adj.text).text == adj.text
 
-    # N adjacent runs need N passes. Six is the case that failed under the old
-    # 5-pass cap — one run survived and f(f(x)) != f(x). Mirrors the JS test.
-    long_chain = redact_secret_shapes(f"{b64}==" * 6)
-    assert long_chain.fixed_point is True, long_chain
-    assert b64[-12:] not in long_chain.text, "no run may survive the scan"
-    assert redact_secret_shapes(long_chain.text).text == long_chain.text
+    # An adjacency chain of any length is fully redacted in ONE pass. Against
+    # the old boundary (which vetoed a run followed by "="), 6 and 65 both left
+    # raw runs behind. Mirrors the JS test.
+    for n in (2, 6, 65, 300):
+        chain = redact_secret_shapes(f"{b64}==" * n)
+        assert len(chain.shapes) == n, (n, len(chain.shapes))
+        assert b64[-12:] not in chain.text, f"a run survived at n={n}"
+        assert redact_secret_shapes(chain.text).text == chain.text
 
-    # LIMIT: past the cap the result is NOT a fixed point, and says so rather
-    # than returning partly-redacted text that claims idempotency.
-    over = redact_secret_shapes(f"{b64}==" * (MAX_REDACTION_PASSES + 2))
-    assert over.fixed_point is False, over
-    assert redact_secret_shapes(over.text).text != over.text
+    # A stray "=" between two runs must hide neither. This is the leak the old
+    # boundary caused: the FIRST secret came back raw while the scan reported
+    # itself finished.
+    stray = redact_secret_shapes(f"{b64}={b64}")
+    assert len(stray.shapes) == 2, stray
+    assert b64[-12:] not in stray.text
+
+    # FAIL-CLOSED: a scan that cannot stabilize returns no text at all. No known
+    # input reaches this branch, so max_passes is the seam that proves it is
+    # wired - a guard nobody can make fire is a guard nobody has checked.
+    stuck = redact_secret_shapes(f"{b64}==" * 3, max_passes=1)
+    assert stuck.text == NONCONVERGENT_TOKEN, stuck
+    assert b64[-12:] not in stuck.text
+    assert "nonconvergent-snippet" in stuck.shapes
+    assert redact_secret_shapes(f"{b64}==" * 3).text != NONCONVERGENT_TOKEN
 
     # None/empty are safe; multiple shapes in one snippet all redact.
-    assert redact_secret_shapes(None) == ("", [], True)
-    assert redact_secret_shapes("") == ("", [], True)
+    assert redact_secret_shapes(None) == ("", [])
+    assert redact_secret_shapes("") == ("", [])
     multi = redact_secret_shapes("creds: AKIAIOSFODNN7EXAMPLE + xoxb-123456789012-abcdefghijklmnop")  # pragma: allowlist secret
     assert multi.text == "creds: [redacted:aws-key] + [redacted:slack-token]"
 
@@ -246,7 +269,7 @@ def _self_check() -> None:
     for vendor in ["SG.abcdefghijklmnopq.abcdefghij1234567890", "xapp-1-A012-3456-abcdef"]:  # pragma: allowlist secret
         assert redact_secret_shapes(vendor).shapes == []  # LIMIT: unlisted vendors pass
     url_line = "see https://api.example.com/v2/projects/abc123def456ghi789/resources/jkl012mno345pqr678stu901 for details"
-    assert redact_secret_shapes(url_line) == (url_line, [], True)  # base64 skips URL interiors
+    assert redact_secret_shapes(url_line) == (url_line, [])  # base64 skips URL interiors
     for line in [f"data:image/png;base64,{b64}", f"integrity sha512-{b64}=="]:
         assert redact_secret_shapes(line).text == line  # data: URI + SRI hash pass
     ident = "const VERYLONGCONSTANTNAMEWITHOUTANYDIGITSATALLXYZ = value"

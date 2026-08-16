@@ -50,9 +50,10 @@ both fixes are in the history.
 import { redactSecretShapes } from "./lib/snippet-redact.mjs";
 
 const snippet = "recalled text with sk-ant-example0123456789abcdef in it";
-const { text, shapes, fixedPoint } = redactSecretShapes(snippet);
+const { text, shapes } = redactSecretShapes(snippet);
 // → text with secret-shaped runs replaced by [redacted:<shape>]; benign text passes byte-identical.
-// → fixedPoint false means the scan hit its pass cap and the text is NOT fully redacted.
+// → if the scan can't stabilize, text is [redacted:nonconvergent-snippet] — the whole
+//   snippet, not a partial redaction. Fail-closed; there is no flag to forget to check.
 // Display boundary ONLY — never run over text that will be executed or stored.
 
 // Lint a memory directory (caller does the I/O; the lib is pure).
@@ -125,7 +126,9 @@ Every artifact here names what it does NOT do. The libraries pin representative 
 - **Generic base64 inside URLs, `data:` URIs, and hash-integrity strings (`sha512-…`) passes**, as do digit-free letter runs - those are overwhelmingly webhook paths, inline assets, lockfile hashes, and identifiers, and mid-URL redaction mangles benign text. URL-shaped credentials want their own shape rule (Slack incoming-webhook URLs have one; credentialed DB URIs are covered). The URL skip is a lookback, not a parser: it searches the preceding 2,048 characters for a scheme, so a token sitting further than that from its own `https://` is not recognized as being in a URL and gets redacted anyway. Long enough URLs mangle.
 - **Not for text that will be executed or stored.** Redacting a command or a config file corrupts it. Display boundary only.
 
-Guarded against catastrophic backtracking: every pattern is boundary-guarded and free of nested quantifiers (most are literal-prefixed; the generic base64/hex rules are bounded character classes instead). The test behind that sentence runs five 200k-character adversarial probes and requires them to finish inside two seconds - a regression bound, which is a useful thing to have and is not a proof of linear complexity. If you need the proof, read the patterns; the test only tells you they haven't gotten slower. Output is a fixed point **up to a bounded scan**: adjacent padded base64 runs peel one per pass, so N adjacent runs need N passes, and the scan stops at `MAX_REDACTION_PASSES` (64). Within that bound, re-redacting redacted text is a no-op. Past it the result carries `fixedPoint: false` (`fixed_point` in Python) and a run may remain unredacted — the caller is told rather than left assuming an idempotency it did not get. Both boundary cases are pinned, in the JS suite and in the Python self-check.
+Guarded against catastrophic backtracking: every pattern is boundary-guarded and free of nested quantifiers (most are literal-prefixed; the generic base64/hex rules are bounded character classes instead). The test behind that sentence runs five 200k-character adversarial probes and requires them to finish inside two seconds - a regression bound, which is a useful thing to have and is not a proof of linear complexity. If you need the proof, read the patterns; the test only tells you they haven't gotten slower. Output is a fixed point: re-redacting redacted text is a no-op, and an adjacency chain of any length is fully redacted in a single pass. That last part is newer than it should be. The base64 boundary used to reject a run followed by another `=`, which cost two bugs for one character — adjacent padded runs could only be peeled one per pass, and `<secret>=<secret>` returned the **first secret raw** while reporting itself finished. Both are gone, and a chain of 300 runs now costs one pass instead of 300.
+
+If the scan somehow cannot stabilize, the entire snippet is replaced with `[redacted:nonconvergent-snippet]` — **fail-closed, not a warning flag**. A flag only protects callers who read it, and at an output boundary the ones who don't are exactly the ones who leak. No known input reaches that branch, so the libraries take a `maxPasses` / `max_passes` seam whose only job is to let the branch be driven red in a test: a guard nobody can make fire is a guard nobody has checked.
 
 `secret_redaction.py` shares every limit above (same shapes, same skips, same self-checked contract), and compiles its patterns in ASCII mode so JS and Python agree on word boundaries — an adversarial review caught Python's Unicode `\b` hiding a key behind an `é`. Two bounded divergences remain by choice and are documented in the file header (the URL-lookback window's units, and non-ASCII whitespace); both only move skip decisions on exotic Unicode text. The JS file is canonical; edits to either must be synced to the other.
 

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { redactSecretShapes, MAX_REDACTION_PASSES } from "../lib/snippet-redact.mjs";
+import { redactSecretShapes, NONCONVERGENT_TOKEN } from "../lib/snippet-redact.mjs";
 
 // Fixture values are synthetic (pragma: allowlist secret applies to the file's
 // intent — every "secret" below is fabricated for shape-matching only).
@@ -74,26 +74,43 @@ test("is idempotent on ADJACENT padded base64 runs (fixed-point scan)", () => {
   assert.equal(redactSecretShapes(once.text).text, once.text);
 });
 
-test("converges on a LONG adjacency chain, not just two runs", () => {
-  // The two-run test above passed under the old 5-pass cap, so it could not
-  // catch the real bound: N adjacent runs need N passes. Six runs left one
-  // token intact and made f(f(x)) !== f(x) — the claim this file makes about
-  // itself. This is the case that goes red against a 5-pass implementation.
+test("an ADJACENCY CHAIN of any length is fully redacted in one pass", () => {
+  // Two bugs used to live in the trailing `=` of the base64 lookahead. It
+  // vetoed a run followed by another `=`, which (a) meant adjacent padded runs
+  // could only be peeled one per pass, and (b) let a chain like `<secret>=<secret>`
+  // return the FIRST secret raw. Lengths well past any old pass cap must now
+  // come back clean; against the vetoing boundary, 6 and 65 both leave raw runs.
   const b64 = "QWJjMTIzZGVmNDU2Z2hpNzg5amtsMDEybW5vMzQ1cHFy"; // pragma: allowlist secret
-  const once = redactSecretShapes(`${b64}==`.repeat(6));
-  assert.equal(once.fixedPoint, true);
-  assert.ok(!once.text.includes(b64.slice(-12)), "no run may survive the scan");
-  assert.equal(redactSecretShapes(once.text).text, once.text);
+  for (const n of [2, 6, 65, 300]) {
+    const r = redactSecretShapes(`${b64}==`.repeat(n));
+    assert.equal(r.shapes.length, n, `${n} runs → ${n} redactions`);
+    assert.ok(!r.text.includes(b64.slice(-12)), `no run may survive at n=${n}`);
+    assert.equal(redactSecretShapes(r.text).text, r.text, "idempotent");
+  }
 });
 
-test("LIMIT: past MAX_REDACTION_PASSES the result is NOT a fixed point and says so", () => {
-  // The honest boundary. An adjacency chain longer than the pass cap cannot
-  // converge; the contract is that the caller is TOLD, never that it silently
-  // returns partly-redacted text claiming idempotency.
+test("a stray `=` between two runs hides neither of them", () => {
+  // The leak the boundary veto caused: the first complete secret came back raw
+  // while the scan reported itself finished.
   const b64 = "QWJjMTIzZGVmNDU2Z2hpNzg5amtsMDEybW5vMzQ1cHFy"; // pragma: allowlist secret
-  const once = redactSecretShapes(`${b64}==`.repeat(MAX_REDACTION_PASSES + 2));
-  assert.equal(once.fixedPoint, false);
-  assert.notEqual(redactSecretShapes(once.text).text, once.text);
+  const r = redactSecretShapes(`${b64}===${b64}==`);
+  assert.equal(r.shapes.length, 2);
+  assert.ok(!r.text.includes(b64.slice(-12)), "neither run may survive");
+});
+
+test("FAIL-CLOSED: a scan that cannot stabilize returns no text at all", () => {
+  // No known input reaches this branch, which is exactly why it needs a seam:
+  // a guard nobody can make fire is a guard nobody has checked. Driving
+  // maxPasses to 1 on input that needs a confirming pass proves the branch is
+  // wired, and proves it discards the partial text rather than returning it.
+  const b64 = "QWJjMTIzZGVmNDU2Z2hpNzg5amtsMDEybW5vMzQ1cHFy"; // pragma: allowlist secret
+  const r = redactSecretShapes(`${b64}==`.repeat(3), { maxPasses: 1 });
+  assert.equal(r.text, NONCONVERGENT_TOKEN, "partial output must never escape");
+  assert.ok(!r.text.includes(b64.slice(-12)));
+  assert.ok(r.shapes.includes("nonconvergent-snippet"), "and it must be visible in shapes");
+
+  // The seam must not weaken the default path.
+  assert.notEqual(redactSecretShapes(`${b64}==`.repeat(3)).text, NONCONVERGENT_TOKEN);
 });
 
 test("handles null/undefined/empty without throwing", () => {
