@@ -2,23 +2,32 @@
 
 The README used to open by telling you I run a large multi-agent system. That's an
 unauditable testimonial, so I softened it. This file is the other half of the fix: the
-numbers I can actually produce, each with the command that produced it, and an honest
-list of the ones I can't.
+numbers I can actually produce, roughly how each was measured, and an honest list of the
+ones I can't.
+
+Read the "how" column as an abbreviated description, not a reproduction recipe. Some
+entries really are the command (`npm run test:unit`); others name a file listing whose
+count I then took, or an authenticated API call against a moving window with no exact
+timestamps or service revision recorded. A stranger could not re-derive every figure
+below from what is written here. Saying that is cheaper than implying an auditability
+this file does not have - and if these numbers ever need to carry weight, the fix is
+exact UTC bounds, the deployed revision, and captured output, not a more confident
+sentence.
 
 It's a snapshot with a date on it, not a live dashboard. A number on a page that nobody
 re-measures becomes a lie on a schedule.
 
 ## What I can show
 
-| Number | What it is | How it was measured |
+| Number | What it is | How it was measured (abbreviated) |
 | --- | --- | --- |
 | **5,186** unit tests in the orchestration substrate | The code that runs the fleet, not this repo | `npm run test:unit` |
 | **5,186 passing** on a clean run, with two flaky | Same suite, two runs apart | as above |
-| **85** check scripts | Standalone detectors with a pass/fail verdict | `ls scripts/check-*.mjs` |
-| **168** shared libraries | The `cc-*` primitives those detectors are built from | `ls src/lib/cc-*` |
+| **85** check scripts | Standalone detectors with a pass/fail verdict | count of `ls scripts/check-*.mjs` |
+| **168** shared libraries | The `cc-*` primitives those detectors are built from | count of `ls src/lib/cc-*` |
 | **580** agent messages in 24 hours | Traffic on the Postgres bus the agents coordinate over | `GET /api/cc/agent-msg?since=<24h>` → `matchedCount` |
 | **4,013** agent messages in 7 days | Same endpoint, wider window (~573/day) | as above, `since=<7d>` |
-| **at least 23** distinct projects posting to the bus | Over the same window - a FLOOR, see below | same query, grouped over the returned page |
+| **at least 23** distinct projects posting to the bus | Over the same window - a FLOOR, see below | the 7d query above, grouped over the RETURNED PAGE (500 of 3,948 rows) |
 
 Two of those numbers need their caveats said out loud, because the caveat is the
 interesting part.

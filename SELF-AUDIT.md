@@ -102,8 +102,13 @@ and both fixes are in the git history. That's not a confession, it's the point: 
 audit is worth running because it finds things, and it found things in the system
 written by the person who wrote the audit.
 
-For each FAIL, there's a file in this repo you can vendor. One file, no dependencies,
-no framework:
+For each area there is reference logic or a written protocol here that may help. Be
+clear-eyed about what that buys you: **none of these mappings turns a FAIL into a PASS on
+its own.** Question 1 needs the matcher wired at *every* recall boundary, not vendored
+once. Question 2 maps to protocols, not to code you can drop in. Question 4 needs the
+trusted integration listed in the README - the library is the smallest part of it.
+Question 5's linter finds dead links and orphans, not contradictions. One file, no
+dependencies, no framework, and no illusion that the file is the fix:
 
 | If you failed | Vendor this | What it does |
 | --- | --- | --- |

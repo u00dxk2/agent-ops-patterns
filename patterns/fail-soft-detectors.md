@@ -14,9 +14,11 @@ A detector answers "is the signal there?" — a heartbeat file is stale, a queue
 
 Three postures, named in the detector's header comment:
 
-- **fail-soft** — any ambiguity resolves to NO finding. A bug in the detector can only cause *under*-reporting, never a fabricated fault. This is the default for anything that pages a human: false alarms burn the operator's trust budget, and a detector that cries wolf gets ignored the week it matters.
+- **fail-soft** — any ambiguity resolves to NO finding, so the enumerated ambiguous and malformed inputs cause *under*-reporting rather than a fabricated fault. This is the default for anything that pages a human: false alarms burn the operator's trust budget, and a detector that cries wolf gets ignored the week it matters.
 - **fail-safe** — unknown input resolves to the safe *default* (e.g., an unrecognized action classifies as "needs human review", an unknown project counts as "instrument not ready").
-- **fail-closed** — a bug can only fail-to-approve (for gates in front of irreversible actions: capability grants, publish paths).
+- **fail-closed** — the enumerated ambiguous cases all resolve to "no" (for gates in front of irreversible actions: capability grants, publish paths).
+
+Say those as postures over *tested inputs*, never as guarantees about bugs. "A bug can only fail safely" is not a claim any of these can support: a posture describes how declared cases are handled, and an unknown implementation error is not a declared case. This repo's own history is the proof — a capability grant that read one command and authorized another, and a redactor that returned a raw secret while reporting itself finished, both while their declared postures were intact and tested.
 
 The point is not which posture — it's that the posture is *chosen and written down*, so a reviewer can check every branch against it. Most detector bugs we've caught were branches that violated the declared posture.
 

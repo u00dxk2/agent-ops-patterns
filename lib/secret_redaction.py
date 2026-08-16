@@ -161,7 +161,16 @@ def redact_secret_shapes(text: str | None, *, max_passes: int | None = None) -> 
     """
     if not isinstance(text, str) or not text:
         return Redaction(text or "", [])
-    limit = max_passes if isinstance(max_passes, int) and max_passes > 0 else MAX_REDACTION_PASSES
+    # `isinstance(True, int)` is True in Python, so a bare int check would read
+    # max_passes=True as 1 and fail-close a snippet the JS port would redact
+    # normally. Reject bools explicitly. (The reverse asymmetry cannot be closed:
+    # JS has no int/float distinction, so maxPasses: 1.0 IS 1 there while
+    # max_passes=1.0 is a float here and falls back to the default.)
+    limit = (
+        max_passes
+        if isinstance(max_passes, int) and not isinstance(max_passes, bool) and max_passes > 0
+        else MAX_REDACTION_PASSES
+    )
     out = text
     shapes: list[str] = []
 
