@@ -11,6 +11,23 @@ describe("screenDecision — the four mode×outcome states", () => {
     assert.deepEqual(screenDecision({ mode: "enforce", ran: true, flagged: false }), { verdict: "allow", proceed: true });
   });
 
+  it("an accessor-backed `flagged` cannot be type-checked as a finding and enforced as clean", () => {
+    // The screener said "flagged". Before the read-once fix, `flagged` was read
+    // twice: the typeof gate saw true, the verdict branch saw the second read.
+    // A flagged action came back verdict "allow", proceed true.
+    let reads = 0;
+    const input = {
+      mode: "enforce",
+      ran: true,
+      get flagged() {
+        reads += 1;
+        return reads === 1;
+      },
+    };
+    assert.deepEqual(screenDecision(input), { verdict: "block", proceed: false });
+    assert.equal(reads, 1, "screenDecision must read flagged exactly once");
+  });
+
   it("shadow + flagged → would_block, but the action PROCEEDS (a watching gate never gates)", () => {
     assert.deepEqual(screenDecision({ mode: "shadow", ran: true, flagged: true }), { verdict: "would_block", proceed: true });
   });

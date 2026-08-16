@@ -77,7 +77,7 @@ no framework:
 | Question 2 | [`patterns/checks-that-cant-fail.md`](./patterns/checks-that-cant-fail.md) and [`patterns/fail-soft-detectors.md`](./patterns/fail-soft-detectors.md) | How to prove a check can go red, and why the watchdog shouldn't call a model |
 | Question 3 | [`lib/stale-basis.mjs`](./lib/stale-basis.mjs) | A staleness basis that a bulk write cannot reset |
 | Question 4 | [`lib/capability-grant.mjs`](./lib/capability-grant.mjs) and [`patterns/durability-tiered-write-governance.md`](./patterns/durability-tiered-write-governance.md) | One action, byte-matched, single-use, expiring - and gate by how hard the write is to undo |
-| Question 5 | [`lib/memory-integrity.mjs`](./lib/memory-integrity.mjs) and [`lib/memory-usage-ledger.mjs`](./lib/memory-usage-ledger.mjs) | Lint memory for duplicates, contradictions and dead links; score entries by whether anything ever reads them |
+| Question 5 | [`lib/memory-integrity.mjs`](./lib/memory-integrity.mjs) and [`lib/memory-usage-ledger.mjs`](./lib/memory-usage-ledger.mjs) | Lint memory for dead links, orphaned files, duplicate targets and a blown load budget; score entries by whether anything ever reads them. Presence and references only - whether a memory is *true* stays human, so contradictions are not detected |
 
 Read the limits section in the README before you trust any of it. Every file here says
 where it stops working, and those sentences are the ones I'd read first if I were you.

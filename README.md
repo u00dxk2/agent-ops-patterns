@@ -44,15 +44,18 @@ both fixes are in the history.
 ## Quickstart
 
 ```js
-// Redact at the display boundary of anything that recalls stored text:
+// Redact at the display boundary of anything that recalls stored text.
+// The whole block runs as written: copy it into a file, point MEMORY_DIR at
+// your own directory, and run it.
 import { redactSecretShapes } from "./lib/snippet-redact.mjs";
-const { text, shapes } = redactSecretShapes(snippet);
+
+const snippet = "recalled text with sk-ant-example0123456789abcdef in it";
+const { text, shapes, fixedPoint } = redactSecretShapes(snippet);
 // → text with secret-shaped runs replaced by [redacted:<shape>]; benign text passes byte-identical.
+// → fixedPoint false means the scan hit its pass cap and the text is NOT fully redacted.
 // Display boundary ONLY — never run over text that will be executed or stored.
 
 // Lint a memory directory (caller does the I/O; the lib is pure).
-// This block runs as written — copy it into a file and point MEMORY_DIR at
-// your own directory.
 import fs from "node:fs";
 import path from "node:path";
 import { lintMemoryIntegrity, suggestMemoryRepairs } from "./lib/memory-integrity.mjs";
@@ -60,12 +63,14 @@ import { lintMemoryIntegrity, suggestMemoryRepairs } from "./lib/memory-integrit
 const MEMORY_DIR = "./memory";
 const indexPath = path.join(MEMORY_DIR, "MEMORY.md");
 
-// Regular .md files only. readdirSync returns directories too, and
-// readFileSync on a directory throws — which is how a lint run turns into a
-// crash on someone else's machine.
+// Regular .md files only, case-insensitively. readdirSync returns directories
+// too, and readFileSync on a directory throws — which is how a lint run turns
+// into a crash on someone else's machine. Match the extension without regard
+// to case, or a README.MD drops out of the inventory before the coverage count
+// ever sees it, and your "reached" number quietly under-reports.
 const files = fs
   .readdirSync(MEMORY_DIR, { withFileTypes: true })
-  .filter((e) => e.isFile() && e.name.endsWith(".md"))
+  .filter((e) => e.isFile() && e.name.toLowerCase().endsWith(".md"))
   .map((e) => ({
     name: e.name,
     content: fs.readFileSync(path.join(MEMORY_DIR, e.name), "utf8"),

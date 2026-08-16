@@ -108,6 +108,39 @@ test("NOTHING SWEPT: a zero-subject run is not a clean run", () => {
   const real = lintMemoryIntegrity({ indexText: "# Index\n", files: [{ name: "a.md", content: "x" }] });
   assert.equal(real.swept, true);
   assert.equal(real.coverage.reached, 1);
+
+  // The index-only branch. A predicate of `fileList.length > 0` alone passes
+  // every assertion above, so without this case the red-proof is incomplete —
+  // which is exactly what a second reviewer caught in the first version.
+  const indexOnly = lintMemoryIntegrity({ indexText: "# Index\n- [A](a.md) - x\n", files: [] });
+  assert.equal(indexOnly.swept, true, "an index with content IS a sweep, even with no topic files");
+  assert.equal(indexOnly.coverage.reached, 0);
+  assert.equal(indexOnly.coverage.indexRead, true);
+
+  // An EMPTY index string is not a read. Truthiness on `indexText` alone would
+  // call this swept.
+  assert.equal(lintMemoryIntegrity({ indexText: "", files: [] }).swept, false);
+});
+
+test("coverage.reached counts files actually LINTED, not names that parsed", () => {
+  // An entry with a valid name but no readable content contributes to no check.
+  // Counting it as reached inflates the number a caller uses to judge coverage —
+  // the same class of lie as reporting clean on a sweep that read nothing.
+  const r = lintMemoryIntegrity({
+    indexText: "# Index\n",
+    files: [
+      { name: "real.md", content: "body" },
+      { name: "unread.md" },                 // read failed upstream
+      { name: "also-unread.md", content: null },
+      { name: 42 },                          // malformed
+      { name: "MEMORY.md", content: "idx" }, // routine exclusion
+    ],
+  });
+  assert.equal(r.coverage.reached, 1, "only real.md was linted");
+  assert.equal(r.coverage.contentless, 2);
+  assert.equal(r.coverage.malformed, 1);
+  assert.equal(r.coverage.indexExcluded, 1);
+  assert.equal(r.coverage.skipped, 4);
 });
 
 test("extractIndexLinks skips external/pathed targets", () => {
