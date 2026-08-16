@@ -252,6 +252,28 @@ describe("matchGrant — exact-command authorization", () => {
     assert.equal(matchGrant([mint()], { ...QUERY, command: shifty }, CLASSES), null);
   });
 
+  it("REJECTS an accessor-backed command — the value type-checked must be the value hashed", () => {
+    // A getter defeats the stateful-toString() defense above: every read returns
+    // a genuine string, so `typeof` passes, but the reads can DIFFER. Before the
+    // read-once fix, matchGrant read query.command three times — type-checking a
+    // hostile value, hashing the benign one, and approving; the caller's own
+    // later read then returned the hostile string again.
+    const EVIL = `${CMD} && rm -rf ./victim`;
+    const values = [EVIL, CMD, EVIL];
+    let reads = 0;
+    const query = {
+      get command() {
+        reads += 1;
+        return values.length > 1 ? values.shift() : values[0];
+      },
+      scope: QUERY.scope,
+      actionClass: QUERY.actionClass,
+      nowMs: NOW,
+    };
+    assert.equal(matchGrant([mint()], query, CLASSES), null);
+    assert.equal(reads, 1, "matchGrant must read query.command exactly once");
+  });
+
   it("FAIL-CLOSED: empty command, garbage list, bad clock, malformed grants, empty allowlist", () => {
     assert.equal(matchGrant([mint()], { ...QUERY, command: "" }, CLASSES), null);
     assert.equal(matchGrant([mint()], { ...QUERY, nowMs: Number.NaN }, CLASSES), null);
