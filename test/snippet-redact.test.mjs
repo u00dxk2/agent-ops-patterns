@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { redactSecretShapes } from "../lib/snippet-redact.mjs";
+import { redactSecretShapes, MAX_REDACTION_PASSES } from "../lib/snippet-redact.mjs";
 
 // Fixture values are synthetic (pragma: allowlist secret applies to the file's
 // intent — every "secret" below is fabricated for shape-matching only).
@@ -72,6 +72,28 @@ test("is idempotent on ADJACENT padded base64 runs (fixed-point scan)", () => {
   assert.equal(once.shapes.filter((s) => s === "long-base64").length, 2);
   assert.ok(!once.text.includes(b64.slice(-12)));
   assert.equal(redactSecretShapes(once.text).text, once.text);
+});
+
+test("converges on a LONG adjacency chain, not just two runs", () => {
+  // The two-run test above passed under the old 5-pass cap, so it could not
+  // catch the real bound: N adjacent runs need N passes. Six runs left one
+  // token intact and made f(f(x)) !== f(x) — the claim this file makes about
+  // itself. This is the case that goes red against a 5-pass implementation.
+  const b64 = "QWJjMTIzZGVmNDU2Z2hpNzg5amtsMDEybW5vMzQ1cHFy"; // pragma: allowlist secret
+  const once = redactSecretShapes(`${b64}==`.repeat(6));
+  assert.equal(once.fixedPoint, true);
+  assert.ok(!once.text.includes(b64.slice(-12)), "no run may survive the scan");
+  assert.equal(redactSecretShapes(once.text).text, once.text);
+});
+
+test("LIMIT: past MAX_REDACTION_PASSES the result is NOT a fixed point and says so", () => {
+  // The honest boundary. An adjacency chain longer than the pass cap cannot
+  // converge; the contract is that the caller is TOLD, never that it silently
+  // returns partly-redacted text claiming idempotency.
+  const b64 = "QWJjMTIzZGVmNDU2Z2hpNzg5amtsMDEybW5vMzQ1cHFy"; // pragma: allowlist secret
+  const once = redactSecretShapes(`${b64}==`.repeat(MAX_REDACTION_PASSES + 2));
+  assert.equal(once.fixedPoint, false);
+  assert.notEqual(redactSecretShapes(once.text).text, once.text);
 });
 
 test("handles null/undefined/empty without throwing", () => {

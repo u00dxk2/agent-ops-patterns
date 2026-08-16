@@ -71,6 +71,14 @@ from typing import Callable, NamedTuple
 class Redaction(NamedTuple):
     text: str
     shapes: list[str]
+    fixed_point: bool = True
+
+
+# Maximum redaction passes. N adjacent padded base64 runs need N passes to
+# converge, so this is also the longest adjacency chain that reaches a fixed
+# point. Beyond it the result carries fixed_point=False and one or more runs
+# may remain unredacted. Mirrors MAX_REDACTION_PASSES in snippet-redact.mjs.
+MAX_REDACTION_PASSES = 64
 
 
 _URL_BEFORE = re.compile(r"(?:https?|wss?|ftp)://\S*$", re.IGNORECASE | re.ASCII)
@@ -127,16 +135,19 @@ def redact_secret_shapes(text: str | None) -> Redaction:
     redacted text plus one shape name per replacement, in scan order.
     """
     if not isinstance(text, str) or not text:
-        return Redaction(text or "", [])
+        return Redaction(text or "", [], True)
     out = text
     shapes: list[str] = []
 
     # Scan to a fixed point: a replacement can expose a boundary the first
     # pass couldn't match (two adjacent padded base64 runs — the first run's
     # trailing "=" blocks the lookahead until the second run is replaced).
-    # Idempotency (f(f(x)) == f(x)) falls out for free: the returned text IS a
-    # fixed point. The cap guards against a pathological oscillation only.
-    for _ in range(5):
+    # Each changing pass peels one layer of adjacency, so N adjacent runs need
+    # N passes. The cap guards against pathological oscillation; when it is
+    # reached the text is NOT a fixed point and fixed_point=False says so,
+    # rather than letting a caller assume idempotency it did not get.
+    fixed_point = False
+    for _ in range(MAX_REDACTION_PASSES):
         before = out
         for shape, pattern, skip in _SHAPES:
 
@@ -148,8 +159,9 @@ def redact_secret_shapes(text: str | None) -> Redaction:
 
             out = pattern.sub(_replace, out)
         if out == before:
+            fixed_point = True
             break
-    return Redaction(out, shapes)
+    return Redaction(out, shapes, fixed_point)
 
 
 def _self_check() -> None:
@@ -172,7 +184,10 @@ def _self_check() -> None:
         ("long-base64", 'TOKEN="QWxhZGRpbjpvcGVuIHNlc2FtZUFsYWRkaW46b3BlbiBzZXNhbWU="'),  # pragma: allowlist secret
     ]
     for shape, secret in cases:
-        text, shapes = redact_secret_shapes(f"…context before {secret} context after…")
+        # Attribute access, not 2-tuple unpacking: Redaction carries a third
+        # field (fixed_point) as of the adjacency fix, so `a, b = ...` raises.
+        result = redact_secret_shapes(f"…context before {secret} context after…")
+        text, shapes = result.text, result.shapes
         assert shape in shapes, f"expected {shape} in {shapes}"
         assert f"[redacted:{shape}]" in text
         assert "context before" in text and "context after" in text
@@ -180,7 +195,7 @@ def _self_check() -> None:
 
     # Benign text passes byte-identical.
     benign = "R-071 closed at commit 0c71e3a — feed restored; see docs/specs/x.md and https://example.com/path?utm_source=bus"
-    assert redact_secret_shapes(benign) == (benign, [])
+    assert redact_secret_shapes(benign) == (benign, [], True)
 
     # 40-hex git SHA passes; 64-hex redacts (floor 48).
     sha_line = "shipped at f6efe271a1277aca79586ee51ef9db30592ac1c5 on main"
@@ -196,9 +211,22 @@ def _self_check() -> None:
     assert b64[-12:] not in adj.text
     assert redact_secret_shapes(adj.text).text == adj.text
 
+    # N adjacent runs need N passes. Six is the case that failed under the old
+    # 5-pass cap — one run survived and f(f(x)) != f(x). Mirrors the JS test.
+    long_chain = redact_secret_shapes(f"{b64}==" * 6)
+    assert long_chain.fixed_point is True, long_chain
+    assert b64[-12:] not in long_chain.text, "no run may survive the scan"
+    assert redact_secret_shapes(long_chain.text).text == long_chain.text
+
+    # LIMIT: past the cap the result is NOT a fixed point, and says so rather
+    # than returning partly-redacted text that claims idempotency.
+    over = redact_secret_shapes(f"{b64}==" * (MAX_REDACTION_PASSES + 2))
+    assert over.fixed_point is False, over
+    assert redact_secret_shapes(over.text).text != over.text
+
     # None/empty are safe; multiple shapes in one snippet all redact.
-    assert redact_secret_shapes(None) == ("", [])
-    assert redact_secret_shapes("") == ("", [])
+    assert redact_secret_shapes(None) == ("", [], True)
+    assert redact_secret_shapes("") == ("", [], True)
     multi = redact_secret_shapes("creds: AKIAIOSFODNN7EXAMPLE + xoxb-123456789012-abcdefghijklmnop")  # pragma: allowlist secret
     assert multi.text == "creds: [redacted:aws-key] + [redacted:slack-token]"
 
@@ -214,7 +242,7 @@ def _self_check() -> None:
     for vendor in ["SG.abcdefghijklmnopq.abcdefghij1234567890", "xapp-1-A012-3456-abcdef"]:  # pragma: allowlist secret
         assert redact_secret_shapes(vendor).shapes == []  # LIMIT: unlisted vendors pass
     url_line = "see https://api.example.com/v2/projects/abc123def456ghi789/resources/jkl012mno345pqr678stu901 for details"
-    assert redact_secret_shapes(url_line) == (url_line, [])  # base64 skips URL interiors
+    assert redact_secret_shapes(url_line) == (url_line, [], True)  # base64 skips URL interiors
     for line in [f"data:image/png;base64,{b64}", f"integrity sha512-{b64}=="]:
         assert redact_secret_shapes(line).text == line  # data: URI + SRI hash pass
     ident = "const VERYLONGCONSTANTNAMEWITHOUTANYDIGITSATALLXYZ = value"
@@ -246,4 +274,12 @@ def _self_check() -> None:
 
 
 if __name__ == "__main__":
+    # Refuse to "pass" with assertions compiled out. Under `python -O` or
+    # PYTHONOPTIMIZE, every assert below vanishes and the success line would
+    # print against a no-op implementation — a check that cannot go red.
+    if not __debug__:
+        raise SystemExit(
+            "secret_redaction.py self-check: refusing to run with assertions disabled "
+            "(-O / PYTHONOPTIMIZE). Re-run without optimization."
+        )
     _self_check()
