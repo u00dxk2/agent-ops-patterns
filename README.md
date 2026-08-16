@@ -63,7 +63,7 @@ const { suggestions } = suggestMemoryRepairs(input);  // concrete fixes — sugg
 
 Run the tests: `npm test` (built-in `node:test`, no dev dependencies). The Python lib carries its own assert-based self-check - `python lib/secret_redaction.py` (stdlib only) - asserting the same contract the JS suite pins, documented limits included. The self-check refuses to run under `-O`, where Python compiles every `assert` out and a broken implementation would still print "all assertions passed."
 
-Versions: everything here is tested on Node 24 and Python 3.14, and that is all we claim. The code uses nothing exotic and older runtimes will very likely work - we just haven't run it on them, so we don't say so. If you test an older version, tell us and we'll widen this line.
+Versions: Node 20, 22 and 24, and Python 3.10 - and the receipt is the badge above, because CI runs the full suite on every one of them on every push. That's the rule for this line: it names exactly what the matrix in [`tests.yml`](./.github/workflows/tests.yml) proves, and widening the claim means widening the matrix first. (Locally I also run Node 24 and Python 3.14.)
 
 ## Design rules the code follows
 

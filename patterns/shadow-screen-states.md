@@ -1,6 +1,6 @@
 # Shadow-screen states: four verdicts for a gate, and a fifth for the gate that never ran
 
-Every gate you put in front of agent actions — a security classifier, a policy regex, a quality judge — over-fires when it first ships. You do not know its false-positive rate, and the only way to learn it without burning your operators' trust budget is to ship the gate *watching* before it ships *enforcing*: record what it would have done, let the action proceed, and read the log for a while.
+Most gates you put in front of agent actions - a security classifier, a policy regex, a quality judge - over-fire when they first ship, and you usually don't know the false-positive rate in advance. If you have a labeled replay set, run the gate over it offline first; that gives you a real estimate before anything reaches an operator. When you don't have one (the common case for a gate written this week about behavior nobody logged), the way to learn the rate without burning your operators' trust budget is to ship the gate *watching* before it ships *enforcing*: record what it would have done, let the action proceed, and read the log for a while.
 
 That plan quietly fails if your gate's output is a boolean. "Blocked: false" is four different facts wearing one value — *the gate looked and found nothing*, *the gate found something but we're only watching*, *the gate is disabled*, and *the gate crashed*. When you later ask "is this gate ready to enforce?", a boolean log cannot answer, and the crashed-gate rows are sitting in your data disguised as clean ones.
 
@@ -15,7 +15,7 @@ Five verdicts. The first four are the mode × outcome grid; the fifth is the one
 
 And separately, in either mode:
 
-- **`unscreened`** — the screener never actually ran: unavailable, timed out, threw, returned garbage. Not `allow`. Not `shadow_allow`. Its own verdict, always recorded.
+- **`unscreened`** — the screener never actually ran: unavailable, timed out, threw, returned garbage. Not `allow`. Not `shadow_allow`. Its own verdict, and one the caller must record on every attempted decision - the helper returns it and logs nothing, so an unscreened action that nobody wrote down is indistinguishable from one that was never attempted.
 
 Credit: [yc-software/qm](https://github.com/yc-software/qm)'s security screen (`src/core/orchestrator/security-screen.ts`) ships exactly this vocabulary, and the explicit `unscreened` verdict is the reason to copy it rather than reinvent it. Most home-grown screens default the unavailable case to allow — usually not by decision, but because the `catch` block had to return *something* and `false` type-checked.
 

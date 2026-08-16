@@ -85,6 +85,31 @@ test("fail-soft: empty/malformed input yields zero findings, no throw", () => {
   assert.deepEqual(lintMemoryIntegrity({ indexText: "not markdown [broken", files: [{ name: 42 }] }).findings, []);
 });
 
+test("NOTHING SWEPT: a zero-subject run is not a clean run", () => {
+  // The repo's own protocol (patterns/checks-that-cant-fail.md) says a sweep
+  // that reached nothing must report NOTHING SWEPT rather than clean. This lib
+  // used to return {findings: []} for an absent inventory, which is
+  // indistinguishable from a healthy memory directory - the exact failure the
+  // protocol names, shipped inside the repo that names it.
+  const nothing = lintMemoryIntegrity();
+  assert.equal(nothing.swept, false, "no index and no files is NOT a sweep");
+  assert.equal(nothing.coverage.reached, 0);
+
+  const alsoNothing = lintMemoryIntegrity({ indexText: null, files: [] });
+  assert.equal(alsoNothing.swept, false);
+
+  // Malformed entries are dropped silently by the filter, so they have to be
+  // counted - otherwise a run that read four hundred junk rows looks clean.
+  const allJunk = lintMemoryIntegrity({ indexText: null, files: [{ name: 42 }, null, { nope: true }] });
+  assert.equal(allJunk.swept, false, "three unreadable entries is still nothing swept");
+  assert.equal(allJunk.coverage.skipped, 3);
+
+  // And a real sweep says so.
+  const real = lintMemoryIntegrity({ indexText: "# Index\n", files: [{ name: "a.md", content: "x" }] });
+  assert.equal(real.swept, true);
+  assert.equal(real.coverage.reached, 1);
+});
+
 test("extractIndexLinks skips external/pathed targets", () => {
   const idx = "- [ext](https://example.com/x.md)\n- [pathed](sub/dir.md)\n- [local](feedback_ship_early.md)";
   const links = extractIndexLinks(idx);

@@ -50,4 +50,4 @@ A zero from a probe means one of: a real zero, a dead instrument, or a misconfig
 
 Pure function core (inputs in, findings out, no I/O) + a thin CLI wrapper that does the reading and exits with a distinct code per outcome (0 clean / 3 findings / 4 probe-blind). The pure core gets unit tests, including tests that *malformed input produces no finding* — the fail-soft posture is itself tested behavior, not a comment.
 
-`lib/snippet-redact.mjs` and `lib/memory-integrity.mjs` in this repo are working examples of the shape.
+`lib/snippet-redact.mjs` and `lib/memory-integrity.mjs` in this repo demonstrate the **pure core** and nothing else. They ship no CLI, no exit codes, no kill switch, no positive control and no alert dedup - those layers live in the fleet this pattern was extracted from, not in this repo. Read them as the inner half of the shape, and build the wrapper yourself. (`snippet-redact` is also a transformation rather than a detector; it earns its place here for the pure-core discipline, not because it returns findings.)
