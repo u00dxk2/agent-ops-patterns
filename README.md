@@ -2,11 +2,25 @@
 
 [![tests](https://github.com/u00dxk2/agent-ops-patterns/actions/workflows/tests.yml/badge.svg)](https://github.com/u00dxk2/agent-ops-patterns/actions/workflows/tests.yml)
 
-Operational patterns for running LLM agents in production, extracted from a live system: a 22-product software portfolio operated by one person through dozens of concurrent Claude Code agent sessions, a Postgres message bus, and a zero-LLM health-detector layer — running daily since spring 2026.
+Operational patterns for running LLM agents in production.
 
-Agent frameworks get you to the demo. These patterns are about what happens after: recalled transcripts leaking secrets into context, agent memory rotting into duplicates and dead links, health monitoring that costs more than the work, and instruction files edited daily with no regression safety. Each pattern here earned its place by catching real failures in production.
+I run a software portfolio by myself, through a lot of concurrent Claude Code agent sessions coordinated over a Postgres message bus and watched by a layer of small detectors that make no model calls. These patterns came out of that. I can't hand you the telemetry to prove any of it - so treat the origin story as my word, and judge the code on the code. That part you can check: it's all here, it's all tested, and every artifact says where it stops working.
+
+Agent frameworks get you to the demo. These patterns are about what happens after: recalled transcripts handing your own secrets back to you, agent memory rotting into duplicates and dead links, health monitoring that costs more than the work it watches, and instruction files edited daily with nothing catching the regression. Each one is here because something broke and this is what stopped it breaking again.
 
 Two essays frame the territory these patterns assume. Cliff Rosen's ["The Agent in the Middle"](https://www.orchestratorstudios.ai/articles/the-agent-in-the-middle.html) is the *access* half — an agent replacing the UX layer over your systems' substrates, given understanding (skills) and access (tools). David Kooi's ["Cognitive Operations Maps"](https://uncagedminds.substack.com/p/cognitive-operations-maps) is the *judgment* half — which recurring decisions the agent holds, and how you validate them. This repo is the operational layer under both: what keeps that architecture honest once it runs unattended.
+
+## Start here: run the audit on your own system
+
+Don't take my word for any of this. [**SELF-AUDIT.md**](./SELF-AUDIT.md) is a prompt you
+hand to your own agent - it walks your setup through five questions and reports back
+with a score, a quoted file path per verdict, and the smallest fix that would move one
+failure to a pass. It takes about thirty seconds of your attention and requires no trust
+in me at all.
+
+I ran it against this repo. It found two blockers, including a real hole in the
+permission library - the artifact whose whole job is question four. Both are fixed, and
+both fixes are in the history.
 
 ## What's here
 
@@ -47,29 +61,31 @@ const { findings } = lintMemoryIntegrity(input);      // WARN/INFO findings
 const { suggestions } = suggestMemoryRepairs(input);  // concrete fixes — suggest-only, never auto-applied
 ```
 
-Run the tests: `npm test` (built-in `node:test`, no dev dependencies, Node ≥ 20). The Python lib carries its own assert-based self-check — `python lib/secret_redaction.py` (stdlib-only, Python ≥ 3.10) — asserting the same contract the JS suite pins, documented limits included.
+Run the tests: `npm test` (built-in `node:test`, no dev dependencies). The Python lib carries its own assert-based self-check - `python lib/secret_redaction.py` (stdlib only) - asserting the same contract the JS suite pins, documented limits included. The self-check refuses to run under `-O`, where Python compiles every `assert` out and a broken implementation would still print "all assertions passed."
+
+Versions: everything here is tested on Node 24 and Python 3.14, and that is all we claim. The code uses nothing exotic and older runtimes will very likely work - we just haven't run it on them, so we don't say so. If you test an older version, tell us and we'll widen this line.
 
 ## Design rules the code follows
 
 - **PRESENCE, not JUDGMENT** — detectors flag absence/inconsistency; correctness stays human.
-- **Fail-soft** — every ambiguity resolves to no finding; a bug in a guard can only under-report. Tested behavior, not a comment.
-- **Fail-closed at gates** — the inverse posture for anything that *authorizes* an action (`capability-grant`): every ambiguity resolves to "no", so a bug can only fail-to-approve, never wrongly approve. Also tested behavior.
+- **Fail-soft** - for the malformed and ambiguous inputs the tests enumerate, a detector returns no finding rather than a wrong one. That's a tested posture on known inputs, not a guarantee about bugs nobody has found yet.
+- **Fail-closed at gates** - the inverse posture for anything that *authorizes* an action (`capability-grant`): the enumerated ambiguous cases all resolve to "no". Same caveat, and it's not academic - the accessor-TOCTOU fix in this repo's history is exactly a case where the posture held and the plumbing didn't.
 - **Zero LLM calls** on watch/lint paths — deterministic, free to run every session.
 - **Suggest, never auto-apply** — repair output names the fix; a human applies it.
 - **Output-boundary redaction** — protect the display path; never mutate stored or executed text.
 
 ## Coverage and limits
 
-Every artifact here names what it does NOT do. Behavioral limits carry tests; operational limits (the ones that live in your deployment, not in this code — like the grant lib's single-user-account boundary) are labeled as what they are. Neither kind is a footnote.
+Every artifact here names what it does NOT do. The libraries pin representative cases of their principal limits in tests; the operational limits - the ones that live in your deployment rather than in this code, like the grant lib's single-user-account boundary - are labeled as what they are, because no test can reach them. The written protocols state practices and are not executable specifications, so nothing tests those at all. Neither kind is a footnote, but they aren't the same kind of promise either.
 
 ### snippet-redact (and its Python port)
 
-`snippet-redact` is **defense-in-depth, not a DLP guarantee.** A shape-matcher cannot recognize a secret it has no shape for, and the honest boundary is a tested contract here, not a footnote — each limit below has an explicit test in [`test/snippet-redact.test.mjs`](./test/snippet-redact.test.mjs).
+`snippet-redact` is **defense-in-depth, not a DLP guarantee.** A shape-matcher cannot recognize a secret it has no shape for. Representative examples of each limit below are pinned in [`test/snippet-redact.test.mjs`](./test/snippet-redact.test.mjs) - but the lists below are broader than the fixtures, so read a limit as "we know this class gets through," not "there is a test per bullet."
 
 - **40-hex strings pass, deliberately.** A pre-2021 GitHub personal access token is 40 hex characters — the *same shape* as a git SHA. Shape alone cannot distinguish them, and redacting every SHA in developer text is worse than useless. The hex floor is 48 (sha256-length tokens still redact). **If legacy 40-hex tokens might appear in your recalled text, rotate them; this will not save you.**
 - **Opaque / unprefixed credentials pass** — `MY_SERVICE_TOKEN=<random>`, session cookies, short-lived OAuth codes, `Authorization:` header values. Key-*name*-based rules (`KEY=…`, `"token": …`) are deliberately absent: they false-positive hard on source code, and this runs on recalled prose. Pair with an ingestion-side scrubber if you need that class.
 - **Vendors not in the shape list pass** (SendGrid `SG.`, Slack `xapp-`, Telegram bot tokens, …). The list is what our own corpus actually leaked; adding a shape is a one-line PR.
-- **Generic base64 inside URLs, `data:` URIs, and hash-integrity strings (`sha512-…`) passes**, as do digit-free letter runs — those are overwhelmingly webhook paths, inline assets, lockfile hashes, and identifiers, and mid-URL redaction mangles benign text. URL-shaped credentials want their own shape rule (Slack incoming-webhook URLs have one; credentialed DB URIs are covered).
+- **Generic base64 inside URLs, `data:` URIs, and hash-integrity strings (`sha512-…`) passes**, as do digit-free letter runs - those are overwhelmingly webhook paths, inline assets, lockfile hashes, and identifiers, and mid-URL redaction mangles benign text. URL-shaped credentials want their own shape rule (Slack incoming-webhook URLs have one; credentialed DB URIs are covered). The URL skip is a lookback, not a parser: it searches the preceding 2,048 characters for a scheme, so a token sitting further than that from its own `https://` is not recognized as being in a URL and gets redacted anyway. Long enough URLs mangle.
 - **Not for text that will be executed or stored.** Redacting a command or a config file corrupts it. Display boundary only.
 
 No catastrophic backtracking: every pattern is boundary-guarded and free of nested quantifiers (most are literal-prefixed; the generic base64/hex rules are bounded character classes instead), with a test asserting linear behavior on 200k-character adversarial inputs. Output is a fixed point **up to a bounded scan**: adjacent padded base64 runs peel one per pass, so N adjacent runs need N passes, and the scan stops at `MAX_REDACTION_PASSES` (64). Within that bound, re-redacting redacted text is a no-op. Past it the result carries `fixedPoint: false` (`fixed_point` in Python) and a run may remain unredacted — the caller is told rather than left assuming an idempotency it did not get. Both boundary cases are pinned, in the JS suite and in the Python self-check.

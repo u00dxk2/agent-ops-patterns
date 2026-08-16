@@ -59,7 +59,11 @@ shape-matcher cannot recognize a secret it has no shape for):
    base64 runs are skipped too (letters-only 40+ char runs are identifiers or
    prose).
 
-Every limit above is asserted in the self-check: ``python lib/secret_redaction.py``.
+Representative cases of the limits above are asserted in the self-check:
+``python lib/secret_redaction.py``. The list is broader than the fixtures - read
+a limit as "this class gets through", not "there is an assertion per bullet".
+The self-check refuses to run under ``-O``/``PYTHONOPTIMIZE``, where asserts
+compile out and it would print success against a no-op implementation.
 """
 
 from __future__ import annotations
