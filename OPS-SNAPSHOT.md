@@ -13,7 +13,7 @@ re-measures becomes a lie on a schedule.
 | Number | What it is | How it was measured |
 | --- | --- | --- |
 | **5,186** unit tests in the orchestration substrate | The code that runs the fleet, not this repo | `npm run test:unit` |
-| **5,184 passing, 2 failing** | Same run, same day | as above |
+| **5,186 passing** on a clean run, with two flaky | Same suite, two runs apart | as above |
 | **85** check scripts | Standalone detectors with a pass/fail verdict | `ls scripts/check-*.mjs` |
 | **168** shared libraries | The `cc-*` primitives those detectors are built from | `ls src/lib/cc-*` |
 | **≥500** agent messages in 24 hours | Traffic on the Postgres bus the agents coordinate over | `GET /api/cc/agent-msg?since=<24h>` |
@@ -22,16 +22,24 @@ re-measures becomes a lie on a schedule.
 Two of those numbers need their caveats said out loud, because the caveat is the
 interesting part.
 
-**The 2 failing tests are real and they're mine.** They were failing before I started
-writing this file and they're failing now. I could have run the suite, seen 5,184 green,
-and written "over five thousand tests passing." Publishing the failure is cheaper than
-being caught rounding.
+**The two flaky tests, and a correction.** The first version of this file said "5,184
+passing, 2 failing," because that's what the first run showed. Re-running the file alone
+passed, and a second full run passed all 5,186. So the honest statement is: the suite is
+green, and two tests in it are flaky under parallel load - they shell out to a script and
+appear to lose a race. That's a worse problem than two honest failures, because a flaky
+test teaches you to ignore a red. It's on the list. I'm leaving this paragraph in rather
+than quietly editing the number, because a snapshot that revises itself silently is worth
+about as much as one that rounds.
 
-**The 500 is a floor, not a count.** The bus API caps its response at 500 rows, so a
-1-day window and a 7-day window both return exactly 500. Identical results across
-different windows means the window argument isn't reaching the query - which is a
-detector this very repo would flag. So: at least 500 messages a day, and I don't
-currently know the real number. Fixing the cap is on the list.
+**The 500 is a floor, not a count - and finding that out fixed the API.** The bus endpoint
+clamped every response to 500 rows and said nothing about it, so a 1-day window and a
+7-day window both came back with exactly 500. Identical results across different windows
+means the window argument isn't reaching the query, which is the shape
+`cc-windowed-segmentation` exists to catch - caught here on our own API, by trying to
+publish a number. The endpoint now returns `matchedCount`, `truncated`, and a
+`countIsFloor` message when the cap bites. The cap stayed at 500; raising it wouldn't have
+helped, because a count taken off a capped page is a floor at any cap. Next re-measure
+gets a real number.
 
 ## What I can't show, and why
 
