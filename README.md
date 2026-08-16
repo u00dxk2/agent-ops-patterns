@@ -4,7 +4,7 @@
 
 Operational patterns for running LLM agents in production.
 
-I run a software portfolio by myself, through a lot of concurrent Claude Code agent sessions coordinated over a Postgres message bus and watched by a layer of small detectors that make no model calls. These patterns came out of that. I can't hand you the telemetry to prove any of it - so treat the origin story as my word, and judge the code on the code. That part you can check: it's all here, it's all tested, and every artifact says where it stops working.
+I run a software portfolio by myself, through a lot of concurrent Claude Code agent sessions coordinated over a Postgres message bus and watched by a layer of small detectors that make no model calls. These patterns came out of that. The origin story is still my word - but [OPS-SNAPSHOT.md](./OPS-SNAPSHOT.md) is the part I can measure, with the command next to each number and an honest list of what I can't produce. Judge the code on the code: it's all here, it's all tested, and every artifact says where it stops working.
 
 Agent frameworks get you to the demo. These patterns are about what happens after: recalled transcripts handing your own secrets back to you, agent memory rotting into duplicates and dead links, health monitoring that costs more than the work it watches, and instruction files edited daily with nothing catching the regression. Each one is here because something broke and this is what stopped it breaking again.
 
