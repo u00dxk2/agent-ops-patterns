@@ -32,9 +32,11 @@ DAPO (part 6) throws away every training prompt on which all sampled answers wer
 
 ## 5. Judge the plan, not just the result
 
+Two halves, judged separately in the record: **(5a)** review the plan or query before execution; **(5b)** hold out a test set the generator never iterates against.
+
 SWiRL (part 5) put a process reward on the *query* the agent was about to issue - "is this a sensible thing to search / compute next?" - judged before the tool ever answered, and found the judge could do that well without seeing the result. Training on trajectories whose steps were judged good but whose final answer was wrong beat training only on correct outcomes, because outcome-only filtering only ever teaches the model what it could already do. RLEF (part 4) makes the complementary point for code: the model iterates against *public* tests and is scored on *private* tests it never sees, so it cannot memorize the test. Process reward models (part 3) manage false positives - the right answer reached by a wrong process - that outcome reward cannot see.
 
-**What it would mean here:** is review timed before execution (a plan, a PR description, a query) or only after (a result)? Where the agent iterates against a test set, is there a held-out set it never sees, or does the same set serve both? Do you keep the failed runs that had good steps, or only the successes?
+**What it would mean here:** (5a) is review timed before execution (a plan, a PR description, a query) or only after (a result)? Do you keep the failed runs that had good steps, or only the successes? (5b) Where the agent iterates against a test set, is there a held-out set it never sees, or does the same set serve both? A repo can be ALREADY IN PLACE on one half and APPLIES on the other; that is the common case, not an edge.
 
 ## 6. Reliability horizon
 
@@ -56,9 +58,11 @@ A single model fine-tuned on its own filtered outputs improves for a few rounds 
 
 ## 9. Fusion beats picking; process beats outcome on false positives
 
+Two halves, judged separately in the record: **(9a)** fuse the top-k candidates instead of picking one; **(9b)** a process check catches the right answer reached by a wrong process.
+
 Archon (part 2; Saad-Falcon et al.) found that handing the top-k candidate answers to one model and asking it to *synthesize* a single answer beat picking the best single candidate - even picking with a perfect oracle. Filtering to the top few and then fusing beat fusing everything. A critic-then-ranker-then-fuser ordering worked best, and stacking such layers kept helping on hard tasks. Separately (part 3), process reward models catch the right-answer-wrong-process case that outcome rewards cannot, which matters most exactly where a wrong process will fail on the next input.
 
-**What it would mean here:** anywhere you generate N and keep one, is there a cheap experiment in fusing the top three? (Only where the output can be judged - fusion on copy with no verifier just inherits idea 2's problem.) Where a check passes on the final output, can a wrong intermediate step still pass it?
+**What it would mean here:** (9a) anywhere you generate N and keep one, is there a cheap experiment in fusing the top three? (Only where the output can be judged - fusion on copy with no verifier just inherits idea 2's problem.) (9b) Where a check passes on the final output, can a wrong intermediate step still pass it?
 
 ## 10. Route by difficulty; small models carry the bulk
 

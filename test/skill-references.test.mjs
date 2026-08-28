@@ -69,11 +69,16 @@ test("papers.md: no row is marked UNCONFIRMED", () => {
   assert.ok(!/UNCONFIRMED/.test(md), "papers.md still carries an UNCONFIRMED marker — resolve or drop the row");
 });
 
-test("ideas.md has the ten numbered ideas and the template has ten rows", () => {
+test("ideas.md has the ten numbered ideas; the template has the twelve rows (5 and 9 split)", () => {
   const ideas = read(path.join(refDir, "ideas.md"));
   for (let i = 1; i <= 10; i++) assert.match(ideas, new RegExp(`^## ${i}\\. `, "m"), `ideas.md missing heading ${i}`);
   const tpl = read(path.join(refDir, "disposition-template.md"));
-  for (let i = 1; i <= 10; i++) assert.match(tpl, new RegExp(`^\\| ${i} \\|`, "m"), `template missing row ${i}`);
+  const rows = ["1", "2", "3", "4", "5a", "5b", "6", "7", "8", "9a", "9b", "10"];
+  for (const r of rows) assert.match(tpl, new RegExp(`^\\| ${r} \\|`, "m"), `template missing row ${r}`);
+  assert.match(tpl, /must sum to 12/, "template summary must state the row count it sums to");
+  // The worked example is an answer key for one system; SKILL.md must gate it to the end.
+  const skill = read(path.join(skillDir, "SKILL.md"));
+  assert.match(skill, /worked-example\.md.*after your table is filled/i, "SKILL.md must gate worked-example.md to after the table");
 });
 
 test("lectures.md lists nine YouTube links", () => {

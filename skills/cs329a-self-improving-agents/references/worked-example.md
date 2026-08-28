@@ -2,7 +2,9 @@
 
 This skill was written after we did the exercise by hand on four operations (a software portfolio run by agents, and three client engagements), then ran the resulting brief on the portfolio itself in a side session with sub-agents. The point of this file is not that it went well. It is that the record shows where it did not, which is what a stranger reading this repo should expect their own run to look like.
 
-The portfolio in question: ~21 small products, each with an agent lane, coordinated over a message bus, watched by a layer of zero-LLM detectors. The relevant surfaces: a shared LLM-judge ensemble library (median / majority plus a veto axis), synthetic-persona friction testing with an evaluator model, a daily rail of ~13 health gates, a research library that ingests external deep-research reports, and a cross-family review loop where a second model family (Codex) reviews the first's work.
+The portfolio in question: ~21 small products, each with an agent lane, coordinated over a message bus, watched by a layer of zero-LLM detectors. The relevant surfaces: a shared LLM-judge ensemble library (median / majority plus a veto axis), synthetic-persona friction testing with an evaluator model, a daily rail of health gates (26 in the manifest when the outside-style run below counted them), a research library that ingests external deep-research reports, and a cross-family review loop where a second model family (Codex) reviews the first's work.
+
+**Read this file after your table is filled, not before.** It contains verdicts. If the repo you were pointed at is this one, or shaped like it, this is an answer key, and the first outside-style run of the skill said so.
 
 ## What the hand-written brief said (2026-08-27)
 
@@ -37,3 +39,32 @@ Four shipped receipts; **three carried a real defect the builder's own green cou
 - The record that already existed (review docs, receipts) was worth tallying and was also biased in a way only the tally revealed.
 - Two of the six items were confirmations with a number attached. That is a good outcome, not a wasted one - it is the difference between "we think we do this" and a path.
 - The run touched nothing the course argues against: no judge stacks on unverifiable outputs, no ensemble rebuilt on a non-decidable N, no gate enforced on day one.
+
+## The outside-style run (2026-08-28, same day, after the skill was written)
+
+Before publishing, a fresh agent with no memory of the system was handed the skill as written and pointed at the same repo, under a record-only mandate. It had the prior run's documents available in the repo and was told to treat them as evidence, not answers.
+
+**Its verdicts:** APPLIES 2 · DOES NOT APPLY 1 · ALREADY IN PLACE 5 · NOT DECIDABLE 2 (on the ten-row template of the time). Acted on: 0, by mandate.
+
+**Three things it found that the sub-agent run above had missed, in the same repo, one day later:**
+- The per-lens history file the first run shipped as "the instrument" had **written zero rows**, and the one surface it was wired to is capped at one live experiment per fortnight - at that rate the pre-committed n ≥ 100 bar is years out. The first run had shipped a log and called the idea addressed; the second run computed how long the log would take to matter.
+- The gate-history file the first run shipped for idea 4 lives in a **gitignored** directory. The 14-day clock rides an untracked file on one machine, and the check that will read it cannot tell "wiped" from "never ran."
+- The persona-testing planner and evaluator are the **same model**, bound by one provider flag. The first run had marked cross-family critique as "already right" from the code-review surface and never looked at this one.
+
+None of the three needed a model call. All three came from re-verifying an ALREADY IN PLACE claim instead of inheriting it.
+
+**What it said about the skill, and what changed because of it:**
+- *The worked example is an answer key.* It described the target system with verdicts in it, and the references table said to read it "before you write the summary." Now gated to the last step, read for form only, with the warning at the top of this file.
+- *"Expect NOT DECIDABLE on the idea you find most exciting" anchors the reader* in a document whose thesis is don't-decide-before-you-measure. Removed from the procedure; it lives here, as a report of one run.
+- *Summary buckets did not match the verdict vocabulary* (took / declined vs. APPLIES / DOES NOT APPLY), so a record-only run had to report "Took: 0" against two APPLIES rows or fudge. Verdicts and actions are now separate axes in the template and the report.
+- *No branch for "the mandate forbids all action."* Added: step 0 reads the mandate; an APPLIES row under a read-only mandate is complete at its next step.
+- *Steps 2 and 3 could not both be obeyed* - an inventory is numbers, and bars were supposed to precede all numbers. Bars now govern only numbers a verdict turns on; inventory counts are exempt; a post-hoc bar is disclosed in the row.
+- *Ideas 5 and 9 were each two ideas under one number*, forcing one verdict where the halves earned different ones. Split into 5a/5b and 9a/9b - twelve rows.
+- *Nothing told a second run how to differ from the first.* Added: re-verify, never inherit; a prior record is evidence held to the same bar.
+- *The "outward" boundary did not say whether the record itself was outward.* Ruled: the record is internal; lecture figures may appear in it labelled as the lecturer's; anything leaving the repo comes from the paper.
+- *The frontmatter promised "a quoted file path per verdict," which DOES NOT APPLY cannot supply.* Now "a quoted file path or a command and its output."
+- *The template had no field for the operator's mandate*, which was the most load-bearing context for reading "Acted on: 0." Added, first line.
+
+**What it said worked:** bars-before-numbers changed its behaviour (it had 26 rows of gate history in hand and the pre-committed 14-day floor stopped it computing a one-day spread); "declined, because X is a complete answer" removed the pressure to manufacture a ship; and the five inventory categories mapped onto a repo it had never seen.
+
+**Its own caveat, kept verbatim in spirit:** it had read the answer key before drafting, reached most verdicts independently, and could not honestly claim its idea-2 and idea-3 rows were uncontaminated. That is why the gating changed. And nobody had refuted its record when it finished - the same line it now asks every run to end with.

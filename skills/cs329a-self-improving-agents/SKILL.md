@@ -1,6 +1,6 @@
 ---
 name: cs329a-self-improving-agents
-description: Read Stanford CS329A "Self-Improving AI Agents" (verifiers, test-time compute, planning, RL, deep-research agents, agentic evals) against THIS repo and write a disposition record - for each of ten ideas, APPLIES / DOES NOT APPLY / ALREADY IN PLACE / NOT DECIDABLE with a quoted file path per verdict, bars pre-committed before any number is read, and "declined, because" as a complete answer. Use when an operator points the agent at the course, or asks what a system that runs LLM judges, eval gates, health checks, or research ingestion should take from it. Offers, never assigns.
+description: Read Stanford CS329A "Self-Improving AI Agents" (verifiers, test-time compute, planning, RL, deep-research agents, agentic evals) against THIS repo and write a disposition record - for each of ten ideas, APPLIES / DOES NOT APPLY / ALREADY IN PLACE / NOT DECIDABLE with a quoted file path or a command and its output per verdict, bars pre-committed before any deciding number is read, and "declined, because" as a complete answer. Use when an operator points the agent at the course, or asks what a system that runs LLM judges, eval gates, health checks, or research ingestion should take from it. Offers, never assigns.
 ---
 
 # CS329A → your system: decide, with evidence
@@ -11,32 +11,38 @@ The operator does not know your codebase the way you do, and the person who wrot
 
 ## Procedure
 
-**1. Load the ideas.** Read `references/ideas.md` in full. Ten ideas, one paragraph each, with the lecture and paper behind every number. Do not skim: the verdicts you write are indexed by these numbers.
+**0. Read the mandate.** Before anything else, write down what the operator authorized: read-only, record-only, small reversible changes, or full ships. It goes at the top of the record. Every later step is interpreted through it.
+
+**1. Load the ideas.** Read `references/ideas.md` in full. Ten ideas, one paragraph each, with the lecture and paper behind every number. Two of them (5 and 9) have two halves that can earn different verdicts; the template gives each half its own row. Do not skim: the verdicts you write are indexed by these numbers.
 
 **2. Inventory before you judge.** Before any verdict, find the surfaces the ideas are about, and write down the paths (or the search that found nothing):
-- every place a model grades, ranks, verifies, or scores something (LLM-as-judge, reward model, evaluator, "critic");
-- every eval set, fixture set, golden corpus, or benchmark the repo runs against;
-- every health check, gate, or CI check that produces a pass/fail on a schedule;
+- every place a model grades, ranks, verifies, or scores something (LLM-as-judge, reward model, evaluator, "critic") - and, for each, whether the model that produced the work is the model that grades it;
+- every eval set, fixture set, golden corpus, or benchmark the repo runs against - and whether any part of it is held out from whatever iterates against it;
+- every health check, gate, or CI check that produces a pass/fail on a schedule - and whether its verdicts are recorded anywhere that survives;
 - every place external research or reference material is ingested and later cited;
 - every multi-step agent dispatch that runs unattended for more than ~15 minutes.
 
-A repo with none of a category gets DOES NOT APPLY on the matching ideas, with the grep that proved it. That is a real verdict.
+Inventory counts (how many judges, how many gates, how many labelled rows) are not "deciding numbers" - read them freely. A repo with none of a category gets DOES NOT APPLY on the matching ideas, with the grep that proved it. That is a real verdict.
 
-**3. Pre-commit the bars.** Some verdicts turn on a number - a backtest, a count, a precision. For each, write the threshold and what happens on either side of it *before* you compute the number. Put it in the "Bars pre-committed" section of the record. If you compute first and decide after, say so in the record; the reader will weigh it accordingly.
+**If the repo already holds a disposition, a research read of this course, or anything claiming "we already do this": re-verify, never inherit.** A prior record is evidence to check against the code as it is today, held to the same bar as any other claim. Run the inventory anyway. Prior runs on the system this skill was written for missed three things a fresh inventory found.
+
+**3. Pre-commit the bars.** Some verdicts turn on a number the run has to *compute* - a backtest, a precision, a spread over history. For each, write the threshold and what happens on either side of it before you compute the number, in the "Bars pre-committed" section. Bars govern only numbers a verdict turns on; they do not cover the inventory. If you find you computed first and decided after, say so in the record, in the row; the reader will weigh it.
 
 **4. Judge each idea.** Open `references/disposition-template.md` and fill the table. Four verdicts, each with a quoted `file:line` or a command and its output line:
-- **APPLIES** - a gap you can point at, and either what you did or the smallest thing that would close it.
+- **APPLIES** - a gap you can point at, plus either what you did or the smallest thing that would close it.
 - **DOES NOT APPLY** - no such surface; name what you searched for.
 - **ALREADY IN PLACE** - the repo does this; quote the path. Same evidence bar as APPLIES.
-- **NOT DECIDABLE** - the idea turns on a record the repo cannot produce yet. Name the record. Starting it is usually the highest-leverage action in the run.
+- **NOT DECIDABLE** - the idea turns on a record the repo cannot produce yet. Name the record. Starting it is often the highest-leverage action in the run, and it is a legitimate "acted on."
 
-Expect NOT DECIDABLE on the idea you find most exciting. In our own run the judge-filtering idea came back 0 of 39 joinable and the most valuable ship was a log file (`references/worked-example.md`).
+Verdict and action are separate axes. An APPLIES row whose mandate forbids changes is complete when the smallest next step is written; that is not a failure of the run.
 
-**5. Act only where the record says to, and only inside the operator's mandate.** Reversible, small, in-scope changes (a persisted log, a schema field, a review doc) you may make and commit if the operator's normal rules allow it. Anything that changes a judge's verdict, enforces a gate, or spends money is written up as the smallest next step, not done. Do not build any of the things in "What the course argues against" below.
+**5. Act only where the record says to, and only inside the mandate.** Reversible, small, in-scope changes (a persisted log, a schema field, a review doc) you may make and commit if the mandate and the operator's normal rules allow it. Anything that changes a judge's verdict, enforces a gate, or spends money is written up as the smallest next step, not done. If the mandate excludes changes entirely, every APPLIES row ends at its next step, and "Acted on: 0" is the honest line. Do not build any of the things in "What the course argues against" below.
 
-**6. Check the primary source for anything you quote outward.** Lecture figures in `ideas.md` are how the lecturer said it. Any number that leaves the repo - a client note, a public doc, a commit message people will cite - comes from the paper in `references/papers.md`, opened and read, not from the lecture summary.
+**6. Primary sources.** The record itself is an internal artifact: lecture figures from `ideas.md` may appear in it, labelled as the lecturer's. Anything that leaves the repo - a client note, a public doc, a number someone will cite - comes from the paper in `references/papers.md`, opened and read.
 
-**7. Write the record and report.** The record goes in the repo (`docs/dispositions/<YYYY-MM-DD>-cs329a.md` unless the repo has its own place). Your chat reply is: took N / declined M / not decidable K / already in place J, the single highest-leverage take, and what this run did not check.
+**7. Only now open `references/worked-example.md`.** It is the run on the system this skill was written for. It is placed last deliberately: it contains verdicts, and if the repo you were pointed at is that system or one shaped like it, it is an answer key. Read it after your table is filled, to check your *form* against it - evidence per row, bars before numbers, what was not checked - never to check your verdicts.
+
+**8. Write the record and report.** The record goes in the repo (`docs/dispositions/<YYYY-MM-DD>-cs329a.md` unless the repo has its own place). Your chat reply is: the four verdict counts, the "acted on" count, the single highest-leverage take, and what this run did not check. Then say, in one line, that no one has refuted the record yet - and that someone should before it is acted on.
 
 ## What the course argues against
 
@@ -51,15 +57,15 @@ The course is as useful for what it says not to build:
 
 | File | When to open it |
 |---|---|
-| `ideas.md` | Always, first. The ten ideas with lecture + paper behind each number. |
+| `ideas.md` | Step 1, always. The ten ideas with lecture + paper behind each number. |
 | `disposition-template.md` | Step 4. The record skeleton, the verdict vocabulary, the five rules the record must satisfy. |
-| `papers.md` | Step 6, and any time a verdict rests on a number. Every paper the course teaches, with the URL that was checked when this file was written. |
+| `papers.md` | Step 6, and any time a verdict rests on a number you will quote outward. Every paper the course teaches, with the URL that was checked when this file was written. |
 | `lectures.md` | When you want the lecturer's framing on one point. The nine video links and a per-part summary in our words. No transcripts (they are Stanford's). |
-| `worked-example.md` | Before you write the summary. What the run looked like on the system this skill was written for, including the three receipts the verifiers refuted. |
+| `worked-example.md` | **Step 7 only, after your table is filled.** Contains verdicts for one real system; read for form, not answers. |
 
 ## Where this skill stops working
 
 - It reads a repo; it cannot read a deployment. "ALREADY IN PLACE" proves a code path exists, not that it runs on a schedule over the subjects you think it covers. Pair with a check-that-can-go-red discipline (`patterns/checks-that-cant-fail.md` in this repo) for the operational half.
 - The ideas are the course as taught in fall 2025 and read in August 2026. The papers are stable; the field is not. An idea that reads as settled here may have been superseded by the time you run this.
-- It is written for systems that run LLM judges, eval gates, health checks, or research ingestion. A repo with none of those will produce ten DOES NOT APPLY rows with greps attached - a correct and short run, not a failure.
-- The person who wrote it ran it on their own system once, with sub-agents, and the verifiers found defects in three of four shipped receipts. Assume yours will too. Have someone refute your record before you act on it.
+- It is written for systems that run LLM judges, eval gates, health checks, or research ingestion. A repo with none of those will produce twelve DOES NOT APPLY rows with greps attached - a correct and short run, not a failure.
+- The record it produces has not been refuted by anyone when the run ends. On the system this was written for, adversarial verifiers found defects in three of four builder receipts. Assume yours will too. Have someone refute your record before you act on it.

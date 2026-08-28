@@ -52,8 +52,10 @@ claude plugin install agent-ops-skills@agent-ops-patterns
 
 or copy the skill folder into any harness that reads the Agent Skills format
 (`SKILL.md` + `references/`). Then point your agent at the repo you want judged and say
-"run the CS329A disposition." Expect ten rows and a short chat summary; the rows are the
-deliverable.
+"run the CS329A disposition." Expect twelve rows (ten ideas, two of them split) and a short
+chat summary; the rows are the deliverable. Before publishing, a fresh agent ran the skill
+cold against the same system and came back with three findings the first run had missed
+and eight complaints about the skill - all folded in, all recorded in the worked example.
 
 ## What's here
 
