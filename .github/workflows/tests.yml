@@ -27,6 +27,19 @@ jobs:
       # Zero dependencies — no install step, node:test only.
       - run: npm test
 
+  # Every URL the CS329A skill cites must resolve. Its own job, so an arXiv or
+  # YouTube outage reds ONE legible line here and never the unit suite above.
+  links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test test/skill-references.test.mjs
+        env:
+          CHECK_LINKS: "1"
+
   python:
     runs-on: ubuntu-latest
     steps:
