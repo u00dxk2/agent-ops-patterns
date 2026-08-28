@@ -2,17 +2,23 @@
 //
 // A skill whose whole argument is "verify the citation" cannot ship a dead
 // citation. Two layers:
-//   1. Static (always runs): the SKILL.md frontmatter is well-formed; every
-//      reference file SKILL.md names exists; every paper row in papers.md
-//      carries exactly one https URL and no URL repeats; the disposition
-//      template carries all ten idea rows; ideas.md has all ten headings.
+//   1. Static (always runs): the SKILL.md frontmatter has exactly the two keys
+//      the Agent Skills format needs, one per line; every local markdown file
+//      SKILL.md references (backticked or linked) exists; every paper row in
+//      papers.md carries exactly one https URL and no URL repeats; the
+//      disposition template carries all twelve verdict rows and states the
+//      count it sums to; ideas.md has all ten headings; the worked example -
+//      an answer key for one real system - is first mentioned in SKILL.md only
+//      AFTER the acting step, so no earlier instruction can send an agent to it.
 //   2. Network (CHECK_LINKS=1 only — the CI `links` job sets it): every URL in
 //      papers.md and lectures.md answers 2xx/3xx to a GET. Split out so an
 //      arXiv outage reds one legible job, not the unit suite.
 //
 // Where this stops: a 200 proves the URL resolves, not that the page is the
 // paper the row claims. That half was done by hand when papers.md was written
-// (each URL loaded and matched to the title) and is re-done by whoever edits a row.
+// (each URL loaded and matched to the title) and is re-done by whoever edits a
+// row. The frontmatter check is a line-shape check, not a YAML parser; the
+// format has two scalar keys and the check pins exactly those.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -34,20 +40,31 @@ function tableRows(md) {
     .filter((l) => l.startsWith("|") && !/^\|\s*-+/.test(l) && !/^\|\s*(Part|#|File)\s*\|/.test(l));
 }
 
-test("SKILL.md frontmatter has name and description", () => {
+test("SKILL.md frontmatter has exactly name and description, one scalar per line", () => {
   const md = read(path.join(skillDir, "SKILL.md"));
   const fm = md.match(/^---\n([\s\S]*?)\n---/);
   assert.ok(fm, "frontmatter block missing");
+  const lines = fm[1].split("\n");
+  const keys = lines.map((l) => l.match(/^([a-z-]+): \S/)?.[1] ?? null);
+  assert.ok(keys.every(Boolean), `every frontmatter line must be "key: value" on one line; got: ${JSON.stringify(lines)}`);
+  assert.deepEqual(keys, ["name", "description"], "frontmatter keys must be exactly name, description in that order");
   assert.match(fm[1], /^name: cs329a-self-improving-agents$/m);
-  assert.match(fm[1], /^description: .{40,}/m);
+  assert.match(fm[1], /^description: .{40,}$/m);
 });
 
-test("every reference file SKILL.md names exists", () => {
+test("every local markdown file SKILL.md references (backticked or linked) exists", () => {
   const md = read(path.join(skillDir, "SKILL.md"));
-  const named = [...md.matchAll(/`([a-z-]+\.md)`/g)].map((m) => m[1]).filter((f) => f !== "SKILL.md");
-  assert.ok(named.length >= 5, `expected ≥5 named reference files, found ${named.length}`);
-  for (const f of new Set(named)) {
+  const named = new Set();
+  for (const m of md.matchAll(/`(?:\.\/)?(?:references\/)?([A-Za-z0-9_-]+\.md)`/g)) named.add(m[1]);
+  for (const m of md.matchAll(/\]\((?:\.\/)?references\/([A-Za-z0-9_-]+\.md)\)/g)) named.add(m[1]);
+  named.delete("SKILL.md");
+  assert.ok(named.size >= 5, `expected ≥5 named reference files, found ${named.size}`);
+  for (const f of named) {
     assert.ok(fs.existsSync(path.join(refDir, f)), `SKILL.md names references/${f} but it does not exist`);
+  }
+  // And the inverse: every file in references/ is named somewhere in SKILL.md.
+  for (const f of fs.readdirSync(refDir)) {
+    assert.ok(named.has(f), `references/${f} exists but SKILL.md never names it`);
   }
 });
 
@@ -76,9 +93,20 @@ test("ideas.md has the ten numbered ideas; the template has the twelve rows (5 a
   const rows = ["1", "2", "3", "4", "5a", "5b", "6", "7", "8", "9a", "9b", "10"];
   for (const r of rows) assert.match(tpl, new RegExp(`^\\| ${r} \\|`, "m"), `template missing row ${r}`);
   assert.match(tpl, /must sum to 12/, "template summary must state the row count it sums to");
-  // The worked example is an answer key for one system; SKILL.md must gate it to the end.
-  const skill = read(path.join(skillDir, "SKILL.md"));
-  assert.match(skill, /worked-example\.md.*after your table is filled/i, "SKILL.md must gate worked-example.md to after the table");
+  for (const v of ["APPLIES", "DOES NOT APPLY", "ALREADY IN PLACE (code)", "ALREADY IN PLACE (running)", "NOT DECIDABLE", "UNREADABLE"]) {
+    assert.ok(tpl.includes(`**${v}:**`), `template summary missing the ${v} count line`);
+  }
+});
+
+test("SKILL.md first mentions worked-example.md only after the acting step", () => {
+  const md = read(path.join(skillDir, "SKILL.md"));
+  const body = md.replace(/^---\n[\s\S]*?\n---/, "");
+  const first = body.indexOf("worked-example.md");
+  const actStep = body.indexOf("**5. Act only");
+  assert.ok(actStep > 0, "step 5 heading not found");
+  assert.ok(first > actStep, `worked-example.md is first mentioned at offset ${first}, before step 5 at ${actStep} — the answer key must be gated after the table is filled`);
+  const gate = body.slice(first - 40, first + 200);
+  assert.match(gate, /Only now open/i, "the first mention must be the gated instruction itself");
 });
 
 test("lectures.md lists nine YouTube links", () => {

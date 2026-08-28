@@ -4,7 +4,7 @@ Every URL below was opened and matched to its title on 2026-08-28. CI re-checks 
 
 **Part** = the video in the nine-part series where the lecturer discussed the paper (read from the lecture transcripts). The course's own 20-lecture syllabus at https://cs329a.stanford.edu/ numbers things differently and assigns more readings than the videos cover; this manifest is the videos' set.
 
-**Idea** = the numbered idea in `ideas.md` the paper backs.
+**Idea** = the numbered idea in `ideas.md` the paper backs; `-` = discussed in the videos and cited from `SKILL.md`, but not the basis of a numbered idea.
 
 | Part | Paper | Authors / year | URL | Central claim | Idea |
 |---|---|---|---|---|---|
@@ -20,7 +20,7 @@ Every URL below was opened and matched to its title on 2026-08-28. CI re-checks 
 | 4 | RLEF: Grounding Code LLMs in Execution Feedback with Reinforcement Learning | Gehring et al., 2024 | https://arxiv.org/abs/2410.02089 | Training a code model with RL on actual execution feedback teaches it to use the feedback; public tests to iterate against, private tests to score on. | 5 |
 | 4 | Constitutional AI: Harmlessness from AI Feedback | Bai et al., 2022 | https://arxiv.org/abs/2212.08073 | A model can be trained toward a written set of principles by critiquing and revising its own outputs against them; the lecture notes self-critique is weaker than critique by another model. | 8 |
 | 4 | CodeMonkeys: Scaling Test-Time Compute for Software Engineering | Ehrlich et al., 2025 | https://arxiv.org/abs/2501.14723 | Scaling both candidate generation and candidate selection at test time - with model-generated tests as the selector - moves real issue resolution. | 1, 5 |
-| 5 | Language Agent Tree Search Unifies Reasoning Acting and Planning in Language Models (LATS) | Zhou et al., 2023 | https://arxiv.org/abs/2310.04406 | Monte-Carlo tree search over an agent's reasoning and actions, with environment feedback and self-reflection as the value signal; irreversible actions are out of scope. | 10 |
+| 5 | Language Agent Tree Search Unifies Reasoning Acting and Planning in Language Models (LATS) | Zhou et al., 2023 | https://arxiv.org/abs/2310.04406 | Monte-Carlo tree search over an agent's reasoning and actions, with environment feedback and self-reflection as the value signal; irreversible actions are out of scope. | - (cited in SKILL.md § What the course argues against) |
 | 5 | SPRINT: Enabling Interleaved Planning and Parallelized Execution in Reasoning Models | Biju et al., 2025 (NeurIPS 2025) | https://arxiv.org/abs/2506.05745 | Reasoning models can be post-trained to find independent steps in their own chain of thought and run them in parallel, cutting sequential tokens without losing accuracy. | - |
 | 5 | Synthetic Data Generation & Multi-Step RL for Reasoning & Tool Use (SWiRL) | Goldie et al., 2025 | https://arxiv.org/abs/2504.04736 | Multi-step RL over synthetic trajectories with a process reward on each action (judged before the tool answers) generalizes across tasks and tools; process-filtered data beat outcome-filtered. | 5 |
 | 6 | STaR: Bootstrapping Reasoning With Reasoning | Zelikman et al., 2022 | https://arxiv.org/abs/2203.14465 | A model bootstraps its own reasoning by keeping rationales that led to correct answers, and rationalizing failures given the answer as a hint. | 4 |

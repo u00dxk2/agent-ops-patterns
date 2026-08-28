@@ -28,8 +28,9 @@ The self-audit hands your agent five questions. The skills in [`skills/`](./skil
 hand it a *source* - a course, a paper set - and ask it to decide, idea by idea,
 whether the source names a gap in your system. The output is a disposition record:
 one row per idea, a verdict of APPLIES / DOES NOT APPLY / ALREADY IN PLACE / NOT
-DECIDABLE, a quoted file path or command output per verdict, thresholds written down
-*before* any number is read, and "declined, because X" accepted as a complete answer.
+DECIDABLE / UNREADABLE, a quoted `file:line` or a scoped command with its exit code and
+output per verdict, thresholds written down *before* any deciding number is read, and
+"declined, because X" accepted as a complete answer.
 The skill offers; your agent decides; the record is what you review.
 
 The first one is [`skills/cs329a-self-improving-agents/`](./skills/cs329a-self-improving-agents/SKILL.md) -
@@ -53,9 +54,11 @@ claude plugin install agent-ops-skills@agent-ops-patterns
 or copy the skill folder into any harness that reads the Agent Skills format
 (`SKILL.md` + `references/`). Then point your agent at the repo you want judged and say
 "run the CS329A disposition." Expect twelve rows (ten ideas, two of them split) and a short
-chat summary; the rows are the deliverable. Before publishing, a fresh agent ran the skill
-cold against the same system and came back with three findings the first run had missed
-and eight complaints about the skill - all folded in, all recorded in the worked example.
+chat summary; the rows are the deliverable. Before publishing, a fresh agent with no memory
+of the system - though it had read the then-ungated worked example, which is why that file
+is now gated last - ran the skill against the same system and came back with three findings
+the first run had missed and ten complaints about the skill; a Codex adversarial pass then
+found sixteen more. All folded in, all recorded in the worked example.
 
 ## What's here
 
@@ -75,7 +78,7 @@ and eight complaints about the skill - all folded in, all recorded in the worked
 | [`patterns/checks-that-cant-fail.md`](./patterns/checks-that-cant-fail.md) | Why a green check nobody has seen go red is not evidence, and the guard for four ways a check silently stops running while still reporting "clean": the never-red monitor, the dead-instrument zero (positive controls), the sweep that reached nothing (NOTHING SWEPT), and the config-absent silent disable. | **Read and apply** — protocol; the operations analog of mutation testing |
 | [`patterns/skill-regression-testing.md`](./patterns/skill-regression-testing.md) | Treating agent skills/prompts as process code: TDD-against-a-watched-failure, benchmark-gated edits, shadow-A/B with auto-rollback, anti-rationalization red flags. | **Read and apply** — the thinnest layer in the systems we looked at informally (July 2026; a look around, not a survey) |
 | [`patterns/durability-tiered-write-governance.md`](./patterns/durability-tiered-write-governance.md) | Gate agent actions by how hard they are to undo, on a three-rung ladder: effect-free authorized reads never sent for approval, schema-bounded reversible writes machine-approved, substrate/irreversible writes human-direct via minted grants. Replaces case-law permission accretion with an admission test per rule. | **Read and apply** — `capability-grant` is the rung-3 mechanism |
-| [`skills/cs329a-self-improving-agents/`](./skills/cs329a-self-improving-agents/SKILL.md) | An Agent Skill: your agent reads Stanford CS329A's ten load-bearing ideas (verifier filtering before ensembling, meta-verification, signal-needs-spread, reliability horizon, the deep-research ceiling…) against YOUR repo and writes a disposition record — one verdict per idea, a quoted path per verdict, bars pre-committed before any number. Offers; never assigns. | **Install** — `claude plugin marketplace add u00dxk2/agent-ops-patterns` then `claude plugin install agent-ops-skills@agent-ops-patterns`; or copy the folder (Agent Skills format). Citations link the papers, never the lectures; CI checks every link resolves |
+| [`skills/cs329a-self-improving-agents/`](./skills/cs329a-self-improving-agents/SKILL.md) | An Agent Skill: your agent reads Stanford CS329A's ten load-bearing ideas (verifier filtering before ensembling, meta-verification, signal-needs-spread, reliability horizon, the deep-research ceiling…) against YOUR repo and writes a disposition record — one verdict per idea, a quoted `file:line` or a scoped command with its exit code and output per verdict, bars pre-committed before any deciding number. Offers; never assigns. | **Install** — `claude plugin marketplace add u00dxk2/agent-ops-patterns` then `claude plugin install agent-ops-skills@agent-ops-patterns`; or copy the folder (Agent Skills format). Citations link the papers, never the lectures; CI checks every link resolves |
 
 ## Quickstart
 
