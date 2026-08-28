@@ -22,6 +22,39 @@ I ran it against this repo. It found two blockers, including a real hole in the
 permission library - the artifact whose whole job is question four. Both are fixed, and
 both fixes are in the history.
 
+## Skills: hand your agent a source, get a decision you can check
+
+The self-audit hands your agent five questions. The skills in [`skills/`](./skills/)
+hand it a *source* - a course, a paper set - and ask it to decide, idea by idea,
+whether the source names a gap in your system. The output is a disposition record:
+one row per idea, a verdict of APPLIES / DOES NOT APPLY / ALREADY IN PLACE / NOT
+DECIDABLE, a quoted file path or command output per verdict, thresholds written down
+*before* any number is read, and "declined, because X" accepted as a complete answer.
+The skill offers; your agent decides; the record is what you review.
+
+The first one is [`skills/cs329a-self-improving-agents/`](./skills/cs329a-self-improving-agents/SKILL.md) -
+Stanford CS329A "Self-Improving AI Agents" (fall 2025, nine lectures on verifiers,
+test-time compute, planning, RL, deep-research agents and agentic evals) reduced to ten
+ideas, each with the lecture and the paper behind its numbers. It ships our summaries and
+the paper links, not the lectures - those are Stanford's - and a test that every citation
+resolves. We ran it on our own system first: the idea we were most excited about came back
+NOT DECIDABLE (0 of 39 labels joinable), the most valuable ship was a log file, and the
+verifiers refuted three of four builder receipts. That run is in
+[`references/worked-example.md`](./skills/cs329a-self-improving-agents/references/worked-example.md),
+misses included.
+
+Install as a Claude Code plugin:
+
+```
+claude plugin marketplace add u00dxk2/agent-ops-patterns
+claude plugin install agent-ops-skills@agent-ops-patterns
+```
+
+or copy the skill folder into any harness that reads the Agent Skills format
+(`SKILL.md` + `references/`). Then point your agent at the repo you want judged and say
+"run the CS329A disposition." Expect ten rows and a short chat summary; the rows are the
+deliverable.
+
 ## What's here
 
 | Artifact | What it does | How to adopt |
@@ -40,6 +73,7 @@ both fixes are in the history.
 | [`patterns/checks-that-cant-fail.md`](./patterns/checks-that-cant-fail.md) | Why a green check nobody has seen go red is not evidence, and the guard for four ways a check silently stops running while still reporting "clean": the never-red monitor, the dead-instrument zero (positive controls), the sweep that reached nothing (NOTHING SWEPT), and the config-absent silent disable. | **Read and apply** — protocol; the operations analog of mutation testing |
 | [`patterns/skill-regression-testing.md`](./patterns/skill-regression-testing.md) | Treating agent skills/prompts as process code: TDD-against-a-watched-failure, benchmark-gated edits, shadow-A/B with auto-rollback, anti-rationalization red flags. | **Read and apply** — the thinnest layer in the systems we looked at informally (July 2026; a look around, not a survey) |
 | [`patterns/durability-tiered-write-governance.md`](./patterns/durability-tiered-write-governance.md) | Gate agent actions by how hard they are to undo, on a three-rung ladder: effect-free authorized reads never sent for approval, schema-bounded reversible writes machine-approved, substrate/irreversible writes human-direct via minted grants. Replaces case-law permission accretion with an admission test per rule. | **Read and apply** — `capability-grant` is the rung-3 mechanism |
+| [`skills/cs329a-self-improving-agents/`](./skills/cs329a-self-improving-agents/SKILL.md) | An Agent Skill: your agent reads Stanford CS329A's ten load-bearing ideas (verifier filtering before ensembling, meta-verification, signal-needs-spread, reliability horizon, the deep-research ceiling…) against YOUR repo and writes a disposition record — one verdict per idea, a quoted path per verdict, bars pre-committed before any number. Offers; never assigns. | **Install** — `claude plugin marketplace add u00dxk2/agent-ops-patterns` then `claude plugin install agent-ops-skills@agent-ops-patterns`; or copy the folder (Agent Skills format). Citations link the papers, never the lectures; CI checks every link resolves |
 
 ## Quickstart
 
@@ -115,6 +149,11 @@ Versions, stated exactly: CI runs the **JS suite** on Node 20, 22 and 24, and th
 ## Coverage and limits
 
 Every artifact here names what it does NOT do. The libraries pin representative cases of their principal limits in tests; the operational limits - the ones that live in your deployment rather than in this code, like the grant lib's single-user-account boundary - are labeled as what they are, because no test can reach them. The written protocols state practices and are not executable specifications, so nothing tests those at all. Neither kind is a footnote, but they aren't the same kind of promise either.
+
+The skill in `skills/` states its own limits in its `SKILL.md` § "Where this skill stops
+working" - the short version: it reads a repo, not a deployment, so "already in place"
+proves a code path exists, not that it runs; and the ideas are the course as taught in
+fall 2025, read in August 2026.
 
 ### snippet-redact (and its Python port)
 

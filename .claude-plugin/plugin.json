@@ -1,0 +1,13 @@
+{
+  "name": "agent-ops-skills",
+  "description": "Skills from agent-ops-patterns: hand your agent a source (a course, a paper set) and get a disposition record with a quoted path per verdict. First skill: Stanford CS329A \"Self-Improving AI Agents\".",
+  "version": "0.1.0",
+  "author": {
+    "name": "David Kooi",
+    "url": "https://github.com/u00dxk2"
+  },
+  "homepage": "https://github.com/u00dxk2/agent-ops-patterns",
+  "repository": "https://github.com/u00dxk2/agent-ops-patterns",
+  "license": "MIT",
+  "keywords": ["agent-skills", "llm-judges", "verification", "eval-gates", "cs329a"]
+}
