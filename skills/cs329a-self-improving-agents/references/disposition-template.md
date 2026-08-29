@@ -19,7 +19,8 @@ Copy the skeleton below. Keep the headings; fill every row; do not delete a row 
 - `references/ideas.md` - yes (required)
 - `references/papers.md` → <which papers you fetched, by name, or "none">
 - `references/lectures.md` → <which lecture videos/transcripts, or "none">
-- `references/worked-example.md` → <"after the table was filled" | "not opened">
+- `references/worked-example.md` → <"after the table was filled" | "not opened" | "before the run - say so">
+- `references/worked-example-2.md` → <same three answers>
 
 **Surfaces inventoried in this repo** (the grep/read you did before any verdict; paths, not descriptions; a negative search is recorded as: directory it ran from · exact command · exit code · the "0 matches" line):
 - LLM-as-judge / verifier / grader call sites, and whether the grading model is the producing model: <paths, or the negative search>
