@@ -45,9 +45,13 @@ verifiers refuted three of four builder receipts. That run is in
 misses included. Then we pointed it, read-only, at a system we do not own -
 NousResearch's hermes-agent, 10,666 files - and that run is
 [`references/worked-example-2.md`](./skills/cs329a-self-improving-agents/references/worked-example-2.md):
-four APPLIES, two DOES NOT APPLY with the searches attached, one NOT DECIDABLE, nothing
+five APPLIES, one DOES NOT APPLY with the searches attached, two NOT DECIDABLE, nothing
 acted on by mandate, one bar written late and counted, and ten notes on what the skill
-got wrong when handed a stranger's repo.
+got wrong when handed a stranger's repo. A same-day cross-family adversarial round then
+overturned two of that record's first verdicts and corrected five citation sets - the
+round and the fold are in the file, original wrong rows quoted, because a disposition
+that cannot show its own refutations is asking to be trusted the way it asks you to
+trust nothing else.
 
 Install as a Claude Code plugin:
 
