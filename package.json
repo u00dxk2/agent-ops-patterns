@@ -1,8 +1,8 @@
 {
   "name": "agent-ops-patterns",
-  "version": "0.3.0",
+  "version": "0.5.0",
   "private": true,
-  "description": "Operational patterns for running LLM agents in production: output-boundary secret redaction (JS + Python), scoped fail-closed capability grants, staleness-basis discipline, agent-memory integrity linting, recency×relevance rank fusion for recall, usage-scored memory-eviction evidence, command de-obfuscation for policy scans, shadow-screen gate states, fail-soft detector discipline, skill regression testing.",
+  "description": "Operational patterns for running LLM agents in production: output-boundary secret redaction (JS + Python), scoped fail-closed capability grants, staleness-basis discipline, agent-memory integrity linting, recency×relevance rank fusion for recall, usage-scored memory-eviction evidence, command de-obfuscation for policy scans, shadow-screen gate states, comment-stripped presence guards, unknown-flag refusal for agent CLIs, pipe-proof RESULT verdict lines, fail-soft detector discipline, skill regression testing.",
   "type": "module",
   "license": "MIT",
   "author": "David Kooi",
@@ -20,7 +20,10 @@
     "staleness",
     "reciprocal-rank-fusion",
     "shadow-mode",
-    "command-policy"
+    "command-policy",
+    "presence-guard",
+    "cli-flags",
+    "verdict-line"
   ],
   "scripts": {
     "test": "node --test"
