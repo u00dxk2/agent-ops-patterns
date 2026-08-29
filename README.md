@@ -41,10 +41,10 @@ the paper links, not the lectures - those are Stanford's - and a test that every
 resolves. We ran it on our own system first: the idea we were most excited about came back
 NOT DECIDABLE (0 of 39 labels joinable), the most valuable ship was a log file, and the
 verifiers refuted three of four builder receipts. That run is in
-[`references/worked-example.md`](./skills/cs329a-self-improving-agents/references/worked-example.md),
+[`references/answer-keys/worked-example.md`](./skills/cs329a-self-improving-agents/references/answer-keys/worked-example.md),
 misses included. Then we pointed it, read-only, at a system we do not own -
 NousResearch's hermes-agent, 10,666 files - and that run is
-[`references/worked-example-2.md`](./skills/cs329a-self-improving-agents/references/worked-example-2.md):
+[`references/answer-keys/worked-example-2.md`](./skills/cs329a-self-improving-agents/references/answer-keys/worked-example-2.md):
 five APPLIES, one DOES NOT APPLY with the searches attached, two NOT DECIDABLE, nothing
 acted on by mandate, one bar written late and counted, and ten notes on what the skill
 got wrong when handed a stranger's repo. A same-day cross-family adversarial round then

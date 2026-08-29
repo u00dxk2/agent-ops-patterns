@@ -9,7 +9,7 @@ Copy the skeleton below. Keep the headings; fill every row; do not delete a row 
 ```markdown
 # CS329A disposition - <repo name> - <YYYY-MM-DD>
 
-**Run by:** <agent + model> · **Operator:** <who asked> · **Time spent:** <approx>
+**Run by:** <agent + model> · **Operator:** <who asked> · **Time spent:** <approx - include setup; cloning a large repo and any refutation round are real costs>
 
 **Mandate for this run:** <read-only | record-only | small reversible changes | full ships> - operator's words: "<quoted>"
 
@@ -19,8 +19,8 @@ Copy the skeleton below. Keep the headings; fill every row; do not delete a row 
 - `references/ideas.md` - yes (required)
 - `references/papers.md` → <which papers you fetched, by name, or "none">
 - `references/lectures.md` → <which lecture videos/transcripts, or "none">
-- `references/worked-example.md` → <"after the table was filled" | "not opened" | "before the run - say so">
-- `references/worked-example-2.md` → <same three answers>
+- `references/answer-keys/worked-example.md` → <"after the table was filled" | "not opened" | "before the run - say so">
+- `references/answer-keys/worked-example-2.md` → <same three answers>
 
 **Surfaces inventoried in this repo** (the grep/read you did before any verdict; paths, not descriptions; a negative search is recorded as: directory it ran from · exact command · exit code · the "0 matches" line):
 - LLM-as-judge / verifier / grader call sites, and whether the grading model is the producing model: <paths, or the negative search>
@@ -62,6 +62,7 @@ Verdicts (must sum to 12):
 - **ALREADY IN PLACE (running):** <J2> - <one line each, with the log / run / schedule that proves it executes>
 - **NOT DECIDABLE:** <K> - <one line each: what record would decide it, how long at the current rate, and whether you started it>
 - **UNREADABLE:** <U> - <one line each: what you could not reach and what you tried>
+- **Surfaces unreachable:** <N> - <from the inventory's could-not-reach row; distinct from UNREADABLE, which counts IDEAS - a run can have zero unreadable ideas and still have a real surface it never saw, and that must be countable, not buried in prose>
 
 Actions (independent of verdicts; may be 0 under read-only or record-only):
 - **Acted on:** <count> - <what shipped, with the commit or file; "0 - mandate was record-only" is a complete line; writing this record does not count>
@@ -79,7 +80,7 @@ Integrity:
 
 - **APPLIES** - the idea names a gap in this repo, you can point at the code that has the gap, and you either did something about it or wrote down the smallest thing that would.
 - **DOES NOT APPLY** - the repo has no surface the idea is about, and you record the negative search in full: the directory, the exact command, its exit code, the "0 matches" line. A repo with no LLM judges gets DOES NOT APPLY on idea 2 with that search attached - not a blank, and not an empty output with nothing around it.
-- **ALREADY IN PLACE (code)** - the repo has the code path, and you quote it. Same evidence bar as APPLIES. It says nothing about whether the path runs.
+- **ALREADY IN PLACE (code)** - the repo has the code path, and you quote it. Same evidence bar as APPLIES. It says nothing about whether the path runs. When the path exists but is off the default configuration (a mode that ships disabled, a skill that must be invoked), write "(code, opt-in)" in the row - prose, not a third counted tag; the summary still counts it under (code).
 - **ALREADY IN PLACE (running)** - the code path exists *and* you have evidence it executes over the subjects it claims: a log with recent rows, a CI run, a cron entry, a receipt. Most runs will earn few of these; say so rather than upgrade.
 - **NOT DECIDABLE** - the verdict on the idea depends on a measurement the repo cannot produce yet (no labels, no history, or a record too small or too slow to reach the bar). Say what record would decide it and how long, at the current rate, it would take. Starting that record is the action. Precedence: if the *only* gap is "no record exists yet," the verdict is NOT DECIDABLE and the missing record is the next step - not APPLIES.
 - **UNREADABLE** - a surface exists or might, and you could not reach it: a path you could not read, a deployment you cannot see, a command that errored. Say what you tried. Never rounded to DOES NOT APPLY.
