@@ -74,7 +74,7 @@ found sixteen more. All folded in, all recorded in the worked example.
 | Artifact | What it does | How to adopt |
 |---|---|---|
 | [`lib/snippet-redact.mjs`](./lib/snippet-redact.mjs) | Redacts secret-shaped text (API keys, JWTs, DB URIs, PEM blocks…) at the output boundary of any recall/search path, with named shape tokens (`[redacted:github-token]`) so hits stay findable. Defense-in-depth, not DLP — see [Coverage and limits](#coverage-and-limits). | **Use as-is** — vendor the one file (zero deps, pure function) |
-| [`lib/memory-integrity.mjs`](./lib/memory-integrity.mjs) | Zero-LLM integrity pass over a markdown agent-memory dir (MEMORY.md-style index + per-fact files + `[[wiki-links]]` — the Claude Code auto-memory shape): dead links, silent merges, over-budget index, orphans, near-duplicates, and index lines naming a tool that doesn't exist; plus a backlink graph, **suggest-only** repairs, and a fleet-wide index-size classifier where an agent you couldn't measure is a finding rather than a clean row. | **Use as-is** — vendor the one file; wire a thin CLI to your memory dir |
+| [`lib/memory-integrity.mjs`](./lib/memory-integrity.mjs) | Zero-LLM integrity pass over a markdown agent-memory dir (MEMORY.md-style index + per-fact files + `[[wiki-links]]` — the Claude Code auto-memory shape): dead links, silent merges, over-budget index, orphans, near-duplicates, and (opt-in, with a synchronous resolver you supply) index lines naming a script that resolves to no file; plus a backlink graph, **suggest-only** repairs, and a fleet-wide index-size classifier where an agent you couldn't measure is a finding rather than a clean row. | **Use as-is** — vendor the one file; wire a thin CLI to your memory dir |
 | [`lib/secret_redaction.py`](./lib/secret_redaction.py) | The same output-boundary redaction for Python recall paths (agent-memory layers, log excerpting) — a faithful port of `snippet-redact.mjs`, kept in sync; extracted while proposing this boundary upstream to a Python memory framework ([mem0ai/mem0#6817](https://github.com/mem0ai/mem0/issues/6817)). | **Use as-is** — vendor the one file (stdlib-only); `python lib/secret_redaction.py` runs its self-check |
 | [`lib/capability-grant.mjs`](./lib/capability-grant.mjs) | Scoped, single-use, TTL-bounded capability grants for human-gated agent actions: an approval relayed through a chat/bus message is not authorization, so a direct human "go" mints a grant bound to the sha256 of one exact command, honored once. Fail-closed: any ambiguity falls through to your normal permission prompt. | **Reference logic** — pure and complete as logic, and **not an authorization boundary on its own**. You supply: complete, non-bypassable mediation (no execution path reaches the action except through the hook); an authenticated *and* authorized minting principal, minting outside any agent session; a grant store, class policy and audit log the agent cannot write or delete; random ids; scope and class resolution; a trusted clock; atomic consume-before-execute; executing the same captured value that was checked; binding or independently trusting mutable context (cwd, PATH, executable resolution, environment, shell, referenced files) — a command hash does not bind a command's *effect* when those can change; and a fallback to your normal prompt. Budget real work here, not a wrapper |
 | [`lib/stale-basis.mjs`](./lib/stale-basis.mjs) | One staleness chain for tracker/memory items — newest of the declared *signal* dates (fields stamped only when an item was actually looked at), with bulk-write `updated` timestamps deliberately excluded so a mass edit can't silently re-date the whole tracker. Verdicts name which basis won. | **Use as-is** — vendor the one file; import it from EVERY reader (two hand-rolled copies of a staleness chain will drift) |
@@ -125,10 +125,20 @@ const files = fs
     content: fs.readFileSync(path.join(MEMORY_DIR, e.name), "utf8"),
   }));
 
+const indexText = fs.existsSync(indexPath) ? fs.readFileSync(indexPath, "utf8") : "";
+
 const input = {
-  indexText: fs.existsSync(indexPath) ? fs.readFileSync(indexPath, "utf8") : "",
+  indexText,
   files,
-  indexByteLength: fs.existsSync(indexPath) ? fs.statSync(indexPath).size : 0,
+  // The cap is 24,400 LF-normalized UTF-8 bytes. Measure the text you read, not
+  // `statSync().size`: on a CRLF working tree the file is +1 byte per line, and
+  // a valid index goes over the line for its line endings alone.
+  indexByteLength: Buffer.byteLength(indexText.replace(/\r\n/g, "\n"), "utf8"),
+  // Opt-in, and it must be synchronous (a Promise is never `false`, and the lib
+  // throws rather than let the check go silently inert). Return `false` only
+  // when you can PROVE the file is absent — here, "not in this repo"; if your
+  // tools live elsewhere too, widen the search or return null.
+  toolResolver: (token) => fs.existsSync(path.resolve(token)),
 };
 
 const { findings, swept, coverage } = lintMemoryIntegrity(input);
