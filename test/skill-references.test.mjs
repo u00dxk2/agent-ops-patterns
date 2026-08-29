@@ -55,15 +55,21 @@ test("SKILL.md frontmatter has exactly name and description, one scalar per line
 test("every local markdown file SKILL.md references (backticked or linked) exists", () => {
   const md = read(path.join(skillDir, "SKILL.md"));
   const named = new Set();
-  for (const m of md.matchAll(/`(?:\.\/)?(?:references\/)?([A-Za-z0-9_-]+\.md)`/g)) named.add(m[1]);
-  for (const m of md.matchAll(/\]\((?:\.\/)?references\/([A-Za-z0-9_-]+\.md)\)/g)) named.add(m[1]);
+  for (const m of md.matchAll(/`(?:\.\/)?(?:references\/)?((?:answer-keys\/)?[A-Za-z0-9_-]+\.md)`/g)) named.add(m[1]);
+  for (const m of md.matchAll(/\]\((?:\.\/)?references\/((?:answer-keys\/)?[A-Za-z0-9_-]+\.md)\)/g)) named.add(m[1]);
   named.delete("SKILL.md");
   assert.ok(named.size >= 5, `expected ≥5 named reference files, found ${named.size}`);
   for (const f of named) {
     assert.ok(fs.existsSync(path.join(refDir, f)), `SKILL.md names references/${f} but it does not exist`);
   }
-  // And the inverse: every file in references/ is named somewhere in SKILL.md.
-  for (const f of fs.readdirSync(refDir)) {
+  // And the inverse: every file under references/ (answer-keys included) is
+  // named somewhere in SKILL.md — an unnamed file is unreachable by a reader
+  // following the skill, which is how a stale artifact hides.
+  const walk = (dir, prefix = "") =>
+    fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? walk(path.join(dir, e.name), `${prefix}${e.name}/`) : [`${prefix}${e.name}`],
+    );
+  for (const f of walk(refDir)) {
     assert.ok(named.has(f), `references/${f} exists but SKILL.md never names it`);
   }
 });
@@ -98,15 +104,24 @@ test("ideas.md has the ten numbered ideas; the template has the twelve rows (5 a
   }
 });
 
-test("SKILL.md first mentions worked-example.md only after the acting step", () => {
+test("SKILL.md first mentions each answer key only after the acting step; the folder carries its door sign", () => {
   const md = read(path.join(skillDir, "SKILL.md"));
   const body = md.replace(/^---\n[\s\S]*?\n---/, "");
-  const first = body.indexOf("worked-example.md");
   const actStep = body.indexOf("**5. Act only");
   assert.ok(actStep > 0, "step 5 heading not found");
-  assert.ok(first > actStep, `worked-example.md is first mentioned at offset ${first}, before step 5 at ${actStep} — the answer key must be gated after the table is filled`);
-  const gate = body.slice(first - 40, first + 200);
-  assert.match(gate, /Only now open/i, "the first mention must be the gated instruction itself");
+  for (const key of ["worked-example.md", "worked-example-2.md"]) {
+    const first = body.indexOf(key);
+    assert.ok(first > actStep, `${key} is first mentioned at offset ${first}, before step 5 at ${actStep} — the answer key must be gated after the table is filled`);
+    const gate = body.slice(Math.max(0, first - 160), first + 200);
+    assert.match(gate, /Only now open/i, `the first mention of ${key} must be inside the gated instruction`);
+    // The structural half of the gate: the key lives in the quarantined folder.
+    assert.ok(
+      fs.existsSync(path.join(refDir, "answer-keys", key)),
+      `${key} must live under references/answer-keys/ — the prose gate alone failed on two runs in a row`,
+    );
+  }
+  const door = read(path.join(refDir, "answer-keys", "README.md"));
+  assert.match(door, /table is filled/i, "the answer-keys README must carry the do-not-open-early warning");
 });
 
 test("lectures.md lists nine YouTube links", () => {
