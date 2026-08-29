@@ -1,8 +1,8 @@
 {
   "name": "agent-ops-patterns",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
-  "description": "Operational patterns for running LLM agents in production: output-boundary secret redaction (JS + Python), scoped fail-closed capability grants, staleness-basis discipline, agent-memory integrity linting, recency×relevance rank fusion for recall, usage-scored memory-eviction evidence, command de-obfuscation for policy scans, shadow-screen gate states, fail-soft detector discipline, skill regression testing; plus an Agent Skill that disposes Stanford CS329A against your own repo with a quoted path per verdict.",
+  "description": "Operational patterns for running LLM agents in production: output-boundary secret redaction (JS + Python), scoped fail-closed capability grants, staleness-basis discipline, agent-memory integrity linting, recency×relevance rank fusion for recall, usage-scored memory-eviction evidence, command de-obfuscation for policy scans, shadow-screen gate states, comment-stripped presence guards, unknown-flag refusal for agent CLIs, pipe-proof RESULT verdict lines, fail-soft detector discipline, skill regression testing; plus an Agent Skill that disposes Stanford CS329A against your own repo with a quoted path per verdict.",
   "type": "module",
   "license": "MIT",
   "author": "David Kooi",
@@ -21,6 +21,9 @@
     "reciprocal-rank-fusion",
     "shadow-mode",
     "command-policy",
+    "presence-guard",
+    "cli-flags",
+    "verdict-line",
     "agent-skills",
     "cs329a"
   ],
