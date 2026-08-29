@@ -6,6 +6,9 @@ import {
   suggestMemoryRepairs,
   compactIndexLines,
   extractIndexLinks,
+  extractToolReferences,
+  classifyMemoryIndexSizes,
+  MEMORY_SIZE_STATES,
   DEFAULT_INDEX_BUDGET_BYTES,
 } from "../lib/memory-integrity.mjs";
 
@@ -215,4 +218,157 @@ test("compactIndexLines: never severs a second markdown or wiki link mid-way", (
   assert.equal(opens, closes, `unbalanced link brackets in: ${compacted}`);
   assert.ok(compacted.includes("[Primary](a.md)"));
   assert.ok(compacted.endsWith("…"));
+});
+
+// The budget is pinned to a LITERAL, not asserted relative to itself. The bug
+// this replaces was `Math.floor(24.4 * 1024)` = 24,985 — a check written
+// against `DEFAULT_INDEX_BUDGET_BYTES + 1` passes just as happily on the wrong
+// constant, which is why it never caught it.
+test("index budget is 24,400 decimal bytes — not 24.4 KiB", () => {
+  assert.equal(DEFAULT_INDEX_BUDGET_BYTES, 24_400);
+  const at = lintMemoryIntegrity({ indexText: INDEX, files: FILES, indexByteLength: 24_400 });
+  assert.equal(at.findings.filter((f) => f.type === "index-over-budget").length, 0);
+  const over = lintMemoryIntegrity({ indexText: INDEX, files: FILES, indexByteLength: 24_401 });
+  assert.equal(over.findings.filter((f) => f.type === "index-over-budget").length, 1);
+});
+
+test("extractToolReferences: dedupes to first line, skips URLs and placeholders", () => {
+  const text = [
+    "- [Ops](a.md) — run scripts/rollup.mjs nightly",
+    "- [Again](b.md) — scripts/rollup.mjs, same tool",
+    "- [Docs](c.md) — https://example.com/thing.py is not ours",
+    "- [Tmpl](d.md) — call <name>.sh with your own name",
+  ].join("\n");
+  const refs = extractToolReferences(text);
+  assert.deepEqual(refs, [{ token: "scripts/rollup.mjs", line: 1 }]);
+  assert.deepEqual(extractToolReferences(""), []);
+});
+
+test("phantom-tool fires only on a resolver that says provably-absent", () => {
+  const idx = "- [Ops](feedback_ship_early.md) — run scripts/ghost.mjs weekly";
+  const phantom = (r) =>
+    lintMemoryIntegrity({ indexText: idx, files: FILES, toolResolver: r }).findings.filter(
+      (f) => f.type === "phantom-tool",
+    );
+  assert.equal(phantom(() => false).length, 1);
+  assert.equal(phantom(() => false)[0].detail.token, "scripts/ghost.mjs");
+  assert.equal(phantom(() => true).length, 0);
+  assert.equal(phantom(() => null).length, 0); // can't judge → no finding
+  assert.equal(phantom(() => { throw new Error("fs blew up"); }).length, 0); // fail-soft
+  // No resolver at all: the check does not run, and nothing throws.
+  assert.equal(
+    lintMemoryIntegrity({ indexText: idx, files: FILES }).findings.filter((f) => f.type === "phantom-tool").length,
+    0,
+  );
+});
+
+test("classifyMemoryIndexSizes: an unmeasurable agent is a finding, never a clean row", () => {
+  const r = classifyMemoryIndexSizes({
+    rows: [
+      { agent: "alpha", path: "/a/MEMORY.md", bytes: 1000 },
+      { agent: "beta", path: "/b/MEMORY.md", bytes: 24_401 },
+      { agent: "gamma", path: "/c/MEMORY.md", bytes: null }, // dir exists, index unreadable
+      { agent: "delta", dirExists: false }, // never held a session
+    ],
+  });
+  assert.deepEqual(r.rows.map((x) => x.state), [
+    MEMORY_SIZE_STATES.OK,
+    MEMORY_SIZE_STATES.OVER,
+    MEMORY_SIZE_STATES.MISSING,
+    MEMORY_SIZE_STATES.NO_MEMORY_DIR,
+  ]);
+  assert.equal(r.sweptCount, 2); // MISSING is a finding, not a measurement
+  assert.equal(r.declaredCount, 1); // NO_MEMORY_DIR: declared, not swept, not a finding
+  assert.equal(r.findings.length, 2); // over-budget + missing
+  assert.equal(r.rows[1].overBy, 1);
+  assert.equal(r.verdict, "findings");
+});
+
+test("classifyMemoryIndexSizes: zero measured agents is nothing-swept, not clean", () => {
+  assert.equal(classifyMemoryIndexSizes({ rows: [] }).verdict, "nothing-swept");
+  assert.equal(classifyMemoryIndexSizes({}).verdict, "nothing-swept");
+  assert.equal(
+    classifyMemoryIndexSizes({ rows: [{ agent: "solo", dirExists: false }] }).verdict,
+    "nothing-swept",
+  );
+  // ...but findings DOMINATE: a one-agent fleet whose index is missing has zero
+  // measured agents, and "nothing-swept" would bury the loudest instance of the
+  // failure this classifier exists to catch.
+  assert.equal(classifyMemoryIndexSizes({ rows: [{ agent: "solo", bytes: null }] }).verdict, "findings");
+});
+
+// The Codex adversarial round on PR #2. Each case below reproduced against the
+// first version of this port; the numbers in the comments are what it returned.
+test("extractToolReferences keeps Windows separators and never sheds a URI scheme", () => {
+  // Was: `scripts\foo.py` → `foo.py`. A resolver handed the basename can
+  // "prove" absent a file that exists — the extractor inventing a token.
+  assert.deepEqual(extractToolReferences(String.raw`run scripts\foo.py nightly`), [
+    { token: String.raw`scripts\foo.py`, line: 1 },
+  ]);
+  // Was: `file:bar.py` → `bar.py`, contradicting the "URLs excluded" comment.
+  assert.deepEqual(extractToolReferences("see file:bar.py or mailto:baz.sh"), []);
+  // Backticks and link parens are fine delimiters; a placeholder is not a token.
+  assert.deepEqual(extractToolReferences("- run `scripts/a.mjs` then [b](tools/b.ts) via <name>.sh"), [
+    { token: "scripts/a.mjs", line: 1 },
+    { token: "tools/b.ts", line: 1 },
+  ]);
+});
+
+test("extractToolReferences is linear on a long line with no match", () => {
+  // Was quadratic: 30,000 hyphens took 2.5 s — on an input the size of the
+  // index budget this library exists to police. 50,000 is ~5 s unfixed; the
+  // 200 ms bound leaves a 25x margin for a slow CI runner.
+  const t = Date.now();
+  assert.deepEqual(extractToolReferences("-".repeat(50_000)), []);
+  assert.ok(Date.now() - t < 200, `took ${Date.now() - t} ms`);
+});
+
+test("an async toolResolver throws instead of silently disabling the check", () => {
+  // Was: 0 findings, no error — a check that looked enabled and could not fire.
+  assert.throws(
+    () => lintMemoryIntegrity({ indexText: "run scripts/ghost.mjs", files: FILES, toolResolver: async () => false }),
+    TypeError,
+  );
+});
+
+test("classifyMemoryIndexSizes: an impossible byte count is unmeasured, zero is measured", () => {
+  // Was: -1 → OK with 24,401 bytes of headroom; 1.5 and NaN → OK / clean.
+  const r = classifyMemoryIndexSizes({
+    rows: [
+      { agent: "neg", bytes: -1 },
+      { agent: "frac", bytes: 1.5 },
+      { agent: "nan", bytes: NaN },
+      { agent: "empty", bytes: 0 },
+    ],
+  });
+  assert.deepEqual(r.rows.map((x) => x.state), [
+    MEMORY_SIZE_STATES.MISSING,
+    MEMORY_SIZE_STATES.MISSING,
+    MEMORY_SIZE_STATES.MISSING,
+    MEMORY_SIZE_STATES.OK,
+  ]);
+  assert.equal(r.sweptCount, 1);
+  assert.equal(r.verdict, "findings");
+});
+
+test("classifyMemoryIndexSizes: a measurement beats a contradicting dirExists:false", () => {
+  // Was: the row went NO_MEMORY_DIR, bytes → null, an over-budget index hidden.
+  const r = classifyMemoryIndexSizes({ rows: [{ agent: "hidden", dirExists: false, bytes: 24_401 }] });
+  assert.equal(r.rows[0].state, MEMORY_SIZE_STATES.OVER);
+  assert.equal(r.verdict, "findings");
+});
+
+test("classifyMemoryIndexSizes: rows with no identity are malformed, not measured and not findings", () => {
+  // Was: a duplicate agent counted twice (sweptCount 2); an empty name became a
+  // clean "(unnamed agent)"; a null row manufactured a MISSING finding whose
+  // message asserted a dir exists — about a row nothing is known about.
+  const r = classifyMemoryIndexSizes({
+    rows: [{ agent: "a", bytes: 1 }, { agent: "a", bytes: 2 }, { agent: "", bytes: 5 }, null, "str", { bytes: 7 }],
+  });
+  assert.equal(r.sweptCount, 1);
+  assert.equal(r.malformedCount, 5);
+  assert.equal(r.findings.length, 0);
+  assert.equal(r.verdict, "clean");
+  // All malformed → nothing swept, never clean.
+  assert.equal(classifyMemoryIndexSizes({ rows: [null, { agent: "" }] }).verdict, "nothing-swept");
 });

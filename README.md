@@ -22,12 +22,59 @@ I ran it against this repo. It found two blockers, including a real hole in the
 permission library - the artifact whose whole job is question four. Both are fixed, and
 both fixes are in the history.
 
+## Skills: hand your agent a source, get a decision you can check
+
+The self-audit hands your agent five questions. The skills in [`skills/`](./skills/)
+hand it a *source* - a course, a paper set - and ask it to decide, idea by idea,
+whether the source names a gap in your system. The output is a disposition record:
+one row per idea, a verdict of APPLIES / DOES NOT APPLY / ALREADY IN PLACE / NOT
+DECIDABLE / UNREADABLE, a quoted `file:line` or a scoped command with its exit code and
+output per verdict, thresholds written down *before* any deciding number is read, and
+"declined, because X" accepted as a complete answer.
+The skill offers; your agent decides; the record is what you review.
+
+The first one is [`skills/cs329a-self-improving-agents/`](./skills/cs329a-self-improving-agents/SKILL.md) -
+Stanford CS329A "Self-Improving AI Agents" (fall 2025, nine lectures on verifiers,
+test-time compute, planning, RL, deep-research agents and agentic evals) reduced to ten
+ideas, each with the lecture and the paper behind its numbers. It ships our summaries and
+the paper links, not the lectures - those are Stanford's - and a test that every citation
+resolves. We ran it on our own system first: the idea we were most excited about came back
+NOT DECIDABLE (0 of 39 labels joinable), the most valuable ship was a log file, and the
+verifiers refuted three of four builder receipts. That run is in
+[`references/answer-keys/worked-example.md`](./skills/cs329a-self-improving-agents/references/answer-keys/worked-example.md),
+misses included. Then we pointed it, read-only, at a system we do not own -
+NousResearch's hermes-agent, 10,666 files - and that run is
+[`references/answer-keys/worked-example-2.md`](./skills/cs329a-self-improving-agents/references/answer-keys/worked-example-2.md):
+five APPLIES, one DOES NOT APPLY with the searches attached, two NOT DECIDABLE, nothing
+acted on by mandate, one bar written late and counted, and ten notes on what the skill
+got wrong when handed a stranger's repo. A same-day cross-family adversarial round then
+overturned two of that record's first verdicts and corrected five citation sets - the
+round and the fold are in the file, original wrong rows quoted, because a disposition
+that cannot show its own refutations is asking to be trusted the way it asks you to
+trust nothing else.
+
+Install as a Claude Code plugin:
+
+```
+claude plugin marketplace add u00dxk2/agent-ops-patterns
+claude plugin install agent-ops-skills@agent-ops-patterns
+```
+
+or copy the skill folder into any harness that reads the Agent Skills format
+(`SKILL.md` + `references/`). Then point your agent at the repo you want judged and say
+"run the CS329A disposition." Expect twelve rows (ten ideas, two of them split) and a short
+chat summary; the rows are the deliverable. Before publishing, a fresh agent with no memory
+of the system - though it had read the then-ungated worked example, which is why that file
+is now gated last - ran the skill against the same system and came back with three findings
+the first run had missed and ten complaints about the skill; a Codex adversarial pass then
+found sixteen more. All folded in, all recorded in the worked example.
+
 ## What's here
 
 | Artifact | What it does | How to adopt |
 |---|---|---|
 | [`lib/snippet-redact.mjs`](./lib/snippet-redact.mjs) | Redacts secret-shaped text (API keys, JWTs, DB URIs, PEM blocks…) at the output boundary of any recall/search path, with named shape tokens (`[redacted:github-token]`) so hits stay findable. Defense-in-depth, not DLP — see [Coverage and limits](#coverage-and-limits). | **Use as-is** — vendor the one file (zero deps, pure function) |
-| [`lib/memory-integrity.mjs`](./lib/memory-integrity.mjs) | Zero-LLM integrity pass over a markdown agent-memory dir (MEMORY.md-style index + per-fact files + `[[wiki-links]]` — the Claude Code auto-memory shape): dead links, silent merges, over-budget index, orphans, near-duplicates; plus a backlink graph and **suggest-only** repairs. | **Use as-is** — vendor the one file; wire a thin CLI to your memory dir |
+| [`lib/memory-integrity.mjs`](./lib/memory-integrity.mjs) | Zero-LLM integrity pass over a markdown agent-memory dir (MEMORY.md-style index + per-fact files + `[[wiki-links]]` — the Claude Code auto-memory shape): dead links, silent merges, over-budget index, orphans, near-duplicates, and (opt-in, with a synchronous resolver you supply) index lines naming a script that resolves to no file; plus a backlink graph, **suggest-only** repairs, and a fleet-wide index-size classifier where an agent you couldn't measure is a finding rather than a clean row. | **Use as-is** — vendor the one file; wire a thin CLI to your memory dir |
 | [`lib/secret_redaction.py`](./lib/secret_redaction.py) | The same output-boundary redaction for Python recall paths (agent-memory layers, log excerpting) — a faithful port of `snippet-redact.mjs`, kept in sync; extracted while proposing this boundary upstream to a Python memory framework ([mem0ai/mem0#6817](https://github.com/mem0ai/mem0/issues/6817)). | **Use as-is** — vendor the one file (stdlib-only); `python lib/secret_redaction.py` runs its self-check |
 | [`lib/capability-grant.mjs`](./lib/capability-grant.mjs) | Scoped, single-use, TTL-bounded capability grants for human-gated agent actions: an approval relayed through a chat/bus message is not authorization, so a direct human "go" mints a grant bound to the sha256 of one exact command, honored once. Fail-closed: any ambiguity falls through to your normal permission prompt. | **Reference logic** — pure and complete as logic, and **not an authorization boundary on its own**. You supply: complete, non-bypassable mediation (no execution path reaches the action except through the hook); an authenticated *and* authorized minting principal, minting outside any agent session; a grant store, class policy and audit log the agent cannot write or delete; random ids; scope and class resolution; a trusted clock; atomic consume-before-execute; executing the same captured value that was checked; binding or independently trusting mutable context (cwd, PATH, executable resolution, environment, shell, referenced files) — a command hash does not bind a command's *effect* when those can change; and a fallback to your normal prompt. Budget real work here, not a wrapper |
 | [`lib/stale-basis.mjs`](./lib/stale-basis.mjs) | One staleness chain for tracker/memory items — newest of the declared *signal* dates (fields stamped only when an item was actually looked at), with bulk-write `updated` timestamps deliberately excluded so a mass edit can't silently re-date the whole tracker. Verdicts name which basis won. | **Use as-is** — vendor the one file; import it from EVERY reader (two hand-rolled copies of a staleness chain will drift) |
@@ -43,6 +90,7 @@ both fixes are in the history.
 | [`patterns/checks-that-cant-fail.md`](./patterns/checks-that-cant-fail.md) | Why a green check nobody has seen go red is not evidence, and the guard for four ways a check silently stops running while still reporting "clean": the never-red monitor, the dead-instrument zero (positive controls), the sweep that reached nothing (NOTHING SWEPT), and the config-absent silent disable. | **Read and apply** — protocol; the operations analog of mutation testing |
 | [`patterns/skill-regression-testing.md`](./patterns/skill-regression-testing.md) | Treating agent skills/prompts as process code: TDD-against-a-watched-failure, benchmark-gated edits, shadow-A/B with auto-rollback, anti-rationalization red flags. | **Read and apply** — the thinnest layer in the systems we looked at informally (July 2026; a look around, not a survey) |
 | [`patterns/durability-tiered-write-governance.md`](./patterns/durability-tiered-write-governance.md) | Gate agent actions by how hard they are to undo, on a three-rung ladder: effect-free authorized reads never sent for approval, schema-bounded reversible writes machine-approved, substrate/irreversible writes human-direct via minted grants. Replaces case-law permission accretion with an admission test per rule. | **Read and apply** — `capability-grant` is the rung-3 mechanism |
+| [`skills/cs329a-self-improving-agents/`](./skills/cs329a-self-improving-agents/SKILL.md) | An Agent Skill: your agent reads Stanford CS329A's ten load-bearing ideas (verifier filtering before ensembling, meta-verification, signal-needs-spread, reliability horizon, the deep-research ceiling…) against YOUR repo and writes a disposition record — one verdict per idea, a quoted `file:line` or a scoped command with its exit code and output per verdict, bars pre-committed before any deciding number. Offers; never assigns. | **Install** — `claude plugin marketplace add u00dxk2/agent-ops-patterns` then `claude plugin install agent-ops-skills@agent-ops-patterns`; or copy the folder (Agent Skills format). Citations link the papers, never the lectures; CI checks every link resolves |
 
 ## Quickstart
 
@@ -80,10 +128,20 @@ const files = fs
     content: fs.readFileSync(path.join(MEMORY_DIR, e.name), "utf8"),
   }));
 
+const indexText = fs.existsSync(indexPath) ? fs.readFileSync(indexPath, "utf8") : "";
+
 const input = {
-  indexText: fs.existsSync(indexPath) ? fs.readFileSync(indexPath, "utf8") : "",
+  indexText,
   files,
-  indexByteLength: fs.existsSync(indexPath) ? fs.statSync(indexPath).size : 0,
+  // The cap is 24,400 LF-normalized UTF-8 bytes. Measure the text you read, not
+  // `statSync().size`: on a CRLF working tree the file is +1 byte per line, and
+  // a valid index goes over the line for its line endings alone.
+  indexByteLength: Buffer.byteLength(indexText.replace(/\r\n/g, "\n"), "utf8"),
+  // Opt-in, and it must be synchronous (a Promise is never `false`, and the lib
+  // throws rather than let the check go silently inert). Return `false` only
+  // when you can PROVE the file is absent — here, "not in this repo"; if your
+  // tools live elsewhere too, widen the search or return null.
+  toolResolver: (token) => fs.existsSync(path.resolve(token)),
 };
 
 const { findings, swept, coverage } = lintMemoryIntegrity(input);
@@ -118,6 +176,11 @@ Versions, stated exactly: CI runs the **JS suite** on Node 20, 22 and 24, and th
 ## Coverage and limits
 
 Every artifact here names what it does NOT do. The libraries pin representative cases of their principal limits in tests; the operational limits - the ones that live in your deployment rather than in this code, like the grant lib's single-user-account boundary - are labeled as what they are, because no test can reach them. The written protocols state practices and are not executable specifications, so nothing tests those at all. Neither kind is a footnote, but they aren't the same kind of promise either.
+
+The skill in `skills/` states its own limits in its `SKILL.md` § "Where this skill stops
+working" - the short version: it reads a repo, not a deployment, so "already in place"
+proves a code path exists, not that it runs; and the ideas are the course as taught in
+fall 2025, read in August 2026.
 
 ### snippet-redact (and its Python port)
 
