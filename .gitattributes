@@ -1,0 +1,4 @@
+# Markdown is LF everywhere. test/skill-references.test.mjs reads SKILL.md
+# frontmatter with an LF-only pattern, and a CRLF checkout (core.autocrlf on
+# Windows) would fail it on files nobody changed.
+*.md text eol=lf
