@@ -2,3 +2,7 @@
 # frontmatter with an LF-only pattern, and a CRLF checkout (core.autocrlf on
 # Windows) would fail it on files nobody changed.
 *.md text eol=lf
+
+# Git hooks are run by /bin/sh. A CRLF checkout makes the shebang unparseable
+# ("bad interpreter"), so the hook would fail to run on Linux and macOS.
+.githooks/** text eol=lf

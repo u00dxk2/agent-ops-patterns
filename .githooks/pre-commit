@@ -1,0 +1,5 @@
+#!/bin/sh
+# Scan staged, ADDED lines for secret shapes before they become a commit.
+# Activate in a fresh clone with:  git config core.hooksPath .githooks
+# (npm's "prepare" script does this for you if you run npm install.)
+exec node "$(dirname "$0")/../scripts/check-staged-secrets.mjs"

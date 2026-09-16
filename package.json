@@ -28,7 +28,8 @@
     "cs329a"
   ],
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "engines": {
     "node": ">=20"
