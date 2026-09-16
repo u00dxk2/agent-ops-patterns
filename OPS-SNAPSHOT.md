@@ -1,4 +1,4 @@
-# Ops snapshot - 2026-08-29
+# Ops snapshot - 2026-09-16
 
 The README used to open by telling you I run a large multi-agent system. That's an
 unauditable testimonial, so I softened it. This file is the other half of the fix: the
@@ -6,80 +6,111 @@ numbers I can actually produce, roughly how each was measured, and an honest lis
 ones I can't.
 
 Read the "how" column as an abbreviated description, not a reproduction recipe. Some
-entries really are the command (`npm run test:unit`); others name a file listing whose
-count I then took, or an authenticated API call against a moving window. This revision
-carries the exact query bounds and the source revision where a row has one, which the
-first revision did not - that was the stated fix "if these numbers ever need to carry
-weight," and re-measuring was the occasion to do it. What is still missing is the
-deployed server revision behind the bus numbers; the queries were made against
-production and the running build was not captured. A stranger could re-derive the file
-counts and the test row from what is written here, and could re-run the bus queries
-against a different window but not this one.
+entries really are the command; others name a file listing whose count I then took, or
+an authenticated API call against a moving window. Every row carries its query bounds.
+The file counts and the test row also carry the source revision they were read at; the
+bus rows cannot, and carry their query clock plus the deployment note below instead.
+The previous revision named one thing still
+missing - the deployed server revision behind the bus numbers - and this one gets closer
+without quite closing it. The deploy record, read minutes after the last query, showed
+production running `7aea546d`, then the branch head; that commit was made at
+2026-09-16T15:21Z, before the first query at 15:56Z. What I did not do is capture the
+revision at query time, so a deploy landing during the measurement interval would not be
+visible here. Read it as "the build serving afterwards, whose commit predates the
+queries," not as proof that one build served them all. A stranger
+could re-derive the file counts and the test row from what is written here, and could
+re-run the bus queries against a different window but not this one.
 
 It's a snapshot with a date on it, not a live dashboard. A number on a page that nobody
-re-measures becomes a lie on a schedule. This is the second measurement; the first was
-2026-08-16, and the deltas are in the table because a rate is more informative than a
-level.
+re-measures becomes a lie on a schedule. This is the third measurement; the first was
+2026-08-16 and the second 2026-08-29, and the deltas are in the table because a rate is
+more informative than a level.
 
 ## What I can show
 
 | Number | What it is | How it was measured (abbreviated) |
 | --- | --- | --- |
-| **7,076** unit tests passing, 10 skipped, in 273 files | The code that runs the fleet, not this repo. Was 5,186 in 257 files on 8/16 | skylark-site `Verify` CI run `33270286950` at `bd1ab42f` (main), 2026-08-29T19:16Z: `npm run test:unit` → `Tests 7076 passed \| 10 skipped (7086)`, `Test Files 272 passed \| 1 skipped (273)` |
-| **114** check scripts | Standalone detectors with a pass/fail verdict. Was 85 | count of `scripts/check-*.mjs` on disk at `bd1ab42f` |
-| **203** shared libraries | The `cc-*` primitives those detectors are built from. Was 168 | count of `src/lib/cc-*` on disk at `bd1ab42f` (no test files live there; tests are under `__tests__/`) |
-| **340** agent messages in 24 hours | Traffic on the Postgres bus the agents coordinate over - a Saturday. Friday 8/28 read 845; the 8/16 row was 580 | `GET /api/cc/agent-msg?since=2026-08-28T19:25:29Z&limit=1` → `matchedCount`, queried 2026-08-29T19:25:29Z |
-| **4,332** agent messages in 7 days | Same endpoint, wider window (~619/day). Was 4,013 | as above, `since=2026-08-22T19:25:29Z`; complete, not a floor - see the second-cap paragraph for why that had to be checked |
-| **26** distinct projects posting to the bus in 7 days | An exact count this time, not a floor. Was "at least 23" | `?summary=1`, whose grouping runs over the whole server-side read rather than a page, filtered to projects whose newest post falls inside the window; one of the 26 is this repo, which posted one status line during this session |
+| **13,004** unit tests passing, 17 skipped, in 435 files | The code that runs the fleet, not this repo. Was 7,076 in 273 files on 8/29 and 5,186 in 257 on 8/16 | `Verify` CI run `35106222446` at `7b55f1d2` (main), finished 2026-09-16T14:15:35Z: `npm run test:unit` → `Tests 13004 passed \| 17 skipped (13021)`, `Test Files 434 passed \| 1 skipped (435)` |
+| **156** check scripts | Standalone detectors with a pass/fail verdict. Was 114 | `git ls-tree --name-only 7b55f1d2 scripts/`, names matching `check-*.mjs` |
+| **289** shared libraries | The `cc-*` primitives those detectors are built from. Was 203 | `git ls-tree --name-only 7b55f1d2 src/lib/`, names starting `cc-`; none of them is a test file |
+| **1,125** agent messages in 24 hours | Traffic on the Postgres bus the agents coordinate over - a Wednesday. The 8/29 row was 340 on a Saturday; the Friday before it, 845 | `GET /api/cc/agent-msg?since=2026-09-15T15:56:40Z&limit=1` → `matchedCount`, queried 2026-09-16T15:56:40Z |
+| **4,816** agent messages in 7 days | Same endpoint, wider window (~688/day). Was 4,332 | as above, `since=2026-09-09T15:56:40Z`; the response carries no `servedSince`, so the read reached past the window start and this is a count. A re-read about a minute later returned 4,818 - the window was still filling |
+| **24** distinct projects posting to the bus in 7 days | Was 26 | `GET /api/cc/agent-msg?summary=1&windowHours=168` (no `limit`), response `ts` 2026-09-16T15:58:01Z, so the server's window starts 2026-09-09T15:58:01Z → 24 rows, `truncated: false`, no `servedSince`; every row's newest post is inside that window (the oldest of them 2026-09-16T14:49Z); one of the 24 is this repo. Why 24 is complete, not just 24 found: see below |
 
-Three of those numbers need their caveats said out loud, because the caveat is the
-interesting part.
+Two of those rows had their method checked rather than assumed, because a count that
+moves this much is more likely to be a changed ruler than a changed world.
 
-**The test row, and the flaky pair.** The 8/16 revision said "5,186 passing, with two
-flaky" and explained that a first run had shown two failures which vanished on re-run.
-This revision took the count from CI rather than a local run, because the suite writes
-fixtures and I did not want to run it inside a working tree other sessions were using.
-One green run says nothing about flakiness either way; the two tests were not re-tested
-and the paragraph about them is not retracted, just not extended. The 10 skips are
-platform-gated by design (an EPERM end-to-end file and two rename cases that only run on
-Windows), not failures wearing a different label.
+**The file counts reproduce.** Run at `bd1ab42f` - the revision the 8/29 snapshot used -
+the same two `git ls-tree` commands return 114 and 203, the published numbers, exactly.
+So 156 and 289 are growth, not a different way of counting.
 
-**The message counts are real, and getting them fixed the API.** The first version of
-this file could only say "at least 500 a day." The bus endpoint clamped every response
-to 500 rows and said nothing about it, so a 1-day window and a 7-day window both came
-back with exactly 500 - which reads as "the window argument is being ignored," the shape
-`cc-windowed-segmentation` exists to catch. Caught on our own API, by trying to publish
-a number. The endpoint now returns `matchedCount` alongside the page, plus `truncated`
-and a `countIsFloor` message when the cap bites, and the difference turned out to be 580
-rather than "≥500."
+**The test count is the same scope.** Tests nearly doubled in eighteen days, which is the
+shape of a widened glob. It isn't one: `test:unit` is still `vitest run`, and between
+`bd1ab42f` and `7b55f1d2` the vitest config's `include` patterns are unchanged - the only
+edit raised the per-test timeout. The count was again taken from CI, not a local run,
+because the suite writes fixtures and I did not want to run it inside a working tree
+other sessions were using. The 8/29 revision said its 10 skips were platform-gated by
+design; the 17 here were not re-examined, so that sentence is not extended to them.
 
-**A second cap, found this time, and it is not declared.** Re-measuring meant asking
-whether `matchedCount` itself could be a floor, so I probed wider windows. A 10-day
-query returns `matchedCount: 5000`. So does a 14-day query. That is not the traffic; it
-is the reader underneath the route, which selects the newest 5,000 rows from the last 14
-days and hands them up as "all messages." The route then counts matches over that read
-and declares the 500-row *page* cap faithfully, with no idea the 5,000-row *read* cap
-exists. So the response's own NO SILENT CAPS contract holds at the layer that wrote it
-and is violated one layer down: any window wider than about eight days gets a confident
-`matchedCount` that is a floor, with `truncated: false`. The 7-day number above is safe
-only because the probe showed the 5,000 newest rows reach back past seven days; it is
-the probe that makes it a count. This is the same failure the 8/16 revision described,
-one layer deeper, found by the same method - and it is a defect in the fleet's code, not
-this repo's, so it is routed there rather than fixed here.
+## The second cap, now declared
 
-**The distinct-project count was a floor for two revisions.** It was computed by
-grouping the returned page - 500 rows of 3,948 - and the 8/16 revision said so, then
-left it standing next to a paragraph about exactly that failure. The fix was not more
-paging: the endpoint has no cursor, and `since` alone can't walk backward through a
-newest-first list. The fix was a different response shape whose grouping runs over the
-full server-side read, filtered client-side to projects whose newest post is inside the
-window. Because that read spans more than seven days (the probe above), any project that
-posted in the window is in it, and 26 is a count.
+The 8/29 revision found a cap nobody had declared. The endpoint read the newest 5,000
+messages from the last 14 days, counted matches over that read, and said nothing about
+the read being clipped: a 10-day and a 14-day query both answered `matchedCount: 5000,
+truncated: false`. Any window wider than about eight days got a confident number that
+was really a floor.
+
+It was fixed the same day, in the fleet's own code (`7895b2b5c`, an ancestor of the
+deployed `7aea546d`). Today's 10-day probe - `since=2026-09-06T15:56:40Z&limit=1`,
+queried 2026-09-16T15:56:40Z, and re-read about eighty seconds later to capture the
+response text verbatim - answers:
+
+> `matchedCount: 5000`, `truncated: true`, `servedSince: 2026-09-08T23:22:49.155Z`, and
+> "The underlying bus read clipped BEFORE matching (read-limit; v1 window 14d, LIMIT 5000) -
+> the served window starts 2026-09-08T23:22:49.155Z, not the window asked for;
+> matchedCount 5000 counts the served rows only."
+
+That is the sentence the fix exists to produce, read off production rather than a test.
+
+Two things about it matter for anyone re-running these queries.
+
+**`truncated` alone no longer tells you which cap bit.** The three message-count queries
+(24 hours, 7 days, and the 10-day probe) send `limit=1`, so every one of those responses
+is page-capped and says `truncated: true`. The field that separates "the page was short"
+from "the read was clipped" is `servedSince`: absent on a count, present on a floor. A
+reader who keys on `truncated` would call the 24-hour and 7-day rows floors.
+
+**The project count is judged differently, and that is what makes it a count.** The
+summary query sends no `limit`; it returns one row per project over the whole 5,000-row
+read. Rows present only proves those projects posted. What proves none are missing is
+the server's own clip judgment. For this shape it is made against `windowHours`, and at
+168 hours it answered `truncated: false` with no `servedSince`: the read reached back past
+the window start, so a project that posted in the window is in the read. The 7-day message
+query agrees independently - no `servedSince` there either. One boundary: the summary
+groups agent posts, and skips rows a person typed into the bus, so a project whose only
+activity in the week was a human message would not be counted.
+
+**The cap is now within a day of the 7-day row.** Traffic rose, so 5,000 messages now
+reach back 7 days 16.6 hours instead of about eight days - measured from that probe's
+served floor (2026-09-08T23:22:49Z) to the 15:56:40Z query clock the whole sweep shares.
+The floor slides forward as rows land: the same probe eighty seconds earlier put it at
+23:22:08Z. So the 7-day count holds by a margin of roughly 16.6 hours.
+
+Which way that margin moves is worth being careful about, because the obvious reading is
+wrong. Over those eighty seconds the floor advanced about 41 seconds - but a rolling
+7-day window's start advanced the full 80, so headroom grew by roughly 39 seconds, not
+shrank. Headroom for a *rolling* window only shrinks when messages arrive fast enough
+that 5,000 of them span less time than before; two readings 80 seconds apart say nothing
+about that trend. What does lose coverage as the floor advances is a *fixed* window - the
+one published above. The conditional is the honest form: if the message rate keeps rising,
+a future 7-day query will be answered from a clipped read, and the response will say so. If the rate keeps climbing, the next measurement may not be able
+to publish a 7-day message count at all - and the response will say so, which is the
+difference between this revision and the last one.
 
 ## What I got wrong, and what's actually missing
 
-(Unchanged from the 2026-08-16 revision. Nothing in this section was re-measured, and
-the two missing instruments are still missing.)
+(Unchanged since the 2026-08-16 revision. Nothing in this section was re-measured, and
+whether the two missing instruments exist yet was not checked this time either.)
 
 I was asked to publish daily active users across the portfolio, retention for one app,
 and churn for another. I went to check, got the first answer badly wrong, and was
@@ -120,6 +151,7 @@ operational numbers are the ones that bear on that claim. Revenue and user count
 a different question, one this repo isn't asking you to believe.
 
 Re-measure date: whenever the next real change lands. If you're reading this months
-later and it hasn't moved, treat it as stale - that's what the date is for. Two
-measurements thirteen days apart is what it took to notice that the interesting number
-is the second cap, not the traffic.
+later and it hasn't moved, treat it as stale - that's what the date is for. The second
+measurement found a cap that wasn't declared; the third found it declared, and found the
+published 7-day window sitting about 17 hours inside it. Neither would have shown up in a
+number nobody re-ran.
