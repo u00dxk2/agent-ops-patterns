@@ -11,6 +11,7 @@ Instructions for a coding agent working in this repository. Humans: [README.md](
 - `scripts/check-staged-secrets.mjs` + `.githooks/pre-commit` — refuses a commit whose staged lines
   carry a secret shape. Turn it on in your clone with `git config core.hooksPath .githooks` (running
   `npm install` does this through `prepare`). `--history <days> --selftest` proves it can go red.
+  CI runs `--range <before>..<after>` over every push and PR, so the hook being off is not a gap.
 - `OPS-SNAPSHOT.md`, `SELF-AUDIT.md` — dated measurements. Do not edit a number in them without
   re-measuring it and saying how; a changed figure with no query behind it is the failure those files
   exist to avoid.
@@ -23,7 +24,8 @@ python lib/secret_redaction.py                             # Python self-check, 
 CHECK_LINKS=1 node --test test/skill-references.test.mjs   # network: every URL a skill cites must resolve
 ```
 
-CI (`.github/workflows/tests.yml`) runs the first on Node 20, 22 and 24, and the other two once each.
+CI (`.github/workflows/tests.yml`) runs the first on Node 20, 22 and 24, the other two once each, and
+the secret scan (self-test, then the pushed range).
 The README's Node version claim is that matrix; widen the matrix before widening the claim.
 
 ## The house contract for `lib/`

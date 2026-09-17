@@ -13,6 +13,10 @@
  *   --history <days>          every ADDED line of every hunk in REACHABLE history
  *                             for the window (`git log -p --all --since=<ISO>`).
  *                             exit 0 CLEAN · 2 ERROR or NOTHING SWEPT · 3 HITS
+ *   --range <a>..<b>          the same sweep over exactly the commits in a revision
+ *                             range (`git log -p <a>..<b>`) — what CI runs on a push
+ *                             or PR, commit by commit, so a value added and deleted
+ *                             inside one PR still fires.    exit ladder as --history
  *
  * ⚠ HISTORY HITS EXIT 3, NOT 1 — deliberately DISTINCT from the staged/message
  * ladder above (0/1), so a caller can never confuse "history is dirty" with "your
@@ -57,7 +61,7 @@ import { fileURLToPath } from "node:url";
 // hook would BLOCK the commit instead of scanning it. The two helpers below are
 // inlined with the same contracts as their library versions: unknown flag → exit 2,
 // nothing scanned; RESULT line in result-line.mjs's format, kept in step by hand.
-const KNOWN_FLAGS = new Set(["help", "message-file", "history", "repo", "selftest"]);
+const KNOWN_FLAGS = new Set(["help", "message-file", "history", "range", "repo", "selftest"]);
 function refuseUnknownFlags(args) {
   const unknown = args.filter((a) => a.startsWith("--")).map((a) => a.slice(2).split("=")[0]).filter((f) => !KNOWN_FLAGS.has(f));
   if (unknown.length === 0) return;
@@ -139,11 +143,16 @@ if (argv.includes("--help")) {
         Output is REDACTED: pattern · short sha · path:line only — the matched value is never printed.
         Every outcome prints the denominator first:
           history: <N> commits scanned · <M> hunks · <K> added lines · window <days>d since <ISO>
+  node scripts/${SCRIPT}.mjs --range <a>..<b> [--repo <path>]
+        the same sweep, same exits and redaction, over exactly the commits in the range
+        (git log -p <a>..<b>) — the CI form: per commit, so a value added then deleted inside
+        one PR still fires. An empty range is NOTHING SWEPT (exit 2); an unknown rev is ERROR (2).
   node scripts/${SCRIPT}.mjs --history <days> --selftest
         throwaway-repo arms, each run as a real child process of this script:
           RED    a commit tripping EVERY pattern → exit 3, every pattern named, no value printed
           GREEN  realistic content + an allowlisted line → exit 0
           EMPTY  the only commit is outside the window → NOTHING SWEPT, exit 2
+          RANGE  a hit inside --range fires; a hit before it stays out; an empty range is NOTHING SWEPT
           plus staged / --message-file regression arms (exit 1 on a fixture, 0 on clean).
         exit 0 all arms pass · 1 an arm failed
   --help  this text
@@ -191,7 +200,8 @@ if (msgFlagIdx !== -1) {
 // ---------------------------------------------------------------- --history
 
 const historyIdx = argv.indexOf("--history");
-if (historyIdx !== -1) {
+const rangeIdx = argv.indexOf("--range");
+if (historyIdx !== -1 || rangeIdx !== -1) {
   // The RESULT line is armed at the moment the verdict is known, so the label matches
   // the outcome (exit 2 is ERROR on a git failure but NOTHING-SWEPT on an empty
   // window — one code, two honest labels).
@@ -200,12 +210,10 @@ if (historyIdx !== -1) {
     setResultDetail(detail);
     process.exit(code);
   };
-  const daysRaw = argv[historyIdx + 1];
-  if (!/^\d+$/.test(daysRaw ?? "") || Number(daysRaw) < 1) {
-    console.error(`${SCRIPT}: --history requires a positive whole number of days (got ${JSON.stringify(daysRaw ?? "")})`);
-    finish(2, "ERROR", "bad --history argument");
+  if (historyIdx !== -1 && rangeIdx !== -1) {
+    console.error(`${SCRIPT}: --history and --range are exclusive — pick the scope you mean`);
+    finish(2, "ERROR", "both --history and --range");
   }
-  const days = Number(daysRaw);
   const repoIdx = argv.indexOf("--repo");
   const repo = repoIdx !== -1 ? argv[repoIdx + 1] : process.cwd();
   if (repoIdx !== -1 && (!repo || repo.startsWith("--"))) {
@@ -213,19 +221,38 @@ if (historyIdx !== -1) {
     finish(2, "ERROR", "bad --repo argument");
   }
 
-  if (argv.includes("--selftest")) {
-    const code = selftestHistory(days);
-    finish(code, code === 0 ? "PASS" : "FAIL", code === 0 ? "selftest: every arm passed" : "selftest: an arm failed");
+  let scope;
+  if (rangeIdx !== -1) {
+    const range = argv[rangeIdx + 1];
+    // An option-shaped value would be read by git as an option, not a revision.
+    if (!range || range.startsWith("-")) {
+      console.error(`${SCRIPT}: --range requires a revision range such as <a>..<b> (got ${JSON.stringify(range ?? "")})`);
+      finish(2, "ERROR", "bad --range argument");
+    }
+    scope = { revArgs: ["--end-of-options", range], label: `range ${range}` };
+  } else {
+    const daysRaw = argv[historyIdx + 1];
+    if (!/^\d+$/.test(daysRaw ?? "") || Number(daysRaw) < 1) {
+      console.error(`${SCRIPT}: --history requires a positive whole number of days (got ${JSON.stringify(daysRaw ?? "")})`);
+      finish(2, "ERROR", "bad --history argument");
+    }
+    const days = Number(daysRaw);
+    if (argv.includes("--selftest")) {
+      const code = selftestHistory(days);
+      finish(code, code === 0 ? "PASS" : "FAIL", code === 0 ? "selftest: every arm passed" : "selftest: an arm failed");
+    }
+    const sinceIso = new Date(Date.now() - days * 86_400_000).toISOString();
+    scope = { revArgs: ["--all", `--since=${sinceIso}`], label: `window ${days}d since ${sinceIso}` };
   }
 
-  const r = sweepHistory({ days, repo });
+  const r = sweepHistory({ repo, ...scope });
   if (r.error) {
     console.error(`${SCRIPT}: ${r.error}`);
     finish(2, "ERROR", r.error);
   }
   console.log(r.summary);
   if (r.nothingSwept) {
-    console.log("NOTHING SWEPT — 0 commits reachable in the window; a clean verdict over nothing is not clean.");
+    console.log("NOTHING SWEPT — 0 commits in scope; a clean verdict over nothing is not clean.");
     finish(2, "NOTHING-SWEPT", r.summary);
   }
   if (r.hits.length) {
@@ -236,26 +263,25 @@ if (historyIdx !== -1) {
     console.log("  False positive? the line needs a trailing `pragma: allowlist secret` in the commit that added it.\n");
     finish(3, "FINDINGS", `${r.hits.length} hit(s) · ${r.summary}`);
   }
-  console.log("CLEAN — no secret-shaped ADDED line in the window.");
+  console.log("CLEAN — no secret-shaped ADDED line in scope.");
   finish(0, "PASS", r.summary);
 }
 
 /**
- * Walk `git log -p` over reachable history for the window and classify every ADDED
- * line. Returns the denominator on every outcome; never prints.
+ * Walk `git log -p` over the given revisions (a window of reachable history, or a range)
+ * and classify every ADDED line. Returns the denominator on every outcome; never prints.
  * @returns {{ summary: string, hits: Array<{pattern: string, sha: string, file: string, line: number}>, nothingSwept: boolean, error?: string }}
  */
-function sweepHistory({ days, repo }) {
-  const sinceIso = new Date(Date.now() - days * 86_400_000).toISOString();
+function sweepHistory({ repo, revArgs, label }) {
   let log = "";
   try {
     log = execFileSync(
       "git",
       [
-        "-C", repo, "log", "-p", "--all", "--no-color", "--unified=0", "--no-ext-diff", "--no-textconv",
-        `--since=${sinceIso}`,
+        "-C", repo, "log", "-p", "--no-color", "--unified=0", "--no-ext-diff", "--no-textconv",
         // One marker line per commit (0x01 never starts a diff line); the body is not printed.
         "--format=%x01commit %h",
+        ...revArgs,
       ],
       { encoding: "utf8", maxBuffer: 1024 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] },
     );
@@ -292,7 +318,7 @@ function sweepHistory({ days, repo }) {
     if (line.startsWith(" ")) newLine++; // context (none under --unified=0; kept for correctness)
   }
 
-  const summary = `history: ${commits} commits scanned · ${hunks} hunks · ${added} added lines · window ${days}d since ${sinceIso}`;
+  const summary = `history: ${commits} commits scanned · ${hunks} hunks · ${added} added lines · ${label}`;
   return { summary, hits, nothingSwept: commits === 0 };
 }
 
@@ -443,6 +469,31 @@ function selftestHistory(days) {
       `fixture exit ${r6.status}, clean exit ${r7.status}`,
     );
 
+    // RANGE — only the commits in <a>..<b> are swept: a hit inside fires, a hit before
+    // the range stays out, an empty range is not a clean verdict.
+    const rng = initRepo("range");
+    const commitFile = (name, body) => {
+      writeFileSync(join(rng, name), body);
+      git(rng, ["add", "-A"]);
+      git(rng, ["commit", "-q", "-m", `add ${name}`]);
+      return git(rng, ["rev-parse", "HEAD"]).trim();
+    };
+    const c0 = commitFile("a.txt", `${SILENT[0]}\n`);
+    const c1 = commitFile("b.txt", `${FIRE[7][1]}\n`);
+    const c2 = commitFile("c.txt", `${SILENT[1]}\n`);
+    const inside = runSelf(["--range", `${c0}..${c2}`, "--repo", rng]);
+    const before = runSelf(["--range", `${c1}..${c2}`, "--repo", rng]);
+    const none = runSelf(["--range", `${c2}..${c2}`, "--repo", rng]);
+    const optionShaped = runSelf(["--range", "-p", "--repo", rng]);
+    arm(
+      "RANGE — hit inside the range exits 3 redacted; hit before it stays out (exit 0, 1 commit); empty range NOTHING SWEPT; option-shaped range refused",
+      inside.status === 3 && inside.out.includes("[stripe-live-secret]") && /^history: 2 commits scanned/m.test(inside.out) && leaked(inside.out).length === 0 &&
+        before.status === 0 && /^history: 1 commits scanned/m.test(before.out) &&
+        none.status === 2 && none.out.includes("NOTHING SWEPT") &&
+        optionShaped.status === 2,
+      `inside exit ${inside.status}, before exit ${before.status}, empty exit ${none.status}, option-shaped exit ${optionShaped.status}`,
+    );
+
     // USAGE — bad args and an unknown flag refuse with 2, never scan.
     const r8 = runSelf(["--history", "zero", "--repo", red]);
     const r9 = runSelf(["--history", String(days), "--repo", red, "--histroy"]);
@@ -453,7 +504,7 @@ function selftestHistory(days) {
   } finally {
     try { rmSync(base, { recursive: true, force: true }); } catch { /* temp dir; best effort */ }
   }
-  console.log(failed === 0 ? `selftest: PASS (${FIRE.length} patterns, ${SILENT.length} silent lines, 7 arms)` : `selftest: FAIL — ${failed} arm(s) failed`);
+  console.log(failed === 0 ? `selftest: PASS (${FIRE.length} patterns, ${SILENT.length} silent lines, 8 arms)` : `selftest: FAIL — ${failed} arm(s) failed`);
   return failed === 0 ? 0 : 1;
 }
 

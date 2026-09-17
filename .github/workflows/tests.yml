@@ -40,6 +40,26 @@ jobs:
         env:
           CHECK_LINKS: "1"
 
+  # Secret shapes in the commits this push or PR adds, commit by commit — so a
+  # value added and deleted inside one PR still reds. Covers what push protection
+  # does not: fork PRs, clones without the local hook, credentialed connection
+  # strings. A range, not whole history: two ReDoS probe lines (a bare PEM header,
+  # e3be970 and 92c6569) sit in history unmarked, so a full sweep never reads clean.
+  # A force-push to main reds here too — the old tip is gone; read it, don't re-run.
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/check-staged-secrets.mjs --history 1 --selftest
+      - run: node scripts/check-staged-secrets.mjs --range "$RANGE"
+        env:
+          RANGE: ${{ github.event.pull_request.base.sha || github.event.before }}..${{ github.event.pull_request.head.sha || github.sha }}
+
   python:
     runs-on: ubuntu-latest
     steps:
