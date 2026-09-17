@@ -124,6 +124,7 @@ where it stops working, and those sentences are the ones I'd read first if I wer
 
 ## If the audit finds something we got wrong
 
-Open an issue. That's more useful to me than a star, and considerably more useful than
-agreement. If your agent finds a hole in one of these files, I want to know - the whole
-value of a small vendored file is that it's small enough to actually be checked.
+Open an issue - if your agent finds a hole in one of these files, I want to know; the
+whole value of a small vendored file is that it's small enough to actually be checked.
+And if any of it was useful, star the repo or send it to someone running agents: that's
+how the next person finds it.
