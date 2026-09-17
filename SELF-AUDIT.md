@@ -95,12 +95,13 @@ Copy the prompt below, or just point your agent at this file's URL and say "run 
 
 ## What to do with the answer
 
-You'll get a score. Mine was not five out of five - I ran this against the repo you're
-reading and it came back with two blockers, one of which was a genuine hole in the
-permission library, the artifact whose entire job is Question 4. Both are fixed now
-and both fixes are in the git history. That's not a confession, it's the point: the
-audit is worth running because it finds things, and it found things in the system
-written by the person who wrote the audit.
+You'll get a score. Don't expect five out of five - the repo you're reading had a
+genuine hole in the permission library, the artifact whose entire job is Question 4.
+An adversarial review found it before I published, and it was fixed before this audit
+was added to the repo; [the fix commit](https://github.com/u00dxk2/agent-ops-patterns/commit/792c788)
+says how it was found. That's not a confession, it's the point: the hole sat in code
+written by the person who wrote these questions until someone went looking for it.
+Have your agent go looking.
 
 For each area there is reference logic or a written protocol here that may help. Be
 clear-eyed about what that buys you: **none of these mappings turns a FAIL into a PASS on

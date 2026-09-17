@@ -18,9 +18,10 @@ with a score, a quoted file path per verdict, and the smallest fix that would mo
 failure to a pass. It takes about thirty seconds of your attention and requires no trust
 in me at all.
 
-I ran it against this repo. It found two blockers, including a real hole in the
-permission library - the artifact whose whole job is question four. Both are fixed, and
-both fixes are in the history.
+Before I published this repo, an adversarial review found a real hole in the permission
+library - the artifact whose whole job is question four. It was fixed before this audit
+was added to the repo, and [the fix commit](https://github.com/u00dxk2/agent-ops-patterns/commit/792c788)
+says how it was found.
 
 ## Skills: hand your agent a source, get a decision you can check
 
