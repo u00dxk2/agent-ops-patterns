@@ -4,6 +4,8 @@
 
 Operational patterns for running LLM agents in production.
 
+**New here? Hand [SELF-AUDIT.md](./SELF-AUDIT.md) to your own agent.** It asks five questions about your setup, read-only, and answers each one with a verdict and the file path behind it. [More on the audit below](#start-here-run-the-audit-on-your-own-system).
+
 I run a software portfolio by myself, through a lot of concurrent Claude Code agent sessions coordinated over a Postgres message bus and watched by a layer of small detectors that make no model calls. These patterns came out of that. The origin story is still my word - but [OPS-SNAPSHOT.md](./OPS-SNAPSHOT.md) is the part I can measure, with the command next to each number and an honest list of what I can't produce. Judge the code on the code: the libraries are all here and all tested, the written protocols are practices rather than executable specifications, and every library says where it stops working.
 
 Agent frameworks get you to the demo. These patterns are about what happens after: recalled transcripts handing your own secrets back to you, agent memory rotting into duplicates and dead links, health monitoring that costs more than the work it watches, and instruction files edited daily with nothing catching the regression. Each one is here because something broke and this is what stopped it breaking again.
