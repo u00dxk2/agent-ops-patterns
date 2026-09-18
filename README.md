@@ -4,11 +4,11 @@
 
 Operational patterns for running LLM agents in production.
 
-I run a software portfolio by myself, through a lot of concurrent Claude Code agent sessions coordinated over a Postgres message bus and watched by a layer of small detectors that make no model calls. These patterns came out of that. The origin story is still my word - but [OPS-SNAPSHOT.md](./OPS-SNAPSHOT.md) is the part I can measure, with the command next to each number and an honest list of what I can't produce. Judge the code on the code: the libraries are all here and all tested, the written protocols are practices rather than executable specifications, and every artifact says where it stops working.
+I run a software portfolio by myself, through a lot of concurrent Claude Code agent sessions coordinated over a Postgres message bus and watched by a layer of small detectors that make no model calls. These patterns came out of that. The origin story is still my word - but [OPS-SNAPSHOT.md](./OPS-SNAPSHOT.md) is the part I can measure, with the command next to each number and an honest list of what I can't produce. Judge the code on the code: the libraries are all here and all tested, the written protocols are practices rather than executable specifications, and every library says where it stops working.
 
 Agent frameworks get you to the demo. These patterns are about what happens after: recalled transcripts handing your own secrets back to you, agent memory rotting into duplicates and dead links, health monitoring that costs more than the work it watches, and instruction files edited daily with nothing catching the regression. Each one is here because something broke and this is what stopped it breaking again.
 
-Two essays frame the territory these patterns assume. Cliff Rosen's ["The Agent in the Middle"](https://www.orchestratorstudios.ai/articles/the-agent-in-the-middle.html) is the *access* half — an agent replacing the UX layer over your systems' substrates, given understanding (skills) and access (tools). David Kooi's ["Cognitive Operations Maps"](https://uncagedminds.substack.com/p/cognitive-operations-maps) is the *judgment* half — which recurring decisions the agent holds, and how you validate them. This repo is the operational layer under both: what keeps that architecture honest once it runs unattended.
+Two essays frame the territory these patterns assume. Cliff Rosen's ["The Agent in the Middle"](https://www.orchestratorstudios.ai/articles/the-agent-in-the-middle.html) is the *access* half — an agent replacing the UX layer over your systems' substrates, given understanding (skills) and access (tools). My own ["Cognitive Operations Maps"](https://uncagedminds.substack.com/p/cognitive-operations-maps) is the *judgment* half — which recurring decisions the agent holds, and how you validate them. This repo is the operational layer under both: what keeps that architecture honest once it runs unattended.
 
 ## Start here: run the audit on your own system
 
@@ -176,7 +176,7 @@ Versions, stated exactly: CI runs the **JS suite** on Node 20, 22 and 24, and th
 
 ## Coverage and limits
 
-Every artifact here names what it does NOT do. The libraries pin representative cases of their principal limits in tests; the operational limits - the ones that live in your deployment rather than in this code, like the grant lib's single-user-account boundary - are labeled as what they are, because no test can reach them. The written protocols state practices and are not executable specifications, so nothing tests those at all. Neither kind is a footnote, but they aren't the same kind of promise either.
+Every library here names what it does NOT do, and so does the skill. The libraries pin representative cases of their principal limits in tests; the operational limits - the ones that live in your deployment rather than in this code, like the grant lib's single-user-account boundary - are labeled as what they are, because no test can reach them. The written protocols state practices and are not executable specifications, so nothing tests those at all. Neither kind is a footnote, but they aren't the same kind of promise either.
 
 The skill in `skills/` states its own limits in its `SKILL.md` § "Where this skill stops
 working" - the short version: it reads a repo, not a deployment, so "already in place"
