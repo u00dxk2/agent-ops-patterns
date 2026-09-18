@@ -32,8 +32,10 @@ Copy the prompt below, or just point your agent at this file's URL and say "run 
 > **Question 1 - what comes back when you search my history for secrets?**
 > **Read this constraint before you run anything.** Do not print, quote, echo or
 > otherwise bring a matched value into your own context. Use a command that emits
-> only counts and shape names - `grep -c`, or `grep -o` piped through an inline
-> classifier - never one that prints matching lines. A raw credential in an audit
+> only counts and shape names - `grep -E -c -e 'PATTERN'` (or `rg -c -e 'PATTERN'`),
+> or `grep -E -o -e` piped through an inline classifier - never one that prints
+> matching lines. Plain `grep` without `-E` reads `{20,}` as literal text and counts
+> zero without an error. A raw credential in an audit
 > transcript is the exact failure this question is about, and pasting one here
 > would mean the audit caused it.
 >
@@ -42,9 +44,10 @@ Copy the prompt below, or just point your agent at this file's URL and say "run 
 > credential shapes. Anchor each one, because a bare `sk-` also matches `task-` and
 > `risk-`: `\bsk-[A-Za-z0-9_-]{20,}`, `\bAKIA[0-9A-Z]{16}`, `\bgh[pousr]_[0-9A-Za-z]{36,}`,
 > a database URI carrying `user:password@`, `-----BEGIN [A-Z ]*PRIVATE KEY-----`,
-> `\bxox[baprs]-[0-9A-Za-z-]{10,}`, and JWTs (`\beyJ[A-Za-z0-9_-]{10,}\.eyJ`). The full
-> list is `SHAPES` in [`lib/snippet-redact.mjs`](./lib/snippet-redact.mjs). Then enumerate **every** path that can return their contents: search,
-> quote, excerpt, memory read, error messages, debug dumps. PASS only if redaction
+> `\bxox[baprs]-[0-9A-Za-z-]{10,}`, and JWTs
+> (`\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}\b`). The full list
+> is `SHAPES` in [`lib/snippet-redact.mjs`](./lib/snippet-redact.mjs). Then enumerate
+> **every** path that can return their contents: search, quote, excerpt, memory read, error messages, debug dumps. PASS only if redaction
 > is applied at the final boundary of **every** in-scope path - one protected path
 > is not a pass. Report any store you could not reach as a coverage gap, not as
 > clean. Note also that a shape match does not mean the credential is live; treat
