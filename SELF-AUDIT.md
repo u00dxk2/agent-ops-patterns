@@ -32,9 +32,10 @@ Copy the prompt below, or just point your agent at this file's URL and say "run 
 > **Question 1 - what comes back when you search my history for secrets?**
 > **Read this constraint before you run anything.** Do not print, quote, echo or
 > otherwise bring a matched value into your own context. Use a command that emits
-> only counts and shape names - `grep -E -c -e 'PATTERN'` (or `rg -c -e 'PATTERN'`),
-> or `grep -E -o -e` piped through an inline classifier - never one that prints
-> matching lines. Plain `grep` without `-E` reads `{20,}` as literal text and counts
+> only counts and shape names - `grep -E -o -e 'PATTERN' FILES | wc -l` or
+> `rg --count-matches -e 'PATTERN'` - never one that prints matching lines. Count
+> matches, not lines: `-c` counts matching lines, so a log line holding two keys
+> counts once. Plain `grep` without `-E` reads `{20,}` as literal text and counts
 > zero without an error. A raw credential in an audit
 > transcript is the exact failure this question is about, and pasting one here
 > would mean the audit caused it.
