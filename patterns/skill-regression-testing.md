@@ -44,3 +44,10 @@ Prompt-level harnesses exist ([promptfoo](https://github.com/promptfoo/promptfoo
 ## Adoption order
 
 (1) Put skills under version control with human-gated edits — free. (2) Start keeping failure transcripts and authoring skills against them — cheap, immediately clarifying. (3) Add benchmark-gating to your top 2-3 most-edited skills. (4) Shadow-A/B only where traffic justifies it.
+
+## Limits
+
+- **Benchmark-gating assumes the output is scorable, and the cheap scoring rule measures form.** "Did the output contain the required sections" is honest about what it is — a structural check. A skill can pass it while its judgment degrades, because the part that got worse is the part no cheap rule reads. For skills whose value *is* taste (what to prioritize, what to leave out), expect the benchmark to be the weakest link rather than the arbiter, and say which one you have.
+- **Shadow-A/B needs traffic most skills will never see.** Stable-hash assignment and an auto-rollback threshold are sound and they need enough work-items to tell a real move from noise. Below that N the rollback fires on variance, and the discipline of §3 — a margin declared before you look — is doing all the work anyway.
+- **Human-gated edits are a trade, not a free win.** §1 takes the conservative side deliberately, and the cost is latency: every fix waits on a person, and in a fast-moving system that queue is where improvements quietly die. The bet is that an instruction layer nobody can silently rewrite is worth more than the edits you lose. It is a bet, and it is worth re-checking against your own throughput.
+- **§6's read of the ecosystem was a look around in July 2026, not a survey** — the document says so where it makes the claim, and it is repeated here because it is the kind of line that gets quoted without its caveat.

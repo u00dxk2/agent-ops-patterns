@@ -39,3 +39,10 @@ The point of shadow mode is the promotion decision, and the vocabulary is what m
 ## The helper
 
 [`lib/shadow-screen.mjs`](../lib/shadow-screen.mjs) is the vocabulary as a pure function: `screenDecision({mode, ran, flagged, unscreenedProceeds})` → `{verdict, proceed}`, plus `isPass(verdict)`. Deliberately small — it classifies one decision. Logging every verdict, aggregating the window, and actually wiring `proceed` to enforcement are yours, and the one failure it cannot see is the caller that computes `proceed` and ignores it: that is a shadow screen wearing an enforce label, and only a human reading the wiring catches it.
+
+## Limits
+
+- **The fifth state depends on the caller's discipline, which is exactly backwards from where you want it.** `unscreened` is what keeps the other four honest, and the helper returns it while logging nothing. A caller that drops the verdict leaves no trace at all — so the state designed to make screening outages visible is itself invisible when the integration is sloppy. Nothing in the vocabulary can detect that; only reading the call site does.
+- **It classifies one decision and cannot see the window.** Promotion rules live in your aggregation, not here. The helper will happily classify ten thousand decisions without ever telling you the window was 30% unscreened or unrepresentative of real traffic.
+- **A shadow window inherits the traffic it happened to see.** `would_block` rows backtest the gate against what arrived, and a quiet window on unrepresentative traffic reads identically to a well-tuned gate. Promotion from it is still a judgment call, better-informed rather than derisked.
+- **Partial screening has no verdict of its own.** A screener that timed out after examining half its input classifies as `unscreened`, which is the safe answer and a lossy one — you lose the fact that half of it *was* screened, and the diagnosis of a slow screener looks the same as a dead one.

@@ -178,7 +178,7 @@ Versions, stated exactly: CI runs the **JS suite** on Node 20, 22 and 24, and th
 
 ## Coverage and limits
 
-Every library here names what it does NOT do, and so does the skill. The libraries pin representative cases of their principal limits in tests; the operational limits - the ones that live in your deployment rather than in this code, like the grant lib's single-user-account boundary - are labeled as what they are, because no test can reach them. The written protocols state practices and are not executable specifications, so nothing tests those at all. Neither kind is a footnote, but they aren't the same kind of promise either.
+Every library here names what it does NOT do, and so do the skill and all five written protocols. The libraries pin representative cases of their principal limits in tests; the operational limits - the ones that live in your deployment rather than in this code, like the grant lib's single-user-account boundary - are labeled as what they are, because no test can reach them. The protocols carry a `## Limits` section apiece, but they state practices rather than executable specifications, so those limits are read and never run - nothing tests them at all. Neither kind is a footnote, but they aren't the same kind of promise either.
 
 The skill in `skills/` states its own limits in its `SKILL.md` § "Where this skill stops
 working" - the short version: it reads a repo, not a deployment, so "already in place"
