@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability (private)
+    url: https://github.com/u00dxk2/agent-ops-patterns/security/advisories/new
+    about: Found a hole in one of the libraries? Report it privately here — not as a public issue.
