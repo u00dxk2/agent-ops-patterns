@@ -1,0 +1,53 @@
+name: I ran the audit
+description: Report your score from the five-question self-audit. Verdicts only, never transcripts.
+title: "Audit result: __ / 5"
+labels: ["audit-result"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for running it. Three short answers is the whole report.
+
+        **Verdicts only — do not paste your agent's output, file paths, log lines, or config.**
+        Question 1 of this audit is about credentials leaking into transcripts; an audit
+        transcript pasted into a public issue is the exact failure the audit is looking for.
+        If a finding is only explicable by pasting real output, don't — say "happy to share
+        privately" instead and leave it at that.
+
+  - type: dropdown
+    id: score
+    attributes:
+      label: Your score
+      description: One point per clean PASS, out of five.
+      options: ["0 / 5", "1 / 5", "2 / 5", "3 / 5", "4 / 5", "5 / 5"]
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: failed
+    attributes:
+      label: Which questions were not a clean PASS?
+      description: Tick the FAIL and CAN'T TELL ones. A CAN'T TELL is a coverage gap, not a fail — tick it anyway.
+      options:
+        - label: "1 — what comes back when you search my history for secrets?"
+        - label: "2 — which of my health checks has never been seen red?"
+        - label: "3 — what happens to \"stale\" after a bulk edit?"
+        - label: "4 — what did my last \"yes\" actually authorize?"
+        - label: "5 — who checks the agent's memory for rot?"
+
+  - type: textarea
+    id: sentence
+    attributes:
+      label: One sentence
+      description: What surprised you, or what the audit got wrong about your setup. One sentence is genuinely enough.
+      placeholder: "Q2 surprised me — three of our detectors have never once gone red."
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: no-transcript
+    attributes:
+      label: Before you submit
+      options:
+        - label: This issue contains no agent output, file paths, log lines, or config from my system.
+          required: true
