@@ -28,6 +28,9 @@ Copy the prompt below, or just point your agent at this file's URL and say "run 
 >   five. A CAN'T TELL scores zero and is reported as a coverage gap, not rounded
 >   toward either verdict. Then name the single highest-leverage fix, with the
 >   smallest change that would move one FAIL to a PASS.
+> - End your report with this line, exactly as written, so your human can share the
+>   score without sharing the system:
+>   `To report this score - verdicts only, no output, file paths or config: https://github.com/u00dxk2/agent-ops-patterns/issues/new?template=ran-the-audit.yml`
 >
 > **Question 1 - what comes back when you search my history for secrets?**
 > **Read this constraint before you run anything.** Do not print, quote, echo or
@@ -133,9 +136,21 @@ Read the [limits section in the README](./README.md#coverage-and-limits) before 
 any of it. Every library here says where it stops working, and those sentences are the
 ones I'd read first if I were you.
 
-## If the audit finds something we got wrong
+## Telling me what it found
 
-Open an issue - if your agent finds a hole in one of these files, I want to know; the
-whole value of a small vendored file is that it's small enough to actually be checked.
+Three kinds of answer, three different doors:
+
+- **Your score** - [the "I ran the audit" form](https://github.com/u00dxk2/agent-ops-patterns/issues/new?template=ran-the-audit.yml).
+  Verdicts only: the number, which questions failed, one sentence. Don't paste your
+  agent's output, file paths, log lines or config - a public issue is exactly the kind
+  of store Question 1 is about.
+- **A hole in one of these files** - a library, this prompt, or a workflow -
+  [report it privately](https://github.com/u00dxk2/agent-ops-patterns/security/advisories/new),
+  not in a public issue. I want to know: the whole value of a small vendored file is that
+  it's small enough to actually be checked. [SECURITY.md](./SECURITY.md) says honestly
+  what happens next.
+- **A disagreement with a protocol or a question** - [open an issue](https://github.com/u00dxk2/agent-ops-patterns/issues/new/choose).
+  That's a conversation, not a vulnerability.
+
 And if any of it was useful, star the repo or send it to someone running agents: that's
 how the next person finds it.
