@@ -7,8 +7,10 @@ Operational patterns for running LLM agents in production.
 **New here? Paste this to your own agent.** Five questions about your own setup, read-only, scored out of five:
 
 ```
-Read https://raw.githubusercontent.com/u00dxk2/agent-ops-patterns/main/SELF-AUDIT.md
-and run the audit on this system. Read-only.
+Get the exact text of https://raw.githubusercontent.com/u00dxk2/agent-ops-patterns/main/SELF-AUDIT.md
+with a plain download such as curl, not a web tool that summarizes, then run
+the audit in its section "The prompt" on this system. Read-only. If you cannot
+get the exact text, ask me to paste that section - don't run it from a summary.
 ```
 
 It answers each question with a verdict and the file path behind it, then names the smallest fix that would move one failure to a pass. About thirty seconds of your attention.

@@ -9,10 +9,14 @@ It can.
 
 Copy the prompt below, or point your agent at this file's URL and say "run this."
 
-**Agents: a web fetch that summarizes pages will not give you this prompt word for word.**
-Download the exact file first -
-`curl -sL https://raw.githubusercontent.com/u00dxk2/agent-ops-patterns/main/SELF-AUDIT.md` -
-and run the section "The prompt" from what you downloaded, not from a summary of it.
+**If you point it at the URL, have it read the raw file - a summary is not the prompt.**
+Web-fetch tools that summarize pages drop and reword parts of this prompt, so the first step
+is a plain download of the raw version of the URL you were given, which prints the exact text
+and saves nothing (on `main`:
+`curl -sL https://raw.githubusercontent.com/u00dxk2/agent-ops-patterns/main/SELF-AUDIT.md`; in
+Windows PowerShell type `curl.exe`, because plain `curl` there is a different command). Then run
+the section "The prompt" from that text. If your agent has no shell, paste the prompt below
+into it instead.
 
 ---
 
