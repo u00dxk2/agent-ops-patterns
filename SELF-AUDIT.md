@@ -2,6 +2,12 @@
 
 Hand this file to your agent. Ask it to run the audit on your setup and report back.
 
+**What you get back.** Nothing on your system changes: the prompt tells your agent to install
+nothing, change no files, and suggest tests rather than run them, and to count secret shapes
+without printing any. For each of the five questions you get PASS, FAIL or CAN'T TELL, backed
+by quoted lines with file paths (or, for CAN'T TELL, where it looked); then a score out of five
+and the one smallest change that would move a FAIL to a PASS.
+
 That's the whole idea. You have an agent sitting right there with read access to your
 own system - it can answer these questions about your setup far faster than you can,
 and it has no reason to flatter you if you tell it not to. I can't audit your system.
