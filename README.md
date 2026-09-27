@@ -17,26 +17,18 @@ It answers each question with a verdict and the file path behind it, then names 
 
 That prompt points your agent at a file on this repo's `main`, so read [SELF-AUDIT.md](./SELF-AUDIT.md) first if you'd rather see what you're handing it — it's one page, it changes, and it asks your agent to read your history, logs, memory and config. Read-only means it won't write anything; it doesn't mean it reads nothing.
 
-**Got a score? [Tell me](https://github.com/u00dxk2/agent-ops-patterns/issues/new?template=ran-the-audit.yml)** — your number and which questions failed. Verdicts only: don't paste your agent's output, and see [more on the audit below](#start-here-run-the-audit-on-your-own-system).
+Before I published this repo, an adversarial review found a real hole in the permission
+library - the artifact whose whole job is question four. It was fixed before this audit
+was added to the repo, and [the fix commit](https://github.com/u00dxk2/agent-ops-patterns/commit/792c788)
+says how it was found.
+
+**Got a score? [Tell me](https://github.com/u00dxk2/agent-ops-patterns/issues/new?template=ran-the-audit.yml)** — your number and which questions failed. Verdicts only: don't paste your agent's output.
 
 I run a software portfolio by myself, through a lot of concurrent Claude Code agent sessions coordinated over a Postgres message bus and watched by a layer of small detectors that make no model calls. These patterns came out of that. The origin story is still my word - but [OPS-SNAPSHOT.md](./OPS-SNAPSHOT.md) is the part I can measure, with the command next to each number and an honest list of what I can't produce. Judge the code on the code: the libraries are all here and all tested, the written protocols are practices rather than executable specifications, and every library says where it stops working.
 
 Agent frameworks get you to the demo. These patterns are about what happens after: recalled transcripts handing your own secrets back to you, agent memory rotting into duplicates and dead links, health monitoring that costs more than the work it watches, and instruction files edited daily with nothing catching the regression. Each one is here because something broke and this is what stopped it breaking again.
 
 Two essays frame the territory these patterns assume. Cliff Rosen's ["The Agent in the Middle"](https://www.orchestratorstudios.ai/articles/the-agent-in-the-middle.html) is the *access* half — an agent replacing the UX layer over your systems' substrates, given understanding (skills) and access (tools). My own ["Cognitive Operations Maps"](https://uncagedminds.substack.com/p/cognitive-operations-maps) is the *judgment* half — which recurring decisions the agent holds, and how you validate them. This repo is the operational layer under both: what keeps that architecture honest once it runs unattended.
-
-## Start here: run the audit on your own system
-
-Don't take my word for any of this. [**SELF-AUDIT.md**](./SELF-AUDIT.md) is a prompt you
-hand to your own agent - it walks your setup through five questions and reports back
-with a score, a quoted file path per verdict, and the smallest fix that would move one
-failure to a pass. It takes about thirty seconds of your attention, and the only thing you
-have to trust is one page you can read before you hand it over.
-
-Before I published this repo, an adversarial review found a real hole in the permission
-library - the artifact whose whole job is question four. It was fixed before this audit
-was added to the repo, and [the fix commit](https://github.com/u00dxk2/agent-ops-patterns/commit/792c788)
-says how it was found.
 
 ## Skills: hand your agent a source, get a decision you can check
 
