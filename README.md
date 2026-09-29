@@ -102,10 +102,14 @@ found sixteen more. All folded in, all recorded in the worked example.
 
 ## Quickstart
 
+The block imports `./lib/` by relative path, so run it from a clone
+(`git clone https://github.com/u00dxk2/agent-ops-patterns && cd agent-ops-patterns`),
+or vendor the two `lib/` files next to wherever you save it.
+
 ```js
 // Redact at the display boundary of anything that recalls stored text.
-// The whole block runs as written: copy it into a file, point MEMORY_DIR at
-// your own directory, and run it.
+// The whole block runs as written from the clone root: save it as a .mjs file
+// there, point MEMORY_DIR at your own memory directory, and run it with node.
 import { redactSecretShapes } from "./lib/snippet-redact.mjs";
 
 const snippet = "recalled text with sk-ant-example0123456789abcdef in it";
@@ -123,12 +127,15 @@ import { lintMemoryIntegrity, suggestMemoryRepairs } from "./lib/memory-integrit
 const MEMORY_DIR = "./memory";
 const indexPath = path.join(MEMORY_DIR, "MEMORY.md");
 
-// Regular .md files only, case-insensitively. readdirSync returns directories
-// too, and readFileSync on a directory throws — which is how a lint run turns
-// into a crash on someone else's machine. Match the extension without regard
-// to case, or a README.MD drops out of the inventory before the coverage count
-// ever sees it, and your "reached" number quietly under-reports.
-const files = fs
+// A missing MEMORY_DIR is "nothing was read", not a crash: it falls through to
+// the NOTHING SWEPT branch below. Regular .md files only, case-insensitively.
+// readdirSync returns directories too, and readFileSync on a directory throws —
+// which is how a lint run turns into a crash on someone else's machine. Match
+// the extension without regard to case, or a README.MD drops out of the
+// inventory before the coverage count ever sees it, and your "reached" number
+// quietly under-reports.
+const isDir = fs.statSync(MEMORY_DIR, { throwIfNoEntry: false })?.isDirectory() ?? false;
+const files = !isDir ? [] : fs
   .readdirSync(MEMORY_DIR, { withFileTypes: true })
   .filter((e) => e.isFile() && e.name.toLowerCase().endsWith(".md"))
   .map((e) => ({
