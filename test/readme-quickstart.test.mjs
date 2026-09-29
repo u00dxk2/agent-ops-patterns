@@ -18,10 +18,14 @@ const readme = fs.readFileSync(path.join(root, "README.md"), "utf8").replace(/\r
 function quickstart() {
   const start = readme.indexOf("\n## Quickstart\n");
   assert.ok(start >= 0, "README has a Quickstart section");
-  const section = readme.slice(start);
+  // Bound to this section, so a ```js block under a later heading can never
+  // stand in for a Quickstart that lost its own.
+  const next = readme.indexOf("\n## ", start + 1);
+  const section = readme.slice(start, next < 0 ? undefined : next);
   const open = section.indexOf("```js\n");
   assert.ok(open >= 0, "Quickstart has a ```js block");
   const close = section.indexOf("\n```", open + 6);
+  assert.ok(close >= 0, "the Quickstart block closes inside the section");
   return { prose: section.slice(0, open), code: section.slice(open + 6, close + 1) };
 }
 
