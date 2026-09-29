@@ -4,6 +4,12 @@ import { redactSecretShapes, NONCONVERGENT_TOKEN } from "../lib/snippet-redact.m
 
 // Fixture values are synthetic (pragma: allowlist secret applies to the file's
 // intent — every "secret" below is fabricated for shape-matching only).
+//
+// Provider-shaped fixtures that a hosted secret scanner recognises (Stripe,
+// Google, Slack) are split at the provider prefix and joined at runtime: the
+// test still redacts the exact same string, but the committed text no longer
+// matches the provider pattern, so a public repo raises no "leak" alert for a
+// fabricated value.
 
 const CASES = [
   ["private-key", "-----BEGIN RSA PRIVATE KEY-----\nMIIEow…\n-----END RSA PRIVATE KEY-----"], // pragma: allowlist secret
@@ -11,10 +17,10 @@ const CASES = [
   ["aws-key", "AKIAIOSFODNN7EXAMPLE"], // pragma: allowlist secret
   // Synthetic, not Stripe's published docs key — a real-looking sk_live_ value
   // in a public repo trips secret scanners for no benefit.
-  ["stripe-key", "sk_live_FAKEfakeFAKEfake0123456789"], // pragma: allowlist secret
+  ["stripe-key", "sk_" + "live_FAKEfakeFAKEfake0123456789"], // pragma: allowlist secret
   ["github-token", "ghp_abcdefghijklmnopqrstuvwxyz0123456789"], // pragma: allowlist secret
-  ["google-api-key", "AIzaSyA1234567890abcdefghijklmnopqrstuv"], // pragma: allowlist secret
-  ["slack-token", "xoxb-123456789012-abcdefghijklmnop"], // pragma: allowlist secret
+  ["google-api-key", "AI" + "zaSyA1234567890abcdefghijklmnopqrstuv"], // pragma: allowlist secret
+  ["slack-token", "xox" + "b-123456789012-abcdefghijklmnop"], // pragma: allowlist secret
   ["slack-webhook", "https://hooks.slack.com/services/T00000001/B00000001/XXXXfakeXXXX1234"], // pragma: allowlist secret
   ["anthropic-key", "sk-ant-admin01-abc123def456"],
   ["openai-key", "sk-proj-abcdefghijklmnopqrstuvwxyz123456"],
@@ -165,7 +171,7 @@ test("handles null/undefined/empty without throwing", () => {
 });
 
 test("redacts multiple distinct shapes in one snippet", () => {
-  const line = "creds: AKIAIOSFODNN7EXAMPLE + xoxb-123456789012-abcdefghijklmnop"; // pragma: allowlist secret
+  const line = "creds: AKIAIOSFODNN7EXAMPLE + " + "xox" + "b-123456789012-abcdefghijklmnop"; // pragma: allowlist secret
   const { text, shapes } = redactSecretShapes(line);
   assert.ok(shapes.includes("aws-key") && shapes.includes("slack-token"));
   assert.equal(text, "creds: [redacted:aws-key] + [redacted:slack-token]");

@@ -337,10 +337,12 @@ function diffPath(s) {
 function selftestHistory(days) {
   // One obviously-fake value per pattern. The trailing comment on each SOURCE line is
   // what lets this file commit through its own staged scan; the STRING carries no
-  // allowlist marker, so it fires when committed to the fixture repo.
+  // allowlist marker, so it fires when committed to the fixture repo. Values a hosted
+  // scanner recognises (Atlas URI, Google key) are split at the prefix and joined at
+  // runtime, so this public file's own text raises no provider "leak" alert.
   const FIRE = [
     ["private-key-block", "-----BEGIN RSA PRIVATE KEY-----"], // pragma: allowlist secret gitleaks:allow
-    ["mongodb-uri-with-creds", "MONGO=mongodb+srv://fixtureuser:fixturepw@cluster0.fixture.mongodb.net/db"], // pragma: allowlist secret gitleaks:allow
+    ["mongodb-uri-with-creds", "MONGO=mongodb" + "+srv://fixtureuser:fixturepw@cluster0.fixture.mongodb.net/db"], // pragma: allowlist secret gitleaks:allow
     ["postgres-uri-with-creds", "DATABASE_URL=postgres://fixtureuser:fixturepw@db.fixture.internal:5432/app"], // pragma: allowlist secret gitleaks:allow
     ["mysql-uri-with-creds", "MYSQL=mysql://fixtureuser:fixturepw@db.fixture.internal/app"], // pragma: allowlist secret gitleaks:allow
     ["redis-uri-with-creds", "REDIS=redis://:fixturepw@cache.fixture.internal:6379"], // pragma: allowlist secret gitleaks:allow
@@ -348,7 +350,7 @@ function selftestHistory(days) {
     ["aws-access-key", "aws_access_key_id = AKIAFIXTUREFIXTURE00"], // pragma: allowlist secret gitleaks:allow
     ["stripe-live-secret", "STRIPE=sk_live_FIXTUREFIXTUREFIXTURE0"], // pragma: allowlist secret gitleaks:allow
     ["github-pat", "GITHUB_TOKEN=ghp_FIXTUREFIXTUREFIXTUREFIXTUREFIXTURE0"], // pragma: allowlist secret gitleaks:allow
-    ["google-api-key", "GOOGLE=AIzaFIXTUREFIXTUREFIXTUREFIXTUREFIXTURE"], // pragma: allowlist secret gitleaks:allow
+    ["google-api-key", "GOOGLE=AI" + "zaFIXTUREFIXTUREFIXTUREFIXTUREFIXTURE"], // pragma: allowlist secret gitleaks:allow
     ["slack-token", "SLACK=xoxb-FIXTUREFIXTURE0"], // pragma: allowlist secret gitleaks:allow
   ];
   // Realistic repo content that must stay silent — URLs, base64-looking text,

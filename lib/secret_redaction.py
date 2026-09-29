@@ -219,10 +219,13 @@ def _self_check() -> None:
         ("private-key", "-----BEGIN RSA PRIVATE KEY-----\nMIIEow…\n-----END RSA PRIVATE KEY-----"),  # pragma: allowlist secret
         ("db-uri-creds", "postgres://bususer:hunter22secret@db.example.internal:5432/bus"),  # pragma: allowlist secret
         ("aws-key", "AKIAIOSFODNN7EXAMPLE"),  # pragma: allowlist secret
-        ("stripe-key", "sk_live_FAKEfakeFAKEfake0123456789"),  # pragma: allowlist secret
+        # Stripe/Google/Slack fixtures are split at the provider prefix so the
+        # committed text does not match a hosted scanner's pattern; the runtime
+        # string is unchanged (mirrors test/snippet-redact.test.mjs).
+        ("stripe-key", "sk_" + "live_FAKEfakeFAKEfake0123456789"),  # pragma: allowlist secret
         ("github-token", "ghp_abcdefghijklmnopqrstuvwxyz0123456789"),  # pragma: allowlist secret
-        ("google-api-key", "AIzaSyA1234567890abcdefghijklmnopqrstuv"),  # pragma: allowlist secret
-        ("slack-token", "xoxb-123456789012-abcdefghijklmnop"),  # pragma: allowlist secret
+        ("google-api-key", "AI" + "zaSyA1234567890abcdefghijklmnopqrstuv"),  # pragma: allowlist secret
+        ("slack-token", "xox" + "b-123456789012-abcdefghijklmnop"),  # pragma: allowlist secret
         ("slack-webhook", "https://hooks.slack.com/services/T00000001/B00000001/XXXXfakeXXXX1234"),  # pragma: allowlist secret
         ("anthropic-key", "sk-ant-admin01-abc123def456"),
         ("openai-key", "sk-proj-abcdefghijklmnopqrstuvwxyz123456"),
@@ -283,7 +286,7 @@ def _self_check() -> None:
     # None/empty are safe; multiple shapes in one snippet all redact.
     assert redact_secret_shapes(None) == ("", [])
     assert redact_secret_shapes("") == ("", [])
-    multi = redact_secret_shapes("creds: AKIAIOSFODNN7EXAMPLE + xoxb-123456789012-abcdefghijklmnop")  # pragma: allowlist secret
+    multi = redact_secret_shapes("creds: AKIAIOSFODNN7EXAMPLE + " + "xox" + "b-123456789012-abcdefghijklmnop")  # pragma: allowlist secret
     assert multi.text == "creds: [redacted:aws-key] + [redacted:slack-token]"
 
     # Snippet-boundary positions: index 0 and behind a bracket both redact.
