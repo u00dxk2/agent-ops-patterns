@@ -1,16 +1,16 @@
 # Claims are hypotheses: the premise, the "done", the remembered rule, and the review
 
-Most of what an agent acts on is a sentence somebody else wrote. A plan says the bug reproduces. A task board says the setup is done. A prompt says the rule is X. A reviewer says the fix is wrong. Each one arrives looking like a fact. Each one is a claim, and in an agent operation the claim often travels further than its evidence: it gets copied into the next prompt, summarized into memory, and acted on by a session that never saw where it came from.
+Much of what an agent acts on is a sentence somebody else wrote. A plan says the bug reproduces. A task board says the setup is done. A prompt says the rule is X. A reviewer says the fix is wrong. Each one arrives looking like a fact. Each one is a claim, and in an agent operation a claim can travel further than its evidence: it gets copied into the next prompt, summarized into memory, and acted on by a session that never saw where it came from.
 
 This pattern names four places where that happens and gives each one a guard you can copy tonight. Its twin is [checks-that-cant-fail](./checks-that-cant-fail.md), which covers the same failure on the *instrument* side: a check that has never gone red, and a zero that names no search space. This file covers the *text* side: sentences that are trusted because of who wrote them, not because anyone re-ran them.
 
-Every incident below is real and dated. They come from one operation running many concurrent Claude Code sessions, and they are described without naming it.
+Every incident below is real and comes from a written record. They come from one operation running many concurrent Claude Code sessions, and they are described without naming it.
 
 ## 1. Check the change against the code it cites, before you build
 
-A plan rests on a premise: *this command fails*, *that file says X*, *users hit this screen*. If the premise is wrong, everything built on it is a well-made answer to the wrong question. The cheapest time to find out is before the first edit, and the cheapest way is to re-run the premise, not re-read it.
+A plan rests on a premise: *this command fails*, *that file says X*, *users hit this screen*. If the premise is wrong, everything built on it is a well-made answer to the wrong question. Before the first commit is a cheap time to find out, and re-running the premise, not re-reading it, is a cheap way.
 
-**Incident (2026-09-29).** A plan to fix a README quickstart said its reproduction "exits 0 inside a clone". A reviewer read the plan before any code was written and marked one line as a hypothesis: the clone used for that run had a folder copied into it by hand. Measured on a fresh clone, the quickstart crashed (`ENOENT`, exit 1). The shipped fix covered both failures ([968cd96](https://github.com/u00dxk2/agent-ops-patterns/commit/968cd96)). Without the review it would have fixed the prose and left the crash.
+**Incident (2026-09-29).** A plan to fix a README quickstart said its reproduction "exits 0 inside a clone". A reviewer read the plan before the first implementation commit (an uncommitted test draft existed) and marked one line as a hypothesis: the clone used for that run had a folder copied into it by hand. Measured on a fresh clone, the quickstart crashed (`ENOENT`, exit 1). The shipped fix covered both failures ([968cd96](https://github.com/u00dxk2/agent-ops-patterns/commit/968cd96)). Without the review it would have fixed the prose and left the crash.
 
 The same day, across the rest of that operation, six separate work streams reported that a lead or a manual walk-through had asserted something the product did not do. One read prices off the neighbouring card. One tested a phone layout at phone width but without touch input. One counted "5 real starts" that were 1 readable start out of 9.
 
@@ -25,15 +25,15 @@ PREMISE CHECK (before any edit)
 - verdict:  HOLDS | FALSE | NOT CHECKABLE (<why>)
 ```
 
-A premise marked `NOT CHECKABLE` is not built on. When someone else reviews the plan, they tag each point `OBSERVED` (they ran or read it) or `HYPOTHESIS` (it needs checking). The author measures every `HYPOTHESIS` before acting on it, because a reviewer can be wrong too. "From the state a user would be in" matters: in the incident above, the premise was re-run, but in a directory no user would have.
+A premise marked `NOT CHECKABLE` is not built on. When someone else reviews the plan, they tag each point `OBSERVED` (they ran or read it) or `HYPOTHESIS` (it needs checking). The author measures every `HYPOTHESIS` before acting on it, because a reviewer can be wrong too. "From the state a user would be in" matters: in the incident above, the premise was re-run, but in a populated directory that a fresh clone does not have.
 
 ## 2. A "done" is a claim that something happened
 
-A checked box records that someone *did* something. It does not record that the thing *took effect*. The gap is widest when the person who did the work cannot see the effect: a setting changed in a dashboard, a DNS record added, an environment variable set on a host.
+A checked box records that someone *did* something. It does not record that the thing *took effect*. The gap is easy to miss when the person who did the work cannot see the effect: a setting changed in a dashboard, a DNS record added, an environment variable set on a host.
 
-**Incident (2026-09-29).** Two setup tasks were marked done by the person who did them. Re-running each one's check told a different story. An analytics probe still answered that the event existed but had no such property, after the change meant to add it. For an email-routing task, no MX records existed at the read. Both tasks had been done with care. Neither had yet had its effect.
+**Incident (2026-09-29).** Two setup tasks were marked done, pending verification. Re-running each one's check told a different story. An analytics probe for the first task's intended outcome still answered that the event existed but had no such property. For an email-routing task, no MX records existed at the read. Neither task's intended outcome was verified.
 
-**Incident (same day, another team).** A memory limit was set as an environment variable to stop a job crashing. Read back, the setting was present and correct. The next crash showed the same memory ceiling as before. The setting was real and it did nothing, and only the failure's own output could show that.
+**Incident (same day, another team).** A memory limit was set as an environment variable to stop a job crashing. Read back, the setting was present. The next crash showed the same memory ceiling as before. The setting was real and it did nothing, and it was the failure's own output that showed it.
 
 **The guard.** Make "done" two fields, not one, and let only the second close the task:
 
@@ -49,17 +49,17 @@ The verify command reads the *failure's own output*: the error message, the miss
 
 ## 3. A remembered rule is a claim about what someone said
 
-An operation's standing rules — what needs approval, what never ships, what a human ruled last week — have to reach every session. The easy carriers are memory files, summaries and prompt paraphrases, and each one rewrites the rule a little. After a few hops the rule a session obeys is not the rule anyone made.
+An operation's standing rules — what needs approval, what never ships, what a human ruled last week — have to reach every session. The easy carriers are memory files, summaries and prompt paraphrases, and each one can rewrite the rule a little. After a few hops the rule a session obeys may not be the rule anyone made.
 
-**Incident (2026-09-05).** A pre-flight checklist that every session was told to run lived inside a file only the coordinating session loaded. The others were running it from summaries of it. It was moved into one tracked file, and the tool that sends each session its instructions now builds the checklist index from that file at send time.
+**Incident (2026-09-05).** A pre-flight checklist that every session was told to run lived inside a file only the coordinating session loaded, so the others could not read the checklist they were told to run. It was moved into one tracked file, and the tool that sends each session its instructions now builds the checklist index from that file at send time.
 
-**Incident (2026-09-14).** A setup instruction said a flag had a default, and nobody had run the command as written. Run bare, it exited 2 with `--signal-file <path> is required; refusing to start`. Sessions that followed the text had started no watchdog at all, and nothing told them.
+**Incident (2026-09-14).** A setup instruction said a required argument had a default. Run as written, the command refused to start with exit code 2. A session that followed the text started no watchdog at all, and the only sign was that exit code, in a background task, during start-up.
 
 **Incident (2026-09-17).** A coordinating agent's *proposal* was quoted as the human owner's rule within two hand-offs.
 
 **The guard.** Three parts, each small:
 
-1. **One tracked file holds the rules.** Every prompt that carries them carries a content hash, and a session can recompute it (`sha256` of the file's rules block). A mismatch means a stale copy or an edit made mid-day. Either way, stop and re-read.
+1. **One tracked file holds the rules.** Every prompt that carries them carries a content hash, and a session can recompute it (`sha256` of the file's rules block). A mismatch means the copy differs from the file, usually because it is stale or the file was edited since. Either way, stop and re-read.
 2. **Human rulings are stored verbatim, dated, with their source:**
 
    ```
@@ -74,7 +74,7 @@ An operation's standing rules — what needs approval, what never ships, what a 
 
 ## 4. Review risky changes with the other model family
 
-A second pass by the same model, even in a fresh context, tends to agree with the first. It shares the same blind spots, and it reads the author's framing as the author meant it. A reviewer from a different model family disagrees more, and it disagrees in different places.
+A second pass by the same model, even in a fresh context, shares more with the author than a different reviewer would: the same training, the same habits, the same way of reading the author's framing. A reviewer from a different model family is a cheap source of a different reading. This is a working bet, not a measurement: the incidents below show it finding real defects, not a controlled comparison.
 
 **Incident (this repository).** An analysis of a large open-source agent framework was checked the same day by a reviewer from the other model family. It returned fourteen findings, five at P0, and two of the analysis's verdicts fell. The corrected record keeps the original wrong rows, quoted: [worked-example-2](../skills/cs329a-self-improving-agents/references/answer-keys/worked-example-2.md).
 
@@ -99,7 +99,7 @@ Two mechanical checks go with it. Run the reviewer read-only, because a reviewer
 
 - **A premise check proves the premise at one moment, from one state.** A premise that held this morning can be false by the afternoon, and "the state a user would be in" is itself a guess. Re-run it whenever the plan is picked up again, not only when it is written.
 - **`verified` is only as good as the verify command.** A command that reads the wrong thing verifies the wrong thing, and it will do so every time. Choosing it is judgment, and this pattern does not supply the judgment.
-- **A hash proves the copy, not the rule.** A session holding the byte-exact rules file can still misapply it. And a rules file that grows without pruning becomes one nobody reads, which is the memory problem again with better bookkeeping.
-- **Cross-family review is not independence.** The two families share training data and habits, and they will agree on some wrong things. A reviewer that does not know what you left out on purpose will over-rate it: one finding was rated HIGH, and its fix needed a credential the team had deliberately chosen not to hold. Treat the review as a second reading, not as ground truth.
+- **A hash proves the copy, not the rule.** A session holding the byte-exact rules file can still misapply it. And a rules file that grows without pruning can become one nobody reads, which is the memory problem again with better bookkeeping.
+- **Cross-family review is not independence.** Different families can still agree on the same wrong thing. A reviewer that does not know what you left out on purpose will over-rate it: one finding was rated HIGH, and its fix needed a credential the team had deliberately chosen not to hold. Treat the review as a second reading, not as ground truth.
 - **All four guards cost time on every change.** On a change whose failure is cheap, loud and quickly noticed, the premise block and the second-family review can cost more than the bug they prevent. Spend them where a wrong claim would travel.
 - **When the same finding class comes back in a second review round, stop patching.** Change the shape of the code or the claim instead. This pattern does not tell you what the new shape is.
