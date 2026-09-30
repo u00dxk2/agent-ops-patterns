@@ -31,7 +31,7 @@ A skeleton, in Node. It was run against stub functions for the paths shown in it
 // --self-test is left out for length: it moves a random dummy value, deletes it, confirms the delete.
 class Fixed extends Error {}
 const fail = (msg) => { throw new Fixed(`FAILED: ${msg}`); };
-const IDENT = /^[A-Za-z_][A-Za-z0-9_.-]{0,127}$/;   // names only; a pasted secret rarely fits, and is never echoed
+const IDENT = /^[A-Za-z_][A-Za-z0-9_.-]{0,127}$/;   // names only; a REJECTED value is never echoed (accepted names print on success)
 
 function parseArgs(argv) {
   const known = new Set(["--source-env", "--to", "--key"]), flags = new Set(["--overwrite"]);
@@ -88,7 +88,7 @@ A value that reached a *session transcript* (local logs, the model provider's lo
 
 - **`verified: true` proves the store holds the value, not that anything uses it.** A consumer can still read a different key, cache the old value, or never restart. Prove the move from the consumer's behaviour ([claims-are-hypotheses](./claims-are-hypotheses.md) §2).
 - **The value still passes through process memory.** A mover keeps it out of the invocation, the shell history and the script's own output. It does not protect against anything that can read the process, and it cannot stop a supplied function from printing.
-- **The identifier check is a speed bump, not a secret detector.** Some credentials are shaped like plain names. The real protection is that no error message echoes its input.
+- **The identifier check is a speed bump, not a secret detector.** Some credentials are shaped like plain names, and a name the parser accepts is printed in the success line. The real protection is that no error message echoes its input.
 - **Length is a small leak.** It is printed on purpose, as a cheap "is this the right kind of thing" check, but it does narrow a guess. Drop it for short secrets.
 - **The mover trusts its source.** If the environment variable holds the wrong key, the mover moves the wrong key perfectly and says `verified: true`. And a reader that falls back to an inherited environment can read a stale copy.
 - **Binary secrets need a text form the consumer accepts** (for example PEM for a DER certificate) before they are moved, if the store holds text only.

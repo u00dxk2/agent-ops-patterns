@@ -59,7 +59,7 @@ An operation's standing rules — what needs approval, what never ships, what a 
 
 **The guard.** Three parts, each small:
 
-1. **One tracked file holds the rules.** Every prompt that carries them carries a content hash, and a session can recompute it (`sha256` of the file's rules block). A mismatch means the copy differs from the file, usually because it is stale or the file was edited since. Either way, stop and re-read.
+1. **One tracked file holds the rules.** Every prompt that carries them carries a content hash, and a session can recompute it (`sha256` of the file's rules block). A mismatch means the copy differs from the file: it is stale, or the file was edited since, or something else changed it. Either way, stop and re-read.
 2. **Human rulings are stored verbatim, dated, with their source:**
 
    ```
