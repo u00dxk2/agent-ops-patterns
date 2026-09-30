@@ -33,7 +33,7 @@ Two essays frame the territory these patterns assume. Cliff Rosen's ["The Agent 
 ## Skills: assess a source against your repo, map a system's judgments
 
 The self-audit hands your agent five questions. The first skill in [`skills/`](./skills/)
-hands it a *source* - a course, a paper set - and ask it to decide, idea by idea,
+hands it a *source* - a course, a paper set - and asks it to decide, idea by idea,
 whether the source names a gap in your system. The output is a disposition record:
 one row per idea, a verdict of APPLIES / DOES NOT APPLY / ALREADY IN PLACE / NOT
 DECIDABLE / UNREADABLE, a quoted `file:line` or a scoped command with its exit code and
@@ -106,7 +106,7 @@ also writes a gap report. Dated notes in the skill mark the incident that motiva
 | [`patterns/fail-soft-detectors.md`](./patterns/fail-soft-detectors.md) | The discipline for zero-LLM health detectors around agent fleets: PRESENCE-not-judgment, declared failure postures, structural no-LLM enforcement, alert dedup, no watchdog stacks, resurrect-else-reap, kill-switches. | **Read and apply** — protocol, with `snippet-redact` + `memory-integrity` as reference implementations |
 | [`patterns/checks-that-cant-fail.md`](./patterns/checks-that-cant-fail.md) | Why a green check nobody has seen go red is not evidence, and the guard for four ways a check silently stops running while still reporting "clean": the never-red monitor, the dead-instrument zero (positive controls), the sweep that reached nothing (NOTHING SWEPT), and the config-absent silent disable. | **Read and apply** — protocol; the operations analog of mutation testing |
 | [`patterns/claims-are-hypotheses.md`](./patterns/claims-are-hypotheses.md) | The text-side twin of the above: four places a sentence gets trusted because of who wrote it — a plan's premise, a "done" checkbox, a remembered rule, a review — each with a dated incident and a copyable guard (premise block, `claimed`/`verified` status, verbatim rulings file, cross-family review prompt). | **Read and apply** — protocol; copy the four blocks |
-| [`patterns/secret-movers.md`](./patterns/secret-movers.md) | Moving a credential between stores without the agent ever holding it: the caller names a source, the value is read in-process, output is name/length/status/`verified`, and failures print fixed strings that never echo input — because in the recorded leaks it was the error path, not the happy one. Includes a skeleton exercised against stubs, and blast-radius rules. | **Read and apply** — adapt the skeleton to your host's API; run its self-test first |
+| [`patterns/secret-movers.md`](./patterns/secret-movers.md) | Moving a credential between stores without the agent ever holding it: the caller names a source, the value is read in-process, output is name/length/status/`verified`, and failures print fixed strings that never echo input — because in the recorded leaks it was the error path, not the happy one. Includes a skeleton exercised against stubs, and blast-radius rules. | **Read and apply** — adapt the skeleton to your host's API, and implement the dummy write/read/delete self-test the pattern describes (the skeleton omits it for length); pass it before moving a real credential |
 | [`patterns/skill-regression-testing.md`](./patterns/skill-regression-testing.md) | Treating agent skills/prompts as process code: TDD-against-a-watched-failure, benchmark-gated edits, shadow-A/B with auto-rollback, anti-rationalization red flags. | **Read and apply** — the thinnest layer in the systems we looked at informally (July 2026; a look around, not a survey) |
 | [`patterns/durability-tiered-write-governance.md`](./patterns/durability-tiered-write-governance.md) | Gate agent actions by how hard they are to undo, on a three-rung ladder: effect-free authorized reads never sent for approval, schema-bounded reversible writes machine-approved, substrate/irreversible writes human-direct via minted grants. Replaces case-law permission accretion with an admission test per rule. | **Read and apply** — `capability-grant` is the rung-3 mechanism |
 | [`skills/cs329a-self-improving-agents/`](./skills/cs329a-self-improving-agents/SKILL.md) | An Agent Skill: your agent reads Stanford CS329A's ten load-bearing ideas (verifier filtering before ensembling, meta-verification, signal-needs-spread, reliability horizon, the deep-research ceiling…) against YOUR repo and writes a disposition record — one verdict per idea, a quoted `file:line` or a scoped command with its exit code and output per verdict, bars pre-committed before any deciding number. Offers; never assigns. | **Install** — `claude plugin marketplace add u00dxk2/agent-ops-patterns` then `claude plugin install agent-ops-skills@agent-ops-patterns`; or copy the folder (Agent Skills format). Citations link the papers, never the lectures; CI checks every link resolves |
@@ -210,9 +210,10 @@ proves a code path exists, not that it runs; and the ideas are the course as tau
 fall 2025, read in August 2026.
 
 The cog-ops-map skill states its limits in the same-named section of its `SKILL.md`. The short
-version: it maps what the code says at the moment it reads it, so a map drifts as soon as the code
-changes unless its maintenance is wired in; a "nothing checks this" on the map is the claim most
-likely to be wrong; and it ships no worked example yet.
+version: it maps what the code says at the moment it reads it, and reading code does not prove
+runtime behavior; a map drifts when the code changes unless its cards are maintained in the same
+commit (live slicing keeps only the prompt text current); a "nothing checks this" stays provisional
+until re-derived by a different route; and it ships no worked example yet.
 
 ### snippet-redact (and its Python port)
 

@@ -159,7 +159,7 @@ Three kinds of answer, three different doors:
   Verdicts only: the number, which questions failed, one sentence. Don't paste your
   agent's output, file paths, log lines or config - a public issue is exactly the kind
   of store Question 1 is about.
-- **A hole in one of these files** - a library, this prompt, or a workflow -
+- **A hole in one of these files** - a library, this prompt, a skill, or a workflow -
   [report it privately](https://github.com/u00dxk2/agent-ops-patterns/security/advisories/new),
   not in a public issue. I want to know: the whole value of a small vendored file is that
   it's small enough to actually be checked. [SECURITY.md](./SECURITY.md) says honestly

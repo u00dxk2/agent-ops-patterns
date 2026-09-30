@@ -33,8 +33,9 @@ output into a public issue is the failure Question 1 is about.
 
 ## Scope
 
-In scope: the libraries in `lib/`, the audit prompt in `SELF-AUDIT.md`, and the workflows in
-`.github/`.
+In scope: the libraries in `lib/`, the audit prompt in `SELF-AUDIT.md`, the Agent Skills in
+`skills/` (instructions an agent executes, so one that leads an agent to disclose something is a
+security report), and the workflows in `.github/`.
 
 Out of scope: the written protocols in `patterns/`. They are practices, not executable
 code — disagreeing with one is an issue, not a vulnerability.

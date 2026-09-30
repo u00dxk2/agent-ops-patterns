@@ -5,7 +5,8 @@ Instructions for a coding agent working in this repository. Humans: [README.md](
 
 ## What is here
 
-- `lib/` — single-file libraries (JavaScript ESM, one Python file). Each has a test in `test/`.
+- `lib/` — single-file libraries (JavaScript ESM, one Python file). Each JavaScript library has a
+  test in `test/`; the Python library carries its own self-check (`python lib/secret_redaction.py`).
 - `patterns/` — written protocols. Nothing executes them; they are held to accuracy and stated scope.
 - `skills/` — Agent Skills: `cs329a-self-improving-agents` (validated by
   `test/skill-references.test.mjs`) and `cog-ops-map` (validated by `test/cog-ops-map-skill.test.mjs`).
@@ -22,7 +23,7 @@ Instructions for a coding agent working in this repository. Humans: [README.md](
 ```sh
 npm test                                                   # node --test; zero dependencies, no install step
 python lib/secret_redaction.py                             # Python self-check, 3.10 floor
-CHECK_LINKS=1 node --test test/skill-references.test.mjs   # network: every URL a skill cites must resolve
+CHECK_LINKS=1 node --test test/skill-references.test.mjs   # network: every URL in the CS329A skill's papers.md and lectures.md must resolve (cog-ops-map's URLs are not checked)
 ```
 
 CI (`.github/workflows/tests.yml`) runs the first on Node 20, 22 and 24, the other two once each, and
@@ -47,7 +48,7 @@ workflow's read-only posture is a property to keep.
 
 ## Traps
 
-- **Line endings.** `.gitattributes` pins `*.md` to LF. The skill test parses frontmatter with an
+- **Line endings.** `.gitattributes` pins `*.md` to LF. Both skill tests parse frontmatter with an
   LF-only pattern; if it reports "frontmatter block missing" on a file you did not touch, the checkout
   has CRLF — renormalize the file, do not loosen the test.
 - **Tests are the spec.** When a test and the code disagree, find out which one is wrong before

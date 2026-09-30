@@ -417,21 +417,23 @@ prompt-architecture rebuilds), run an UPDATE edition. It has its own moves:
 
 ## Where this skill stops working
 
-- It needs to read the system's code. A holder, a validator or a prompt that exists only in a
-  running deployment, a vendor console or someone's head cannot be mapped from here, and the
-  method forbids filling the card from docs instead. For a system you cannot read, it does not
-  apply.
-- It reads code, not a running system. A card saying "checked by X" proves the wiring existed
-  when the map was built, not that X runs or catches anything. Pair it with a check that can go
-  red (`patterns/checks-that-cant-fail.md` in this repo) for the operational half.
-- A map is a snapshot. It starts drifting the moment the code changes, unless the same-commit
-  maintenance contract or live slicing (Phase 3) is actually wired in.
-- Rule vs ruling is a judgment the mapping agent makes. The run-twice test is usually a thought
-  experiment, not a run, so treat a borderline classification as a HYPOTHESIS until someone
-  actually runs the seat twice.
-- Absence claims ("nothing checks this", "no seat does X") are the output most likely to be
-  wrong. The gate above asks for a second, different route before one is filed.
+- It needs to read the system's code. Holders, prompt/consumer contracts and checker wiring come
+  from source; docs, retros and protocols supply the other fields (failure history, human seats).
+  A holder or validator that exists only in a running deployment, a vendor console or someone's
+  head cannot be established from here; mark it unknown rather than guessing.
+- Reading code does not establish runtime behavior. A "checked by X" card backed by a verified
+  call path supports a point-in-time wiring claim, not proof that X runs or catches anything.
+  Pair it with a check that can go red (`patterns/checks-that-cant-fail.md` in this repo) for the
+  operational half.
+- A map is a snapshot and drifts when the code changes. The same-commit maintenance contract has
+  to update the affected cards. Phase 3 live slicing keeps the embedded prompt source current,
+  but not the surrounding claims (holders, classifications, validators, gaps).
+- Rule vs ruling is a judgment the mapping agent makes. Record whether a classification rests on
+  reasoning or on observed runs, and keep borderline ones provisional. Identical outputs alone
+  do not make a seat a rule (see "Determinism is not rule-ness" above).
+- Absence claims ("nothing checks this", "no seat does X") stay provisional until they are
+  re-derived by a different route, as the gate above requires.
 - The finished map contains the system's prompts. Sharing it is a disclosure decision for the
   system's owner, not something the skill can make safe.
-- No worked example ships with the skill yet. Its first published sample will come from a real
-  run, not a constructed one.
+- No worked example ships with the skill yet. One from a real run is planned; none will be
+  constructed.

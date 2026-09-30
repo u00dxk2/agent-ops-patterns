@@ -19,8 +19,9 @@
 // token rule cannot miss a link form because it does not look at one.
 //
 // Where this stops: it checks that the files are wired together, not that
-// what they say is true. Local .md paths outside references/ are not checked,
-// because SKILL.md has none; add them here if it grows one.
+// what they say is true. Local .md paths outside references/ (for example the
+// repository-level patterns/checks-that-cant-fail.md it cites) are not checked,
+// and neither are its URLs.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
