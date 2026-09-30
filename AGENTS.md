@@ -7,7 +7,8 @@ Instructions for a coding agent working in this repository. Humans: [README.md](
 
 - `lib/` — single-file libraries (JavaScript ESM, one Python file). Each has a test in `test/`.
 - `patterns/` — written protocols. Nothing executes them; they are held to accuracy and stated scope.
-- `skills/` — Agent Skills, validated by `test/skill-references.test.mjs`.
+- `skills/` — Agent Skills: `cs329a-self-improving-agents` (validated by
+  `test/skill-references.test.mjs`) and `cog-ops-map` (validated by `test/cog-ops-map-skill.test.mjs`).
 - `scripts/check-staged-secrets.mjs` + `.githooks/pre-commit` — refuses a commit whose staged lines
   carry a secret shape. Turn it on in your clone with `git config core.hooksPath .githooks` (running
   `npm install` does this through `prepare`). `--history <days> --selftest` proves it can go red.
