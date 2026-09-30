@@ -435,5 +435,4 @@ prompt-architecture rebuilds), run an UPDATE edition. It has its own moves:
   re-derived by a different route, as the gate above requires.
 - The finished map contains the system's prompts. Sharing it is a disclosure decision for the
   system's owner, not something the skill can make safe.
-- No worked example ships with the skill yet. One from a real run is planned; none will be
-  constructed.
+- No worked example ships with the skill yet.

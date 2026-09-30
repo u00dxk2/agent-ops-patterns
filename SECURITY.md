@@ -26,8 +26,9 @@ output into a public issue is the failure Question 1 is about.
   anywhere that you reported something.
 - **No bounty, no swag, no CVE-wrangling service.** I will credit you in the fix commit
   unless you'd rather I didn't.
-- **If I can't fix it, it still gets written down** — in that library's `## Limits` section,
-  because a hole nobody wrote down is the thing this repo exists to complain about. But that
+- **If I can't fix it, it still gets written down** — in the affected file's own limits
+  section (a library's `## Limits`, a skill's "Where this skill stops working"), or beside the
+  prompt or workflow it concerns, because a hole nobody wrote down is the thing this repo exists to complain about. But that
   note is agreed with you first and goes out on a timetable you've seen. Nothing from your
   report becomes public before you've had a say, including when there will never be a fix.
 
