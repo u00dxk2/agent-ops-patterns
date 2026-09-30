@@ -30,10 +30,10 @@ Agent frameworks get you to the demo. These patterns are about what happens afte
 
 Two essays frame the territory these patterns assume. Cliff Rosen's ["The Agent in the Middle"](https://www.orchestratorstudios.ai/articles/the-agent-in-the-middle.html) is the *access* half — an agent replacing the UX layer over your systems' substrates, given understanding (skills) and access (tools). My own ["Cognitive Operations Maps"](https://uncagedminds.substack.com/p/cognitive-operations-maps) is the *judgment* half — which recurring decisions the agent holds, and how you validate them. This repo is the operational layer under both: what keeps that architecture honest once it runs unattended.
 
-## Skills: hand your agent a source, get a decision you can check
+## Skills: assess a source against your repo, map a system's judgments
 
-The self-audit hands your agent five questions. The skills in [`skills/`](./skills/)
-hand it a *source* - a course, a paper set - and ask it to decide, idea by idea,
+The self-audit hands your agent five questions. The first skill in [`skills/`](./skills/)
+hands it a *source* - a course, a paper set - and ask it to decide, idea by idea,
 whether the source names a gap in your system. The output is a disposition record:
 one row per idea, a verdict of APPLIES / DOES NOT APPLY / ALREADY IN PLACE / NOT
 DECIDABLE / UNREADABLE, a quoted `file:line` or a scoped command with its exit code and
@@ -77,6 +77,15 @@ is now gated last - ran the skill against the same system and came back with thr
 the first run had missed and ten complaints about the skill; a Codex adversarial pass then
 found sixteen more. All folded in, all recorded in the worked example.
 
+The second is [`skills/cog-ops-map/`](./skills/cog-ops-map/SKILL.md), the tool for the
+*judgment* half above. It has your agent draw a cognitive operations map of a system. Every
+recurring judgment becomes a seat: the question it answers, who holds it (a model, code or a
+person), how it has failed, and what checks it. Seats are sorted rule vs ruling and human vs
+machine. The map is built for a teammate without repo access: an authenticated page, a
+self-contained HTML file, or a Markdown fallback, showing the prompt template or assembly source
+for every seat that calls a model and the working context of seats held by an agent. The mapping
+also writes a gap report. Dated notes in the skill mark the incident that motivated a rule. Say "build a cognitive operations map of <system>" once the plugin is installed.
+
 ## What's here
 
 | Artifact | What it does | How to adopt |
@@ -101,6 +110,7 @@ found sixteen more. All folded in, all recorded in the worked example.
 | [`patterns/skill-regression-testing.md`](./patterns/skill-regression-testing.md) | Treating agent skills/prompts as process code: TDD-against-a-watched-failure, benchmark-gated edits, shadow-A/B with auto-rollback, anti-rationalization red flags. | **Read and apply** — the thinnest layer in the systems we looked at informally (July 2026; a look around, not a survey) |
 | [`patterns/durability-tiered-write-governance.md`](./patterns/durability-tiered-write-governance.md) | Gate agent actions by how hard they are to undo, on a three-rung ladder: effect-free authorized reads never sent for approval, schema-bounded reversible writes machine-approved, substrate/irreversible writes human-direct via minted grants. Replaces case-law permission accretion with an admission test per rule. | **Read and apply** — `capability-grant` is the rung-3 mechanism |
 | [`skills/cs329a-self-improving-agents/`](./skills/cs329a-self-improving-agents/SKILL.md) | An Agent Skill: your agent reads Stanford CS329A's ten load-bearing ideas (verifier filtering before ensembling, meta-verification, signal-needs-spread, reliability horizon, the deep-research ceiling…) against YOUR repo and writes a disposition record — one verdict per idea, a quoted `file:line` or a scoped command with its exit code and output per verdict, bars pre-committed before any deciding number. Offers; never assigns. | **Install** — `claude plugin marketplace add u00dxk2/agent-ops-patterns` then `claude plugin install agent-ops-skills@agent-ops-patterns`; or copy the folder (Agent Skills format). Citations link the papers, never the lectures; CI checks every link resolves |
+| [`skills/cog-ops-map/`](./skills/cog-ops-map/SKILL.md) | An Agent Skill: your agent maps every recurring judgment in a system as a seat (question, holder, real failure, validator), sorts seats rule vs ruling × human vs machine, and builds a map a teammate without repo access can read, with each model-call seat's prompt template or assembly source inline, plus a gap report. | **Install** — same plugin as above; or copy the folder (Agent Skills format) |
 
 ## Quickstart
 
@@ -194,7 +204,7 @@ Versions, stated exactly: CI runs the **JS suite** on Node 20, 22 and 24, and th
 
 Every library here names what it does NOT do, and so do the skill and all five written protocols. The libraries pin representative cases of their principal limits in tests; the operational limits - the ones that live in your deployment rather than in this code, like the grant lib's single-user-account boundary - are labeled as what they are, because no test can reach them. The protocols carry a `## Limits` section apiece, but they state practices rather than executable specifications, so those limits are read and never run - nothing tests them at all. Neither kind is a footnote, but they aren't the same kind of promise either.
 
-The skill in `skills/` states its own limits in its `SKILL.md` § "Where this skill stops
+The CS329A skill states its own limits in its `SKILL.md` § "Where this skill stops
 working" - the short version: it reads a repo, not a deployment, so "already in place"
 proves a code path exists, not that it runs; and the ideas are the course as taught in
 fall 2025, read in August 2026.

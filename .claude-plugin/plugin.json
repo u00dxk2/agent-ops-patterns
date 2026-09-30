@@ -1,6 +1,6 @@
 {
   "name": "agent-ops-skills",
-  "description": "Skills from agent-ops-patterns: hand your agent a source (a course, a paper set) and get a disposition record with a quoted file:line or a scoped command with its exit code and output per verdict. First skill: Stanford CS329A \"Self-Improving AI Agents\".",
+  "description": "Skills from agent-ops-patterns: assess the ideas of Stanford CS329A \"Self-Improving AI Agents\" against your repo (a disposition record with a quoted file:line or a scoped command with its exit code and output per verdict), or map a system's recurring judgments and their validation gaps (cog-ops-map).",
   "version": "0.1.0",
   "author": {
     "name": "David Kooi",
@@ -9,5 +9,5 @@
   "homepage": "https://github.com/u00dxk2/agent-ops-patterns",
   "repository": "https://github.com/u00dxk2/agent-ops-patterns",
   "license": "MIT",
-  "keywords": ["agent-skills", "llm-judges", "verification", "eval-gates", "cs329a"]
+  "keywords": ["agent-skills", "llm-judges", "verification", "eval-gates", "cs329a", "cognitive-operations-maps"]
 }
