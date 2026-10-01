@@ -153,7 +153,12 @@ if (argv.includes("--help")) {
           GREEN  realistic content + an allowlisted line → exit 0
           EMPTY  the only commit is outside the window → NOTHING SWEPT, exit 2
           RANGE  a hit inside --range fires; a hit before it stays out; an empty range is NOTHING SWEPT
+          USAGE  non-numeric days and an unknown flag → exit 2, nothing scanned
+          LONE CR a value after a bare CR inside an added line still fires (lines split on \\n only)
+          CONTENT-AS-STRUCTURE added lines whose text starts "++ " or "@@" are scanned, not taken for headers
+          GIT FAILS an unknown revision → ERROR, not NOTHING SWEPT
           plus staged / --message-file regression arms (exit 1 on a fixture, 0 on clean).
+        The PASS line prints the number of arms that ran.
         exit 0 all arms pass · 1 an arm failed
   --help  this text
 
@@ -292,10 +297,11 @@ async function sweepHistory({ repo, revArgs, label }) {
     ],
     { stdio: ["ignore", "pipe", "pipe"] },
   );
-  // stderr is kept only for its first line, and truncated on append, so it stays small.
+  // Only stderr's LAST 4 KB is kept (git's fatal line comes after any warnings), so a noisy
+  // git cannot grow it.
   let stderr = "";
   child.stderr.setEncoding("utf8");
-  child.stderr.on("data", (s) => { if (stderr.length < 4096) stderr = (stderr + s).slice(0, 4096); });
+  child.stderr.on("data", (s) => { stderr = (stderr + s).slice(-4096); });
 
   let commits = 0;
   let hunks = 0;
@@ -303,39 +309,65 @@ async function sweepHistory({ repo, revArgs, label }) {
   let sha = "?";
   let file = "?";
   let newLine = 0;
+  let oldLeft = 0; // lines of the current hunk body still to come, from its @@ header
+  let newLeft = 0;
   const hits = [];
+  // A line is read as STRUCTURE (commit marker, file header, hunk header) only outside a
+  // hunk body; inside one, the @@ header's counts say what every line is. Telling them
+  // apart by prefix alone let an added line whose TEXT began "++ " arrive as "+++ …" and be
+  // taken for a file header, never scanned. Counts disagreeing with the stream throw, and
+  // the throw is reported as ERROR below: a parse that lost its place is not a verdict.
   const classify = (raw) => {
     const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
+    if (oldLeft > 0 || newLeft > 0) {
+      if (line.startsWith("\\")) return; // "\ No newline at end of file"
+      if (line.startsWith("-") && oldLeft > 0) { oldLeft--; return; }
+      if (line.startsWith("+") && newLeft > 0) {
+        newLeft--;
+        added++;
+        const n = newLine++;
+        const pattern = firstPatternHit(line.slice(1));
+        if (pattern) hits.push({ pattern, sha, file, line: n });
+        return;
+      }
+      if (line.startsWith(" ") && oldLeft > 0 && newLeft > 0) { oldLeft--; newLeft--; newLine++; return; } // context (none under --unified=0)
+      throw new Error(`hunk in ${sha} ${file} ended before its @@ counts (${oldLeft} removed, ${newLeft} added still expected)`);
+    }
     if (line.startsWith("\x01commit ")) { commits++; sha = line.slice(8).trim(); file = "?"; return; }
     if (line.startsWith("+++ ")) { file = diffPath(line.slice(4)); return; }
-    if (line.startsWith("--- ")) return;
     if (line.startsWith("@@")) {
+      const m = /^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(line);
+      if (!m) throw new Error(`unreadable hunk header in ${sha} ${file}`);
       hunks++;
-      const m = /^@@ -\d+(?:,\d+)? \+(\d+)/.exec(line);
-      newLine = m ? Number(m[1]) : 0;
-      return;
+      oldLeft = m[1] === undefined ? 1 : Number(m[1]);
+      newLine = Number(m[2]);
+      newLeft = m[3] === undefined ? 1 : Number(m[3]);
     }
-    if (line.startsWith("+")) {
-      added++;
-      const n = newLine++;
-      const pattern = firstPatternHit(line.slice(1));
-      if (pattern) hits.push({ pattern, sha, file, line: n });
-      return;
-    }
-    if (line.startsWith(" ")) newLine++; // context (none under --unified=0; kept for correctness)
+    // Everything else outside a hunk is header text (diff --git, index, ---, mode, rename,
+    // Binary files …) and carries no added content.
   };
 
-  // Any failure inside the stream — a decode or classify throw, a pipe error — is kept and
-  // reported as ERROR (exit 2) below, never left to reject unhandled and exit 1.
-  let carry = "";
+  // Any failure inside the stream — a classify throw, a pipe error — is kept and reported as
+  // ERROR (exit 2) below, never left to reject unhandled and exit 1. (setEncoding never
+  // throws: a byte that is not UTF-8 becomes U+FFFD and is scanned as that character.)
+  // A partial line is kept as a list of pieces and joined once, so a single very long line
+  // costs time in proportion to its length, not its square.
+  let pending = [];
   let streamErr = null;
   child.stdout.setEncoding("utf8"); // decodes a multi-byte character split across chunks
   child.stdout.on("data", (chunk) => {
     if (streamErr) return;
     try {
-      const parts = (carry + chunk).split("\n");
-      carry = parts.pop();
-      for (const raw of parts) classify(raw);
+      let start = 0;
+      let i;
+      while ((i = chunk.indexOf("\n", start)) !== -1) {
+        const piece = chunk.slice(start, i);
+        const raw = pending.length ? pending.join("") + piece : piece;
+        pending = [];
+        classify(raw);
+        start = i + 1;
+      }
+      if (start < chunk.length) pending.push(chunk.slice(start));
     } catch (e) {
       streamErr = e;
       child.kill();
@@ -346,18 +378,22 @@ async function sweepHistory({ repo, revArgs, label }) {
     child.on("error", (e) => resolve({ code: null, signal: null, err: e }));
     child.on("close", (c, s) => resolve({ code: c, signal: s, err: null }));
   });
-  if (!err && !streamErr && carry) {
-    try { classify(carry); } catch (e) { streamErr = e; }
+  if (!err && !streamErr) {
+    try {
+      if (pending.length) classify(pending.join(""));
+      if (oldLeft > 0 || newLeft > 0) throw new Error(`log ended inside a hunk in ${sha} ${file}`);
+    } catch (e) { streamErr = e; }
   }
 
   // A git that failed part-way has already streamed a PARTIAL log: its counts and hits
   // are a sample, not the window, so the whole result is an error and none of it is used.
   if (err || streamErr || code !== 0) {
-    const why = streamErr ? `reading git log failed: ${streamErr.message}`
+    const fatal = stderr.split("\n").map((l) => l.trim()).filter(Boolean);
+    const detail = err ? err.message
+      : streamErr ? `reading git log failed: ${streamErr.message}`
       : signal ? `git log killed by ${signal}`
-      : `git log exited ${code}`;
-    const first = String(err?.message || (streamErr ? why : stderr) || why).trim().split("\n")[0];
-    return { summary: "", hits: [], nothingSwept: false, error: `git unreadable (${repo}): ${first}` };
+      : fatal.find((l) => /^(fatal|error):/.test(l)) || fatal.at(-1) || `git log exited ${code}`;
+    return { summary: "", hits: [], nothingSwept: false, error: `git unreadable (${repo}): ${String(detail).split("\n")[0]}` };
   }
 
   const summary = `history: ${commits} commits scanned · ${hunks} hunks · ${added} added lines · ${label}`;
@@ -410,7 +446,9 @@ function selftestHistory(days) {
   ];
 
   let failed = 0;
+  let arms = 0;
   const arm = (label, ok, why) => {
+    arms++;
     console.log(`selftest arm — ${label}: ${ok ? "PASS" : "FAIL"}${ok ? "" : ` — ${why}`}`);
     if (!ok) failed++;
   };
@@ -557,6 +595,21 @@ function selftestHistory(days) {
       `exit ${r10.status}; out: ${r10.out.slice(0, 200)}`,
     );
 
+    // CONTENT THAT LOOKS LIKE STRUCTURE — added lines whose TEXT begins "++ " (git prints
+    // it as "+++ …", a file-header prefix) or "@@", with a value on each. Read by prefix
+    // alone, both were taken for headers and never scanned.
+    const pp = initRepo("plus-plus");
+    writeFileSync(join(pp, "fixture.diff"), `++ ${FIRE[7][1]}\n@@ ${FIRE[6][1]}\n`);
+    git(pp, ["add", "-A"]);
+    git(pp, ["commit", "-q", "-m", "add diff-shaped content"]);
+    const r12 = runSelf(["--history", String(days), "--repo", pp]);
+    arm(
+      "CONTENT-AS-STRUCTURE — values on added lines starting \"++ \" and \"@@\" both fire, exit 3, 2 added lines",
+      r12.status === 3 && r12.out.includes("[stripe-live-secret]") && r12.out.includes("[aws-access-key]") &&
+        /^history: 1 commits scanned · 1 hunks · 2 added lines/m.test(r12.out) && leaked(r12.out).length === 0,
+      `exit ${r12.status}; out: ${r12.out.slice(0, 200)}`,
+    );
+
     // GIT FAILS — git exits non-zero (an unknown revision): ERROR with a RESULT line, exit 2.
     // Without the exit-code check this run would read NOTHING SWEPT, a different verdict.
     const r11 = runSelf(["--range", "no-such-rev..HEAD", "--repo", red]);
@@ -571,7 +624,7 @@ function selftestHistory(days) {
   } finally {
     try { rmSync(base, { recursive: true, force: true }); } catch { /* temp dir; best effort */ }
   }
-  console.log(failed === 0 ? `selftest: PASS (${FIRE.length} patterns, ${SILENT.length} silent lines, 10 arms)` : `selftest: FAIL — ${failed} arm(s) failed`);
+  console.log(failed === 0 ? `selftest: PASS (${FIRE.length} patterns, ${SILENT.length} silent lines, ${arms} arms)` : `selftest: FAIL — ${failed} arm(s) failed`);
   return failed === 0 ? 0 : 1;
 }
 
