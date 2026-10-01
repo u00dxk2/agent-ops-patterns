@@ -43,6 +43,9 @@
  *     refs, stash). Dangling objects are NOT scanned, and `git log -p` does not show
  *     a merge commit's own resolution diff. The stronger sweep is
  *     `git cat-file --batch-all-objects`.
+ *   - A binary file, or one marked -diff in .gitattributes, shows no hunk in `git log -p`,
+ *     so its content is NOT scanned. The history denominator counts those diffs ("binary
+ *     file diffs not read") so a clean verdict says what it did not read.
  *   - Removing a value from the tip does not remove it from history. Rotate first.
  *
  * `--history <days> --selftest` builds throwaway repos and runs this file as a child
@@ -142,23 +145,29 @@ if (argv.includes("--help")) {
           dangling / unreachable objects are NOT scanned.
         Output is REDACTED: pattern · short sha · path:line only — the matched value is never printed.
         Every outcome prints the denominator first:
-          history: <N> commits scanned · <M> hunks · <K> added lines · window <days>d since <ISO>
+          history: <N> commits scanned · <M> hunks · <K> added lines · <B> binary file diffs not read · window <days>d since <ISO>
+        A binary file, or one marked -diff in .gitattributes, has no hunk: its content is NOT
+          read, and B counts those diffs. Merge commits count toward N, but their own
+          resolution diff is not shown by git log -p.
   node scripts/${SCRIPT}.mjs --range <a>..<b> [--repo <path>]
         the same sweep, same exits and redaction, over exactly the commits in the range
         (git log -p <a>..<b>) — the CI form: per commit, so a value added then deleted inside
         one PR still fires. An empty range is NOTHING SWEPT (exit 2); an unknown rev is ERROR (2).
   node scripts/${SCRIPT}.mjs --history <days> --selftest
         throwaway-repo arms, each run as a real child process of this script:
+          coverage every pattern has exactly one fixture
           RED    a commit tripping EVERY pattern → exit 3, every pattern named, no value printed
           GREEN  realistic content + an allowlisted line → exit 0
           EMPTY  the only commit is outside the window → NOTHING SWEPT, exit 2
           RANGE  a hit inside --range fires; a hit before it stays out; an empty range is NOTHING SWEPT
           USAGE  non-numeric days and an unknown flag → exit 2, nothing scanned
           LONE CR a value after a bare CR inside an added line still fires (lines split on \\n only)
-          CONTENT-AS-STRUCTURE added lines whose text starts "++ " or "@@" are scanned, not taken for headers
+          CONTENT-AS-STRUCTURE an added line whose text starts "++ " is scanned, not taken for a file header
+          ROOT   log.showRoot=false in the environment does not hide the root commit
+          BINARY a -diff file is counted in the denominator as not read
           GIT FAILS an unknown revision → ERROR, not NOTHING SWEPT
           plus staged / --message-file regression arms (exit 1 on a fixture, 0 on clean).
-        The PASS line prints the number of arms that ran.
+        13 arms; a run where a different number ran is a FAIL.
         exit 0 all arms pass · 1 an arm failed
   --help  this text
 
@@ -290,18 +299,29 @@ async function sweepHistory({ repo, revArgs, label }) {
   const child = spawn(
     "git",
     [
-      "-C", repo, "log", "-p", "--no-color", "--unified=0", "--no-ext-diff", "--no-textconv",
+      // The output FORMAT is pinned here, not inherited: a user's or CI's git config can
+      // hide the root commit's diff (log.showRoot), rename the a/ b/ prefixes, quote
+      // non-ASCII paths, or emit blank context lines (interHunkContext + suppressBlankEmpty),
+      // and each of those made this parser miss content or misread a valid log.
+      "-C", repo,
+      "-c", "core.quotePath=false", "-c", "diff.interHunkContext=0", "-c", "diff.suppressBlankEmpty=false",
+      "log", "-p", "--root", "--no-color", "--unified=0", "--no-ext-diff", "--no-textconv",
+      "--src-prefix=a/", "--dst-prefix=b/",
       // One marker line per commit (0x01 never starts a diff line); the body is not printed.
       "--format=%x01commit %h",
       ...revArgs,
     ],
     { stdio: ["ignore", "pipe", "pipe"] },
   );
-  // Only stderr's LAST 4 KB is kept (git's fatal line comes after any warnings), so a noisy
-  // git cannot grow it.
+  // stderr: the first fatal/error line is kept as it streams (it can be followed by more
+  // than any buffer of warnings), plus the last 4 KB for anything else. Neither can grow.
   let stderr = "";
+  let stderrFatal = "";
   child.stderr.setEncoding("utf8");
-  child.stderr.on("data", (s) => { stderr = (stderr + s).slice(-4096); });
+  child.stderr.on("data", (s) => {
+    if (!stderrFatal) stderrFatal = (/^\s*(?:fatal|error):.*$/m.exec(s)?.[0] ?? "").trim();
+    stderr = (stderr + s).slice(-4096);
+  });
 
   let commits = 0;
   let hunks = 0;
@@ -311,6 +331,8 @@ async function sweepHistory({ repo, revArgs, label }) {
   let newLine = 0;
   let oldLeft = 0; // lines of the current hunk body still to come, from its @@ header
   let newLeft = 0;
+  let sawMinusHeader = false;
+  let binaryUnread = 0;
   const hits = [];
   // A line is read as STRUCTURE (commit marker, file header, hunk header) only outside a
   // hunk body; inside one, the @@ header's counts say what every line is. Telling them
@@ -333,8 +355,19 @@ async function sweepHistory({ repo, revArgs, label }) {
       if (line.startsWith(" ") && oldLeft > 0 && newLeft > 0) { oldLeft--; newLeft--; newLine++; return; } // context (none under --unified=0)
       throw new Error(`hunk in ${sha} ${file} ended before its @@ counts (${oldLeft} removed, ${newLeft} added still expected)`);
     }
+    // Outside a hunk the header GRAMMAR is strict: "+++ " is a file header only directly
+    // after its "--- " line, and any other line starting "+", "-" or " " here means the
+    // counts and the stream have parted — content that would be skipped, or a value that
+    // would be printed as a path. That throws (ERROR) rather than being read as header text.
+    const afterMinus = sawMinusHeader;
+    sawMinusHeader = false;
     if (line.startsWith("\x01commit ")) { commits++; sha = line.slice(8).trim(); file = "?"; return; }
-    if (line.startsWith("+++ ")) { file = diffPath(line.slice(4)); return; }
+    if (line.startsWith("--- ")) { sawMinusHeader = true; return; }
+    if (line.startsWith("+++ ")) {
+      if (!afterMinus) throw new Error(`"+++ " outside a file header in ${sha} ${file}`);
+      file = diffPath(line.slice(4));
+      return;
+    }
     if (line.startsWith("@@")) {
       const m = /^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(line);
       if (!m) throw new Error(`unreadable hunk header in ${sha} ${file}`);
@@ -342,9 +375,13 @@ async function sweepHistory({ repo, revArgs, label }) {
       oldLeft = m[1] === undefined ? 1 : Number(m[1]);
       newLine = Number(m[2]);
       newLeft = m[3] === undefined ? 1 : Number(m[3]);
+      return;
     }
-    // Everything else outside a hunk is header text (diff --git, index, ---, mode, rename,
-    // Binary files …) and carries no added content.
+    if (/^[-+ ]/.test(line)) throw new Error(`diff content outside a hunk in ${sha} ${file}`);
+    // A binary file (or one marked -diff in .gitattributes) shows no hunk, so its content
+    // is NOT read. It is counted and printed in the denominator, never silently clean.
+    if (line.startsWith("Binary files ")) { binaryUnread++; return; }
+    // Everything else is header text (diff --git, index, mode, rename, similarity …).
   };
 
   // Any failure inside the stream — a classify throw, a pipe error — is kept and reported as
@@ -378,7 +415,9 @@ async function sweepHistory({ repo, revArgs, label }) {
     child.on("error", (e) => resolve({ code: null, signal: null, err: e }));
     child.on("close", (c, s) => resolve({ code: c, signal: s, err: null }));
   });
-  if (!err && !streamErr) {
+  // The end-of-log checks only mean something when git finished on its own; a killed or
+  // failed git is reported as that, not as the truncation it caused.
+  if (!err && !streamErr && code === 0 && !signal) {
     try {
       if (pending.length) classify(pending.join(""));
       if (oldLeft > 0 || newLeft > 0) throw new Error(`log ended inside a hunk in ${sha} ${file}`);
@@ -387,16 +426,18 @@ async function sweepHistory({ repo, revArgs, label }) {
 
   // A git that failed part-way has already streamed a PARTIAL log: its counts and hits
   // are a sample, not the window, so the whole result is an error and none of it is used.
+  // (A streamErr raised while git was still running is why WE killed it, so it outranks
+  // the resulting signal.)
   if (err || streamErr || code !== 0) {
-    const fatal = stderr.split("\n").map((l) => l.trim()).filter(Boolean);
+    const tail = stderr.split("\n").map((l) => l.trim()).filter(Boolean);
     const detail = err ? err.message
       : streamErr ? `reading git log failed: ${streamErr.message}`
       : signal ? `git log killed by ${signal}`
-      : fatal.find((l) => /^(fatal|error):/.test(l)) || fatal.at(-1) || `git log exited ${code}`;
+      : stderrFatal || tail.at(-1) || `git log exited ${code}`;
     return { summary: "", hits: [], nothingSwept: false, error: `git unreadable (${repo}): ${String(detail).split("\n")[0]}` };
   }
 
-  const summary = `history: ${commits} commits scanned · ${hunks} hunks · ${added} added lines · ${label}`;
+  const summary = `history: ${commits} commits scanned · ${hunks} hunks · ${added} added lines · ${binaryUnread} binary file diffs not read · ${label}`;
   return { summary, hits, nothingSwept: commits === 0 };
 }
 
@@ -476,8 +517,8 @@ function selftestHistory(days) {
     execFileSync("git", ["init", "-q", "-b", "main", dir], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env });
     return dir;
   };
-  const runSelf = (args, cwd) => {
-    const r = spawnSync(process.execPath, [self, ...args], { cwd, encoding: "utf8", env });
+  const runSelf = (args, cwd, extraEnv = {}) => {
+    const r = spawnSync(process.execPath, [self, ...args], { cwd, encoding: "utf8", env: { ...env, ...extraEnv } });
     return { status: r.status, out: `${r.stdout ?? ""}\n${r.stderr ?? ""}` };
   };
   const fixtureValues = FIRE.map(([, v]) => v);
@@ -595,19 +636,48 @@ function selftestHistory(days) {
       `exit ${r10.status}; out: ${r10.out.slice(0, 200)}`,
     );
 
-    // CONTENT THAT LOOKS LIKE STRUCTURE — added lines whose TEXT begins "++ " (git prints
-    // it as "+++ …", a file-header prefix) or "@@", with a value on each. Read by prefix
-    // alone, both were taken for headers and never scanned.
+    // CONTENT THAT LOOKS LIKE STRUCTURE — an added line whose TEXT begins "++ " is printed
+    // by git as "+++ …", a file-header prefix. Read by prefix alone it was never scanned,
+    // and its text became the FILE PATH printed beside the next hit (the value leaked into
+    // redacted output). Line 2 pins that attribution: its hit must name fixture.diff:2.
     const pp = initRepo("plus-plus");
-    writeFileSync(join(pp, "fixture.diff"), `++ ${FIRE[7][1]}\n@@ ${FIRE[6][1]}\n`);
+    writeFileSync(join(pp, "fixture.diff"), `++ ${FIRE[7][1]}\n${FIRE[6][1]}\n`);
     git(pp, ["add", "-A"]);
     git(pp, ["commit", "-q", "-m", "add diff-shaped content"]);
     const r12 = runSelf(["--history", String(days), "--repo", pp]);
     arm(
-      "CONTENT-AS-STRUCTURE — values on added lines starting \"++ \" and \"@@\" both fire, exit 3, 2 added lines",
-      r12.status === 3 && r12.out.includes("[stripe-live-secret]") && r12.out.includes("[aws-access-key]") &&
+      "CONTENT-AS-STRUCTURE — a value on an added line starting \"++ \" fires, the next hit names fixture.diff:2, nothing leaks",
+      r12.status === 3 && r12.out.includes("[stripe-live-secret]") && /\[aws-access-key\]\s+\S+\s+fixture\.diff:2$/m.test(r12.out) &&
         /^history: 1 commits scanned · 1 hunks · 2 added lines/m.test(r12.out) && leaked(r12.out).length === 0,
       `exit ${r12.status}; out: ${r12.out.slice(0, 200)}`,
+    );
+
+    // ROOT — a config that hides the root commit's diff (log.showRoot=false) must not hide
+    // its content from the sweep: the first commit is where a .env tends to land.
+    const root = initRepo("root");
+    writeFileSync(join(root, "a.env"), `${FIRE[7][1]}\n`);
+    git(root, ["add", "-A"]);
+    git(root, ["commit", "-q", "-m", "first commit"]);
+    const r13 = runSelf(["--history", String(days), "--repo", root], undefined,
+      { GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "log.showRoot", GIT_CONFIG_VALUE_0: "false" });
+    arm(
+      "ROOT — with log.showRoot=false in the environment the root commit is still read, exit 3",
+      r13.status === 3 && r13.out.includes("[stripe-live-secret]"),
+      `exit ${r13.status}; out: ${r13.out.slice(0, 200)}`,
+    );
+
+    // BINARY — a file git will not diff (binary, or -diff in .gitattributes) has no hunk,
+    // so its content is not read; the denominator must SAY so rather than read clean.
+    const bin = initRepo("binary");
+    writeFileSync(join(bin, ".gitattributes"), "*.env -diff\n");
+    writeFileSync(join(bin, "x.env"), `${FIRE[7][1]}\n`);
+    git(bin, ["add", "-A"]);
+    git(bin, ["commit", "-q", "-m", "a -diff file"]);
+    const r14 = runSelf(["--history", String(days), "--repo", bin]);
+    arm(
+      "BINARY — a -diff file is counted as \"1 binary file diffs not read\" in the denominator",
+      /^history: 1 commits scanned · \d+ hunks · \d+ added lines · 1 binary file diffs not read/m.test(r14.out) && leaked(r14.out).length === 0,
+      `exit ${r14.status}; out: ${r14.out.slice(0, 200)}`,
     );
 
     // GIT FAILS — git exits non-zero (an unknown revision): ERROR with a RESULT line, exit 2.
@@ -623,6 +693,13 @@ function selftestHistory(days) {
     console.log(`selftest arm — harness: FAIL — ${String(err?.message ?? err).split("\n")[0]}`);
   } finally {
     try { rmSync(base, { recursive: true, force: true }); } catch { /* temp dir; best effort */ }
+  }
+  // An arm dropped by a later edit (or skipped behind an early return) must not still
+  // read PASS: the expected count is stated once, here, and checked.
+  const EXPECTED_ARMS = 13;
+  if (failed === 0 && arms !== EXPECTED_ARMS) {
+    failed++;
+    console.log(`selftest arm — arm count: FAIL — ${arms} ran, ${EXPECTED_ARMS} expected`);
   }
   console.log(failed === 0 ? `selftest: PASS (${FIRE.length} patterns, ${SILENT.length} silent lines, ${arms} arms)` : `selftest: FAIL — ${failed} arm(s) failed`);
   return failed === 0 ? 0 : 1;
