@@ -54,7 +54,7 @@
  * seen red is not evidence.
  */
 import { execFileSync, spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, writeSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, writeSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -165,9 +165,11 @@ if (argv.includes("--help")) {
           CONTENT-AS-STRUCTURE an added line whose text starts "++ " is scanned, not taken for a file header
           ROOT   log.showRoot=false in the environment does not hide the root commit
           BINARY a -diff file is counted in the denominator as not read
+          SECRET-SHAPED PATH a value in a file name is withheld from the printed path
+          RELATIVE diff.relative=true with --repo at a subdirectory still sweeps the whole repo
           GIT FAILS an unknown revision → ERROR, not NOTHING SWEPT
           plus staged / --message-file regression arms (exit 1 on a fixture, 0 on clean).
-        13 arms; a run where a different number ran is a FAIL.
+        15 arms; a run where a different number ran is a FAIL.
         exit 0 all arms pass · 1 an arm failed
   --help  this text
 
@@ -307,6 +309,9 @@ async function sweepHistory({ repo, revArgs, label }) {
       "-c", "core.quotePath=false", "-c", "diff.interHunkContext=0", "-c", "diff.suppressBlankEmpty=false",
       "log", "-p", "--root", "--no-color", "--unified=0", "--no-ext-diff", "--no-textconv",
       "--src-prefix=a/", "--dst-prefix=b/",
+      // diff.relative would drop every file outside a --repo subdirectory (CLEAN over them);
+      // diff.submodule=log emits indented summaries the strict header grammar rejects.
+      "--no-relative", "--submodule=short",
       // One marker line per commit (0x01 never starts a diff line); the body is not printed.
       "--format=%x01commit %h",
       ...revArgs,
@@ -365,7 +370,11 @@ async function sweepHistory({ repo, revArgs, label }) {
     if (line.startsWith("--- ")) { sawMinusHeader = true; return; }
     if (line.startsWith("+++ ")) {
       if (!afterMinus) throw new Error(`"+++ " outside a file header in ${sha} ${file}`);
-      file = diffPath(line.slice(4));
+      // A real file NAME can hold a secret shape too; the path is printed beside every hit
+      // and in every diagnostic, so a secret-shaped path is withheld at the source.
+      const p = diffPath(line.slice(4));
+      const shaped = firstPatternHit(p);
+      file = shaped ? `<path withheld: ${shaped} in the file name>` : p;
       return;
     }
     if (line.startsWith("@@")) {
@@ -680,6 +689,35 @@ function selftestHistory(days) {
       `exit ${r14.status}; out: ${r14.out.slice(0, 200)}`,
     );
 
+    // SECRET-SHAPED PATH — a real file NAME holding a value: the hit fires and the name is
+    // withheld, because the path is printed beside every hit.
+    const named = initRepo("named");
+    writeFileSync(join(named, `${FIRE[7][1]}.txt`), `${FIRE[7][1]}\n`);
+    git(named, ["add", "-A"]);
+    git(named, ["commit", "-q", "-m", "a secret-shaped file name"]);
+    const r15 = runSelf(["--history", String(days), "--repo", named]);
+    arm(
+      "SECRET-SHAPED PATH — a value in a file name is withheld from the hit line, exit 3",
+      r15.status === 3 && r15.out.includes("<path withheld: stripe-live-secret in the file name>") && leaked(r15.out).length === 0,
+      `exit ${r15.status}; ${leaked(r15.out).length} fixture value(s) PRINTED`,
+    );
+
+    // RELATIVE — diff.relative=true with --repo at a SUBDIRECTORY must not drop the files
+    // outside it: the sweep covers the repository, not the directory it was pointed into.
+    const rel = initRepo("relative");
+    mkdirSync(join(rel, "sub"));
+    writeFileSync(join(rel, "sub", "readme.txt"), "inside\n");
+    writeFileSync(join(rel, "outside.env"), `${FIRE[7][1]}\n`);
+    git(rel, ["add", "-A"]);
+    git(rel, ["commit", "-q", "-m", "a key outside the subdirectory"]);
+    const r16 = runSelf(["--history", String(days), "--repo", join(rel, "sub")], undefined,
+      { GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "diff.relative", GIT_CONFIG_VALUE_0: "true" });
+    arm(
+      "RELATIVE — with diff.relative=true and --repo at a subdirectory, a key outside it still fires, exit 3",
+      r16.status === 3 && r16.out.includes("[stripe-live-secret]"),
+      `exit ${r16.status}; out: ${r16.out.slice(0, 200)}`,
+    );
+
     // GIT FAILS — git exits non-zero (an unknown revision): ERROR with a RESULT line, exit 2.
     // Without the exit-code check this run would read NOTHING SWEPT, a different verdict.
     const r11 = runSelf(["--range", "no-such-rev..HEAD", "--repo", red]);
@@ -696,7 +734,7 @@ function selftestHistory(days) {
   }
   // An arm dropped by a later edit (or skipped behind an early return) must not still
   // read PASS: the expected count is stated once, here, and checked.
-  const EXPECTED_ARMS = 13;
+  const EXPECTED_ARMS = 15;
   if (failed === 0 && arms !== EXPECTED_ARMS) {
     failed++;
     console.log(`selftest arm — arm count: FAIL — ${arms} ran, ${EXPECTED_ARMS} expected`);
