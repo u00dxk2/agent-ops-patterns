@@ -50,10 +50,11 @@
  * GREEN, and an empty window must read NOTHING SWEPT. A green that has never been
  * seen red is not evidence.
  */
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, writeSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 
 // No imports from ../lib in this file, on purpose — it is vendored into other repos'
@@ -245,7 +246,7 @@ if (historyIdx !== -1 || rangeIdx !== -1) {
     scope = { revArgs: ["--all", `--since=${sinceIso}`], label: `window ${days}d since ${sinceIso}` };
   }
 
-  const r = sweepHistory({ repo, ...scope });
+  const r = await sweepHistory({ repo, ...scope });
   if (r.error) {
     console.error(`${SCRIPT}: ${r.error}`);
     finish(2, "ERROR", r.error);
@@ -270,25 +271,32 @@ if (historyIdx !== -1 || rangeIdx !== -1) {
 /**
  * Walk `git log -p` over the given revisions (a window of reachable history, or a range)
  * and classify every ADDED line. Returns the denominator on every outcome; never prints.
- * @returns {{ summary: string, hits: Array<{pattern: string, sha: string, file: string, line: number}>, nothingSwept: boolean, error?: string }}
+ *
+ * The log is STREAMED line by line, never held whole: a busy repo's 90-day `git log -p`
+ * runs past V8's ~512 MB string ceiling, and reading it into one string made the scan
+ * refuse exactly the repos with the most history to check. Memory now grows with the
+ * hit list, not with the size of the log.
+ * @returns {Promise<{ summary: string, hits: Array<{pattern: string, sha: string, file: string, line: number}>, nothingSwept: boolean, error?: string }>}
  */
-function sweepHistory({ repo, revArgs, label }) {
-  let log = "";
-  try {
-    log = execFileSync(
-      "git",
-      [
-        "-C", repo, "log", "-p", "--no-color", "--unified=0", "--no-ext-diff", "--no-textconv",
-        // One marker line per commit (0x01 never starts a diff line); the body is not printed.
-        "--format=%x01commit %h",
-        ...revArgs,
-      ],
-      { encoding: "utf8", maxBuffer: 1024 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] },
-    );
-  } catch (err) {
-    const first = String(err?.stderr || err?.message || "git log failed").trim().split("\n")[0];
-    return { summary: "", hits: [], nothingSwept: false, error: `git unreadable (${repo}): ${first}` };
-  }
+async function sweepHistory({ repo, revArgs, label }) {
+  const child = spawn(
+    "git",
+    [
+      "-C", repo, "log", "-p", "--no-color", "--unified=0", "--no-ext-diff", "--no-textconv",
+      // One marker line per commit (0x01 never starts a diff line); the body is not printed.
+      "--format=%x01commit %h",
+      ...revArgs,
+    ],
+    { stdio: ["ignore", "pipe", "pipe"] },
+  );
+  // stderr is kept only for its first line, and capped, so a noisy git cannot grow it.
+  let stderr = "";
+  child.stderr.setEncoding("utf8");
+  child.stderr.on("data", (s) => { if (stderr.length < 4096) stderr += s; });
+  const exited = new Promise((resolve) => {
+    child.on("error", (err) => resolve({ code: null, err }));
+    child.on("close", (code) => resolve({ code, err: null }));
+  });
 
   let commits = 0;
   let hunks = 0;
@@ -297,7 +305,9 @@ function sweepHistory({ repo, revArgs, label }) {
   let file = "?";
   let newLine = 0;
   const hits = [];
-  for (const raw of log.split("\n")) {
+  child.stdout.setEncoding("utf8"); // decodes a multi-byte character split across chunks
+  const lines = createInterface({ input: child.stdout, crlfDelay: Infinity });
+  for await (const raw of lines) {
     const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
     if (line.startsWith("\x01commit ")) { commits++; sha = line.slice(8).trim(); file = "?"; continue; }
     if (line.startsWith("+++ ")) { file = diffPath(line.slice(4)); continue; }
@@ -316,6 +326,14 @@ function sweepHistory({ repo, revArgs, label }) {
       continue;
     }
     if (line.startsWith(" ")) newLine++; // context (none under --unified=0; kept for correctness)
+  }
+
+  // A git that failed part-way has already streamed a PARTIAL log: its counts and hits
+  // are a sample, not the window, so the whole result is an error and none of it is used.
+  const { code, err } = await exited;
+  if (err || code !== 0) {
+    const first = String(stderr || err?.message || `git log exited ${code}`).trim().split("\n")[0];
+    return { summary: "", hits: [], nothingSwept: false, error: `git unreadable (${repo}): ${first}` };
   }
 
   const summary = `history: ${commits} commits scanned · ${hunks} hunks · ${added} added lines · ${label}`;
