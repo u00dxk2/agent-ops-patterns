@@ -54,7 +54,6 @@ import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, writeSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 
 // No imports from ../lib in this file, on purpose — it is vendored into other repos'
@@ -272,10 +271,14 @@ if (historyIdx !== -1 || rangeIdx !== -1) {
  * Walk `git log -p` over the given revisions (a window of reachable history, or a range)
  * and classify every ADDED line. Returns the denominator on every outcome; never prints.
  *
- * The log is STREAMED line by line, never held whole: a busy repo's 90-day `git log -p`
- * runs past V8's ~512 MB string ceiling, and reading it into one string made the scan
- * refuse exactly the repos with the most history to check. Memory now grows with the
- * hit list, not with the size of the log.
+ * The log is STREAMED, never held whole: a busy repo's 90-day `git log -p` runs past
+ * V8's ~512 MB string ceiling, and reading it into one string made the scan refuse
+ * exactly the repos with the most history to check. Memory now grows with the hit list
+ * (and the longest single line), not with the size of the log.
+ *
+ * Lines are split on "\n" ONLY, by hand, exactly as the whole-string split did. Not
+ * readline: it also breaks on a lone "\r", which cuts an added line in two, and the
+ * second half (no "+" prefix) is never classified — a key after a bare CR read CLEAN.
  * @returns {Promise<{ summary: string, hits: Array<{pattern: string, sha: string, file: string, line: number}>, nothingSwept: boolean, error?: string }>}
  */
 async function sweepHistory({ repo, revArgs, label }) {
@@ -289,14 +292,10 @@ async function sweepHistory({ repo, revArgs, label }) {
     ],
     { stdio: ["ignore", "pipe", "pipe"] },
   );
-  // stderr is kept only for its first line, and capped, so a noisy git cannot grow it.
+  // stderr is kept only for its first line, and truncated on append, so it stays small.
   let stderr = "";
   child.stderr.setEncoding("utf8");
-  child.stderr.on("data", (s) => { if (stderr.length < 4096) stderr += s; });
-  const exited = new Promise((resolve) => {
-    child.on("error", (err) => resolve({ code: null, err }));
-    child.on("close", (code) => resolve({ code, err: null }));
-  });
+  child.stderr.on("data", (s) => { if (stderr.length < 4096) stderr = (stderr + s).slice(0, 4096); });
 
   let commits = 0;
   let hunks = 0;
@@ -305,34 +304,59 @@ async function sweepHistory({ repo, revArgs, label }) {
   let file = "?";
   let newLine = 0;
   const hits = [];
-  child.stdout.setEncoding("utf8"); // decodes a multi-byte character split across chunks
-  const lines = createInterface({ input: child.stdout, crlfDelay: Infinity });
-  for await (const raw of lines) {
+  const classify = (raw) => {
     const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
-    if (line.startsWith("\x01commit ")) { commits++; sha = line.slice(8).trim(); file = "?"; continue; }
-    if (line.startsWith("+++ ")) { file = diffPath(line.slice(4)); continue; }
-    if (line.startsWith("--- ")) continue;
+    if (line.startsWith("\x01commit ")) { commits++; sha = line.slice(8).trim(); file = "?"; return; }
+    if (line.startsWith("+++ ")) { file = diffPath(line.slice(4)); return; }
+    if (line.startsWith("--- ")) return;
     if (line.startsWith("@@")) {
       hunks++;
       const m = /^@@ -\d+(?:,\d+)? \+(\d+)/.exec(line);
       newLine = m ? Number(m[1]) : 0;
-      continue;
+      return;
     }
     if (line.startsWith("+")) {
       added++;
       const n = newLine++;
       const pattern = firstPatternHit(line.slice(1));
       if (pattern) hits.push({ pattern, sha, file, line: n });
-      continue;
+      return;
     }
     if (line.startsWith(" ")) newLine++; // context (none under --unified=0; kept for correctness)
+  };
+
+  // Any failure inside the stream — a decode or classify throw, a pipe error — is kept and
+  // reported as ERROR (exit 2) below, never left to reject unhandled and exit 1.
+  let carry = "";
+  let streamErr = null;
+  child.stdout.setEncoding("utf8"); // decodes a multi-byte character split across chunks
+  child.stdout.on("data", (chunk) => {
+    if (streamErr) return;
+    try {
+      const parts = (carry + chunk).split("\n");
+      carry = parts.pop();
+      for (const raw of parts) classify(raw);
+    } catch (e) {
+      streamErr = e;
+      child.kill();
+    }
+  });
+  child.stdout.on("error", (e) => { streamErr ??= e; });
+  const { code, signal, err } = await new Promise((resolve) => {
+    child.on("error", (e) => resolve({ code: null, signal: null, err: e }));
+    child.on("close", (c, s) => resolve({ code: c, signal: s, err: null }));
+  });
+  if (!err && !streamErr && carry) {
+    try { classify(carry); } catch (e) { streamErr = e; }
   }
 
   // A git that failed part-way has already streamed a PARTIAL log: its counts and hits
   // are a sample, not the window, so the whole result is an error and none of it is used.
-  const { code, err } = await exited;
-  if (err || code !== 0) {
-    const first = String(stderr || err?.message || `git log exited ${code}`).trim().split("\n")[0];
+  if (err || streamErr || code !== 0) {
+    const why = streamErr ? `reading git log failed: ${streamErr.message}`
+      : signal ? `git log killed by ${signal}`
+      : `git log exited ${code}`;
+    const first = String(err?.message || (streamErr ? why : stderr) || why).trim().split("\n")[0];
     return { summary: "", hits: [], nothingSwept: false, error: `git unreadable (${repo}): ${first}` };
   }
 
@@ -518,13 +542,36 @@ function selftestHistory(days) {
     const r8 = runSelf(["--history", "zero", "--repo", red]);
     const r9 = runSelf(["--history", String(days), "--repo", red, "--histroy"]);
     arm("USAGE — non-numeric days and an unknown flag both exit 2", r8.status === 2 && r9.status === 2, `bad days exit ${r8.status}, unknown flag exit ${r9.status}`);
+
+    // LONE CR — to git, an added line holding a bare "\r" is ONE line, and it must be read
+    // as one: a reader that also splits on "\r" (readline does) strips the "+" prefix from
+    // the second half, never classifies it, and reads the key CLEAN.
+    const cr = initRepo("lone-cr");
+    writeFileSync(join(cr, "notes.txt"), `see the value below\r${FIRE[6][1]}\n`);
+    git(cr, ["add", "-A"]);
+    git(cr, ["commit", "-q", "-m", "add a line holding a bare CR"]);
+    const r10 = runSelf(["--history", String(days), "--repo", cr]);
+    arm(
+      "LONE CR — a value after a bare CR inside an added line still fires, exit 3, redacted",
+      r10.status === 3 && r10.out.includes("[aws-access-key]") && leaked(r10.out).length === 0,
+      `exit ${r10.status}; out: ${r10.out.slice(0, 200)}`,
+    );
+
+    // GIT FAILS — git exits non-zero (an unknown revision): ERROR with a RESULT line, exit 2.
+    // Without the exit-code check this run would read NOTHING SWEPT, a different verdict.
+    const r11 = runSelf(["--range", "no-such-rev..HEAD", "--repo", red]);
+    arm(
+      "GIT FAILS — an unknown revision reads ERROR (not NOTHING SWEPT), exit 2, with a RESULT line",
+      r11.status === 2 && /^RESULT: ERROR — git unreadable/m.test(r11.out) && !r11.out.includes("NOTHING SWEPT"),
+      `exit ${r11.status}; out: ${r11.out.slice(0, 200)}`,
+    );
   } catch (err) {
     failed++;
     console.log(`selftest arm — harness: FAIL — ${String(err?.message ?? err).split("\n")[0]}`);
   } finally {
     try { rmSync(base, { recursive: true, force: true }); } catch { /* temp dir; best effort */ }
   }
-  console.log(failed === 0 ? `selftest: PASS (${FIRE.length} patterns, ${SILENT.length} silent lines, 8 arms)` : `selftest: FAIL — ${failed} arm(s) failed`);
+  console.log(failed === 0 ? `selftest: PASS (${FIRE.length} patterns, ${SILENT.length} silent lines, 10 arms)` : `selftest: FAIL — ${failed} arm(s) failed`);
   return failed === 0 ? 0 : 1;
 }
 
