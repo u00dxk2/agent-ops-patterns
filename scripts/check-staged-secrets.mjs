@@ -370,11 +370,12 @@ async function sweepHistory({ repo, revArgs, label }) {
     if (line.startsWith("--- ")) { sawMinusHeader = true; return; }
     if (line.startsWith("+++ ")) {
       if (!afterMinus) throw new Error(`"+++ " outside a file header in ${sha} ${file}`);
-      // A real file NAME can hold a secret shape too; the path is printed beside every hit
-      // and in every diagnostic, so a secret-shaped path is withheld at the source.
+      // A real file NAME can hold a secret too, and the path is printed beside every hit and
+      // in every diagnostic. Testing it with the LINE matcher leaked twice in review (the
+      // content allowlist exempted it; git's \t escape defeated a \b), so a path is printed
+      // only under a stated rule, and anything else is withheld where it is read.
       const p = diffPath(line.slice(4));
-      const shaped = firstPatternHit(p);
-      file = shaped ? `<path withheld: ${shaped} in the file name>` : p;
+      file = pathIsPrintable(p) ? p : "<path withheld: not printable under the path rule>";
       return;
     }
     if (line.startsWith("@@")) {
@@ -448,6 +449,21 @@ async function sweepHistory({ repo, revArgs, label }) {
 
   const summary = `history: ${commits} commits scanned · ${hunks} hunks · ${added} added lines · ${binaryUnread} binary file diffs not read · ${label}`;
   return { summary, hits, nothingSwept: commits === 0 };
+}
+
+/**
+ * The PATH RULE: a path is printed only when every character is in a plain set (letters,
+ * digits, space and `. _ / @ + -`) AND it contains none of the secret prefixes anywhere —
+ * no word boundary, no allowlist, no placeholder exemption. A quoted or escaped name
+ * (git's "\t"), a ":" or "=" and an embedded prefix all fail it. Its failure mode is
+ * withholding a harmless path, never printing a secret one.
+ */
+function pathIsPrintable(p) {
+  // Inside the function on purpose: the history sweep runs at module top level, BEFORE a
+  // module-scope const below this point would be initialised.
+  const PRINTABLE = /^[A-Za-z0-9 ._/@+-]{1,240}$/;
+  const SECRET_PREFIX = /AKIA|sk_live_|ghp_|github_pat_|AIza|xox[baprs]-|PRIVATE KEY/;
+  return PRINTABLE.test(p) && !SECRET_PREFIX.test(p);
 }
 
 /** `b/path`, `"b/path with spaces"` or `/dev/null` → the path as git names it. */
@@ -696,10 +712,27 @@ function selftestHistory(days) {
     git(named, ["add", "-A"]);
     git(named, ["commit", "-q", "-m", "a secret-shaped file name"]);
     const r15 = runSelf(["--history", String(days), "--repo", named]);
+    // Two more names, written through the index because neither can exist on a Windows
+    // disk: one carrying the content ALLOWLIST marker, one starting with a TAB (git prints
+    // it as "\t", which defeated the line matcher's \b). The token below is the stripe
+    // fixture's value without its "STRIPE=" prefix, so leaked() alone would miss it.
+    const stripeValue = FIRE[7][1].slice(FIRE[7][1].indexOf("=") + 1);
+    const blobFile = join(base, "named-blob.txt");
+    writeFileSync(blobFile, `${FIRE[7][1]}\n`);
+    const blob = git(named, ["hash-object", "-w", blobFile]).trim();
+    // core.protectNTFS refuses ":" and control characters in an index path on Windows; these
+    // names live only in the object store (never checked out), so it is off for these calls.
+    const ntfs = ["-c", "core.protectNTFS=false"];
+    git(named, [...ntfs, "update-index", "--add", "--cacheinfo", `100644,${blob},secret-scan:ignore-${stripeValue}.txt`]);
+    git(named, [...ntfs, "update-index", "--add", "--cacheinfo", `100644,${blob},\t${stripeValue}.txt`]);
+    git(named, [...ntfs, "commit", "-q", "-m", "an allowlist-marker name and a tab-led name"]);
+    const r15b = runSelf(["--history", String(days), "--repo", named]);
+    const withheld = (r15b.out.match(/<path withheld: not printable under the path rule>/g) ?? []).length;
     arm(
-      "SECRET-SHAPED PATH — a value in a file name is withheld from the hit line, exit 3",
-      r15.status === 3 && r15.out.includes("<path withheld: stripe-live-secret in the file name>") && leaked(r15.out).length === 0,
-      `exit ${r15.status}; ${leaked(r15.out).length} fixture value(s) PRINTED`,
+      "SECRET-SHAPED PATH — values in file names (plain, allowlist-marked, tab-led) are withheld, never printed",
+      r15.status === 3 && r15.out.includes("<path withheld") && leaked(r15.out).length === 0 &&
+        r15b.status === 3 && withheld >= 3 && !r15b.out.includes(stripeValue),
+      `plain exit ${r15.status}; all exit ${r15b.status}, ${withheld} withheld, value printed: ${r15b.out.includes(stripeValue)}`,
     );
 
     // RELATIVE — diff.relative=true with --repo at a SUBDIRECTORY must not drop the files
