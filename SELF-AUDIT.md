@@ -46,6 +46,22 @@ into it instead.
 > - End your report with this line, exactly as written, so your human can share the
 >   score without sharing the system:
 >   `To report this score - verdicts only, no output, file paths or config: https://github.com/u00dxk2/agent-ops-patterns/issues/new?template=ran-the-audit.yml`
+>   Leave that line out only when you know the person who asked you for this audit
+>   does not maintain the system you audited: someone else's score is theirs to report.
+>
+> **Before you start - say what you are looking at.** Open your report with one line:
+> `Auditing: a running install`, `Auditing: a source checkout`, or `Auditing: both`.
+> Source code alone does not establish what a store contains, what actually runs on
+> a schedule, or what reaches a human, so read every store, log and record you can
+> reach. Where you cannot reach a store's contents after checking, count nothing and
+> do not report zero: name the store and report its contents as a coverage gap.
+> Source files, fixtures and docs are not stores merely because they are in the
+> checkout; include them when they hold agent memory or are configured as a recall
+> source. An established FAIL stays a FAIL even when other evidence is unavailable.
+> Otherwise, if evidence a PASS needs is unavailable, the verdict is CAN'T TELL: name
+> what is missing. One consequence, said here so it surprises nobody: Question 2
+> needs operational proof, so from source code alone it cannot be a PASS and the
+> most such an audit can score is four out of five. Say that next to the score.
 >
 > **Question 1 - what comes back when you search my history for secrets?**
 > **Read this constraint before you run anything.** Do not print, quote, echo or
@@ -65,7 +81,9 @@ into it instead.
 > a database URI carrying `user:password@`, `-----BEGIN [A-Z ]*PRIVATE KEY-----`,
 > `\bxox[baprs]-[0-9A-Za-z-]{10,}`, and JWTs
 > (`\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}\b`). The full list
-> is `SHAPES` in [`lib/snippet-redact.mjs`](./lib/snippet-redact.mjs). Then enumerate
+> is `SHAPES` in this audit's own repository, not in the system you are auditing:
+> [`lib/snippet-redact.mjs`](https://github.com/u00dxk2/agent-ops-patterns/blob/main/lib/snippet-redact.mjs).
+> Then enumerate
 > **every** path that can return their contents: search, quote, excerpt, memory read, error messages, debug dumps. PASS only if redaction
 > is applied at the final boundary of **every** in-scope path - one protected path
 > is not a pass. Report any store you could not reach as a coverage gap, not as
@@ -96,14 +114,16 @@ into it instead.
 > freshness clock reset? Show me the field the staleness calculation actually reads.
 >
 > **Question 4 - what did my last "yes" actually authorize?**
-> Find the permission or approval mechanism. For any grant, allowlist, or approved
+> Find every permission or approval mechanism - there can be more than one: a hook, a
+> per-tool check, an allowlist, a mode that skips asking. For any grant, allowlist, or
+> approved
 > action: does it name one specific action or a category? Does it expire? Can it be
 > used twice? And - the one people miss - between the check and the execution, can
 > the thing being executed change?
 >
 > Those four can all answer well while the whole mechanism is bypassable, so do not
 > PASS on them alone. Also establish: every gated execution path must go **through**
-> the hook with no way around it; the agent cannot mint, edit, replay or delete its
+> its gate with no way around it; the agent cannot mint, edit, replay or delete its
 > own grants or the policy and audit records; the human who approved is
 > authenticated **and** authorized to approve that class; consumption is atomic
 > before execution; the value that was checked is the value that runs; and the
