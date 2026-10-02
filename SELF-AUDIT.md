@@ -108,10 +108,37 @@ into it instead.
 > must be true. Also flag any check that makes an LLM call, and say what a counter
 > and a timestamp would do instead.
 >
+> The verdict for this question, decided in this order:
+> 1. FAIL if what you can read establishes that a check fails either requirement
+>    above - for example, it is never invoked, cannot go red (its failure is
+>    swallowed or forced to success), skips subjects it should cover, or never
+>    reports a red result to anyone.
+> 2. FAIL if, for some check, you read all of its tests, fixtures and incident logs
+>    and none shows it going red. That is a finding, not a gap.
+> 3. Otherwise CAN'T TELL if anything you needed could not be opened: tests in a
+>    private submodule or an unreadable part of the tree, logs you cannot reach, or
+>    the operational proof.
+> 4. PASS only when every check has both kinds of proof.
+>
 > **Question 3 - what happens to "stale" after a bulk edit?**
 > Find how this system decides something is stale, out of date, or needs attention.
 > Then answer: if a migration or a script touched every record tonight, would every
 > freshness clock reset? Show me the field the staleness calculation actually reads.
+>
+> Systems usually have more than one clock, so list every one, with the field it
+> reads. A clock is any code in the system itself that decides from a time whether
+> something is stale, expired, due, or should be dropped, refreshed or shown. That
+> includes the running system's own housekeeping, such as temp-file and cache
+> cleanup. Automation whose only job is maintaining the project's code repository,
+> such as a bot that closes old issues or pull requests, is out of scope. A clock
+> does not survive a bulk write if it reads a file's modification time or a
+> timestamp every write updates, even when a write is what it means to measure, or
+> if a missing or unreadable time makes a record look fresh or never stale.
+> Otherwise it survives only if the time it reads can be set by nothing but the
+> event it measures. If you find no clock at all, say where you looked: that is
+> CAN'T TELL, not a PASS. The verdict: PASS only if every clock you listed
+> survives. One clock that does not makes the question FAIL, however minor its job;
+> say what that clock controls in the note.
 >
 > **Question 4 - what did my last "yes" actually authorize?**
 > Find every permission or approval mechanism - there can be more than one: a hook, a
