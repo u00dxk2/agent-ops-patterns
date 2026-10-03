@@ -53,7 +53,11 @@ into it instead.
 > `Auditing: a running install`, `Auditing: a source checkout`, or `Auditing: both`.
 > Source code alone does not establish what a store contains, what actually runs on
 > a schedule, or what reaches a human, so read every store, log and record you can
-> reach. Where you cannot reach a store's contents after checking, count nothing and
+> reach. That includes the stores of a running install you were asked to audit, even
+> outside the checkout. An unrelated install elsewhere on this machine is out of scope
+> unless the person who asked you includes it; a matching software or directory
+> name alone does not make an install part of the system you were asked about. Where you cannot reach a store's contents
+> after checking, count nothing and
 > do not report zero: name the store and report its contents as a coverage gap.
 > Source files, fixtures and docs are not stores merely because they are in the
 > checkout; include them when they hold agent memory or are configured as a recall
@@ -126,11 +130,24 @@ into it instead.
 > freshness clock reset? Show me the field the staleness calculation actually reads.
 >
 > Systems usually have more than one clock, so list every one, with the field it
-> reads. A clock is any code in the system itself that decides from a time whether
-> something is stale, expired, due, or should be dropped, refreshed or shown. That
-> includes the running system's own housekeeping, such as temp-file and cache
-> cleanup. Automation whose only job is maintaining the project's code repository,
-> such as a bot that closes old issues or pull requests, is out of scope. A clock
+> reads. Finish searching the code you can read before you give the verdict: do not
+> stop at the first clock that fails, and name any part you could not read. A clock
+> is code in the system itself that decides from a time something about records the
+> system keeps - memories, conversations or sessions, documents, logs, transcripts,
+> or entries in its own database or index, one at a time or in groups (a log
+> directory judged by its own timestamp counts): whether they are stale, expired or
+> due, or should be dropped, refreshed, re-checked, or picked to be shown. It counts
+> however it is triggered, an in-process timer included. These are not clocks for
+> this question: lock files and lock heartbeats; timeouts, throttles, rate limits
+> and retry backoff that control a process rather than decide about a record;
+> intermediate scratch files, build scratch, and caches that hold only a copy of data the system still
+> fetches or computes from its source, kept to avoid doing that again; and picking
+> which source items to re-read by comparing their change times with a sync cursor
+> kept only for that purpose (comparing with a record's own last-write time is a
+> clock). Sorting a complete result by time, with nothing dropped or hidden, is not
+> a clock either. Automation whose only job is maintaining the project's code
+> repository, such as a bot that closes old issues or pull requests, is out of
+> scope too. A clock
 > does not survive a bulk write if it reads a file's modification time or a
 > timestamp every write updates, even when a write is what it means to measure, or
 > if a missing or unreadable time makes a record look fresh or never stale.
