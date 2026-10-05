@@ -246,6 +246,7 @@ If the scan somehow cannot stabilize, the entire snippet is replaced with `[reda
 
 - **A dishonest signal defeats it.** If a writer stamps a signal field during a bulk write, the clock resets and no chain can tell. The convention — signal fields are stamped only by disposition-changing reads — lives in your writers; the function only enforces the chain.
 - **A future-dated signal wins, unclamped** — clamping would hide the writer bug that produced it. Lint for future dates upstream if your writers might emit them.
+- **Only date-shaped values count**: `YYYY-MM-DD` naming a real calendar day, optionally with a time (`T`, `t` or a space) and a `Z` or `±HH:MM` offset, and accepted by `Date.parse`. Anything else is skipped, even when `Date.parse` alone would read it: V8 reads "see PR 4821" as the year 4821, and rolls `2026-02-30` over to March 2. Before 2026-10-05 such a note could win the chain and hold an item fresh until that far-off date. A time with no offset is read in the host's timezone.
 - **`{date: null, basis: "none"}` is a distinct verdict, not "fresh".** Treating no-basis as fresh rebuilds the dead-instrument zero from [checks-that-cant-fail](./patterns/checks-that-cant-fail.md).
 
 ### rrf-fuse

@@ -4,6 +4,12 @@ Changes that matter to anyone who vendors a file from this repo. Each entry name
 
 ## 2026-10-05
 
+### stale-basis accepted free text as a date
+
+**Re-pull:** `lib/stale-basis.mjs`. **Behavior change:** values that are not date-shaped are now skipped.
+
+`pickStaleBasis` treated any string `Date.parse` could read as a date. V8 reads "see PR 4821" as the year 4821, so a note in a signal field could win the chain and hold the item fresh until that date. Signal, external and created dates must now be `YYYY-MM-DD` naming a real calendar day (V8 rolls `2026-02-30` over to March 2), optionally with a time (`T`, `t` or a space) and a `Z` or `±HH[:]MM` offset, and still pass `Date.parse`. Basic (`20260801`), week and ordinal forms are not accepted; convert them before calling. A returned `created` date is now trimmed, like the other bases.
+
 ### Credential URLs and keys both tools missed; staged scan skipped renames
 
 **Re-pull:** `lib/snippet-redact.mjs`, `lib/secret_redaction.py`, `scripts/check-staged-secrets.mjs`.

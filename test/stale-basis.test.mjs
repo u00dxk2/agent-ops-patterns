@@ -76,6 +76,36 @@ describe("pickStaleBasis — fail-soft on malformed input", () => {
     assert.deepEqual(pickStaleBasis(item), { date: null, basis: "none" });
   });
 
+  it("ISO 8601 only: free text that V8's Date.parse happens to read is NOT a date", () => {
+    // V8 reads "see PR 4821" as the year 4821 and "build 12" as December 2001.
+    // A note in a signal field would then win the chain until the year 4821 and
+    // the item would never read stale.
+    for (const text of ["see PR 4821", "PR 4821", "foo 3000", "May 9999", "build 12", "version 2"]) {
+      assert.deepEqual(pickStaleBasis({ lastChecked: text, created: "2026-01-01" }), { date: "2026-01-01", basis: "created" }, text);
+    }
+    assert.deepEqual(pickStaleBasis({ created: "May 9999" }), { date: null, basis: "none" });
+    assert.deepEqual(pickStaleBasis({}, { externalSignals: [{ date: "PR 4821", basis: "linkedCommit" }] }), { date: null, basis: "none" });
+  });
+
+  it("ISO 8601 forms that ARE accepted: date, date-time, offsets, fractions", () => {
+    for (const d of ["2026-08-01", "2026-08-01T10:20Z", "2026-08-01T10:20:30Z", "2026-08-01T10:20:30.123Z", "2026-08-01T10:20:30+02:00", "2026-08-01T10:20:30-0700"]) {
+      assert.equal(pickStaleBasis({ lastChecked: d }).basis, "lastChecked", d);
+    }
+    // Shaped like ISO but not a real date: rejected. V8 alone rolls 2026-02-30 to March 2.
+    for (const bad of ["2026-13-45", "2026-02-30", "2026-04-31", "2026-02-29T10:20:30Z"]) {
+      assert.equal(pickStaleBasis({ lastChecked: bad }).basis, "none", bad);
+    }
+    assert.equal(pickStaleBasis({ lastChecked: "2028-02-29" }).basis, "lastChecked"); // a real leap day
+    // Common real-world variants: lowercase t/z (RFC 3339) and a space separator.
+    for (const d of ["2026-08-01t10:20:30z", "2026-08-01 10:20:30"]) {
+      assert.equal(pickStaleBasis({ lastChecked: d }).basis, "lastChecked", d);
+    }
+  });
+
+  it("a created date is returned trimmed, like every other basis", () => {
+    assert.deepEqual(pickStaleBasis({ created: " 2026-08-01T10:20:30Z " }), { date: "2026-08-01T10:20:30Z", basis: "created" });
+  });
+
   it("a malformed external signal is skipped, valid ones still compete", () => {
     const r = pickStaleBasis({}, {
       externalSignals: [
