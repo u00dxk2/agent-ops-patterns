@@ -15,6 +15,8 @@ get the exact text, ask me to paste that section - don't run it from a summary.
 
 It answers each question with a verdict and the file path behind it, then names the smallest fix that would move one failure to a pass. About thirty seconds of your attention.
 
+What it found on ten popular agent repos: [*I ran my agent audit on ten popular agent repos. All ten scored zero.*](https://uncagedminds.substack.com/p/i-ran-my-agent-audit-on-ten-popular)
+
 That prompt points your agent at a file on this repo's `main`, so read [SELF-AUDIT.md](./SELF-AUDIT.md) first if you'd rather see what you're handing it — it's one page, it changes, and it asks your agent to read your history, logs, memory and config. Read-only means it won't write anything; it doesn't mean it reads nothing.
 
 Before I published this repo, an adversarial review found a real hole in the permission
