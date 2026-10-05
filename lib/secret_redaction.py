@@ -137,8 +137,12 @@ _A = re.ASCII
 _LEAD = r"(?:(?<![A-Za-z0-9_])|(?<=\\[ntr])|(?<=%[0-9A-Fa-f]{2})|(?<=\\u[0-9A-Fa-f]{4}))"
 
 
-def _lead(body: str, anchor: str = _LEAD) -> re.Pattern[str]:
-    return re.compile(anchor + body, _A)
+def _lead(first: str, body: str, anchor: str = _LEAD) -> re.Pattern[str]:
+    # (?=first) is the body's possible first character, checked BEFORE the anchor.
+    # It changes no match; it makes most positions fail on one character compare
+    # instead of four lookbehinds (a leading lookbehind defeats re's literal-prefix
+    # skip, and with fourteen shapes Python ran past the two-second timing bound).
+    return re.compile(f"(?={first})" + anchor + body, _A)
 
 
 # The JWT anchor also refuses "-" before "eyJ" ("-" is in the JWT alphabet), so
@@ -153,23 +157,27 @@ _SHAPES: list[tuple[str, re.Pattern[str], Callable[[re.Match[str]], bool] | None
     # "postgres://u:" in a long run of them scanned to the end for an "@"
     # (quadratic). Every start contains "://", so each scan now stops at the next
     # start — linear with no length cap. Mirrors snippet-redact.mjs.
-    ("db-uri-creds", _lead(r"(?:mongodb(?:\+srv)?|postgres(?:ql)?|mysql|redis|amqps?)://[^\s:/@]*:(?:(?!://)[^\s@])+@[^\s\"')\]]+"), None),
-    ("aws-key", _lead(r"AKIA[0-9A-Z]{16}\b"), None),
-    ("stripe-key", _lead(r"[srp]k_(?:live|test)_[0-9a-zA-Z]{16,}\b"), None),
-    ("github-token", _lead(r"(?:gh[pousr]_[0-9A-Za-z]{36,}|github_pat_[0-9A-Za-z_]{40,})\b"), None),
-    ("google-api-key", _lead(r"AIza[0-9A-Za-z\-_]{35}\b"), None),
-    ("slack-token", _lead(r"xox[baprs]-[0-9A-Za-z-]{10,}\b"), None),
+    # Schemes: TLS Redis, MariaDB, SQL Server, and SQLAlchemy "+driver" forms.
+    ("db-uri-creds", _lead("[mprash]", r"(?:mongodb(?:\+srv)?|postgres(?:ql)?|mysql|mariadb|rediss?|amqps?|mssql|sqlserver)(?:\+[a-z0-9]+)?://[^\s:/@]*:(?:(?!://)[^\s@])+@[^\s\"')\]]+"), None),
+    # Credentials in an http(s) URL; only "scheme://user:password@" is replaced.
+    # Only "user:password@" is replaced; the scheme and host stay. Stops at / ? #.
+    ("url-creds", re.compile(r"(?:(?<=https://)|(?<=http://))[^\s:/@?#]+:[^\s@/?#]+@", _A), None),
+    ("aws-key", _lead("A", r"AKIA[0-9A-Z]{16}\b"), None),
+    ("stripe-key", _lead("[srp]", r"[srp]k_(?:live|test)_[0-9a-zA-Z]{16,}\b"), None),
+    ("github-token", _lead("g", r"(?:gh[pousr]_[0-9A-Za-z]{36,}|github_pat_[0-9A-Za-z_]{40,})\b"), None),
+    ("google-api-key", _lead("A", r"AIza[0-9A-Za-z\-_]{35}\b"), None),
+    ("slack-token", _lead("x", r"xox[baprs]-[0-9A-Za-z-]{10,}\b"), None),
     # A Slack incoming-webhook URL IS a credential — its own shape (the generic
     # base64 rule skips URL interiors).
-    ("slack-webhook", _lead(r"https://hooks\.slack\.com/services/[A-Za-z0-9/]+"), None),
-    ("anthropic-key", _lead(r"sk-ant-[A-Za-z0-9_-]{10,}"), None),
+    ("slack-webhook", _lead("h", r"https://hooks\.slack\.com/services/[A-Za-z0-9/]+"), None),
+    ("anthropic-key", _lead("s", r"sk-ant-[A-Za-z0-9_-]{10,}"), None),
     # No (?:proj-|admin-|svcacct-)? alternation, deliberately: "-" is in the
     # trailing class, so the generic form already matches every prefixed
     # variant. Spelling them out looked like coverage and was dead regex.
-    ("openai-key", _lead(r"sk-[A-Za-z0-9_-]{20,}"), None),
-    ("jwt", _lead(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}\b", _JWT_LEAD), None),
+    ("openai-key", _lead("s", r"sk-[A-Za-z0-9_-]{20,}"), None),
+    ("jwt", _lead("e", r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}\b", _JWT_LEAD), None),
     # ≥48 hex: sha256-length tokens redact; 40-hex git SHAs deliberately pass.
-    ("long-hex", _lead(r"[0-9a-fA-F]{48,}\b"), None),
+    ("long-hex", _lead("[0-9a-fA-F]", r"[0-9a-fA-F]{48,}\b"), None),
     # ≥40-char base64 run at a token boundary. NEGATIVE lookbehind (not another
     # base64 char) rather than a delimiter allowlist: recall snippets are cut
     # mid-text, so the token can sit at index 0 or behind a bracket.
@@ -356,6 +364,12 @@ def _self_check() -> None:
         ("github-token", "github_pat_11ABCDEFG0abcdefghijklmnopqrstuvwxyz0123456789"),  # pragma: allowlist secret
         ("github-token", "gho_abcdefghijklmnopqrstuvwxyz0123456789ab"),  # pragma: allowlist secret
         ("openai-key", "sk-abcdefghijklmnopqrstuvwxyz123456"),  # pragma: allowlist secret
+        # TLS Redis, SQLAlchemy driver forms, MariaDB; credentials in an http(s) URL.
+        ("db-uri-creds", "rediss://default:Abc123Def456Ghi789Jkl012Mno345Pq@redis.example:6379"),  # pragma: allowlist secret
+        ("db-uri-creds", "postgresql+asyncpg://u:Abc123Def456Ghi789Jkl012Mno345Pq@db/x"),  # pragma: allowlist secret
+        ("db-uri-creds", "mysql+pymysql://u:Abc123Def456Ghi789Jkl012Mno345Pq@db/x"),  # pragma: allowlist secret
+        ("db-uri-creds", "mariadb://u:Abc123Def456Ghi789Jkl012Mno345Pq@db/x"),  # pragma: allowlist secret
+        ("url-creds", "https://deploy:Abc123Def456Ghi789Jkl012Mno345Pq@"),  # pragma: allowlist secret
     ]
     prefixed = [c for c in cases if c[0] not in ("private-key", "long-base64")] + alternatives
     for shape, secret in prefixed:
@@ -365,7 +379,8 @@ def _self_check() -> None:
             assert secret[-12:] not in text, f"{residue!r}: tail of {shape} survived"
             if shape == "long-hex" and "%" in residue:
                 continue  # "3D" is hex: the run starts at "3" behind "%" (passed pre-fix too)
-            assert f"line1{residue}[redacted:{shape}]" in text, f"{residue!r}: residue not preserved in {text}"
+            kept = re.match(r"https?://", secret).group(0) if shape == "url-creds" else ""  # url-creds keeps the scheme
+            assert f"line1{residue}{kept}[redacted:{shape}]" in text, f"{residue!r}: residue not preserved in {text}"
     glued_cases = [
         "task-abcdefghijklmnopqrstuvwxyz",
         "risk-abcdefghijklmnopqrstuvwxyz",
@@ -373,6 +388,10 @@ def _self_check() -> None:
         r"C:\bsk-abcdefghijklmnopqrst",  # \b and \f are not residues: Windows paths pass
         r"C:\fsk-abcdefghijklmnopqrst",
     ]
+    url_line = redact_secret_shapes("git remote https://deploy:Abc123Def456Ghi789Jkl012Mno345Pq@git.example/repo.git")  # pragma: allowlist secret
+    assert url_line.text == "git remote https://[redacted:url-creds]git.example/repo.git", url_line  # scheme, host and path stay
+    for not_creds in ["https://h:443?token=value@else", "https://h/#a:b@c", "http://user@host/x"]:  # pragma: allowlist secret
+        assert "url-creds" not in redact_secret_shapes(not_creds).shapes, not_creds  # an @ in a query/fragment, no password
     for glued in glued_cases:
         assert redact_secret_shapes(glued).shapes == [], glued  # the anchor keeps the word boundary
     k = "ghp_abcdefghijklmnopqrstuvwxyz0123456789"  # pragma: allowlist secret

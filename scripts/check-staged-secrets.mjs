@@ -34,7 +34,7 @@
  *
  * WHERE IT STOPS. This is a shape matcher, not a credential validator.
  *   - A hit does NOT prove the value is live, and a clean scan does NOT prove you
- *     have no exposure: it knows the eleven shapes in PATTERNS and nothing else. A
+ *     have no exposure: it knows the fifteen shapes in PATTERNS and nothing else. A
  *     bare high-entropy string, a vendor format not listed, or a secret split across
  *     lines all read clean.
  *   - FAIL-SOFT on the staged path, deliberately: no staged changes, or git
@@ -94,18 +94,32 @@ function armResultLine(map) {
   });
 }
 
+// `(?:\+[a-z0-9]+)?` after a scheme: SQLAlchemy-style driver forms
+// (postgresql+asyncpg://, mysql+pymysql://) carry the same credentials.
+const DRIVER = String.raw`(?:\+[a-z0-9]+)?`;
 const PATTERNS = [
-  { name: "private-key-block", re: /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----/ },
-  { name: "mongodb-uri-with-creds", re: /mongodb(?:\+srv)?:\/\/[^\s:/@]+:[^\s@]+@/ },
-  { name: "postgres-uri-with-creds", re: /postgres(?:ql)?:\/\/[^\s:/@]+:[^\s@]+@/ },
-  { name: "mysql-uri-with-creds", re: /mysql:\/\/[^\s:/@]+:[^\s@]+@/ },
-  { name: "redis-uri-with-creds", re: /redis:\/\/[^\s:/@]*:[^\s@]+@/ },
-  { name: "amqp-uri-with-creds", re: /amqps?:\/\/[^\s:/@]+:[^\s@]+@/ },
+  // PGP armour is "-----BEGIN PGP PRIVATE KEY BLOCK-----"; the old "PGP " alternative  pragma: allowlist secret
+  // before "PRIVATE KEY-----" could never match it.
+  { name: "private-key-block", re: /-----BEGIN (?:(?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY|PGP PRIVATE KEY BLOCK)-----/ },
+  { name: "mongodb-uri-with-creds", re: new RegExp(String.raw`mongodb(?:\+srv)?${DRIVER}:\/\/[^\s:/@]+:[^\s@]+@`) },
+  { name: "postgres-uri-with-creds", re: new RegExp(String.raw`postgres(?:ql)?${DRIVER}:\/\/[^\s:/@]+:[^\s@]+@`) },
+  { name: "mysql-uri-with-creds", re: new RegExp(String.raw`(?:mysql|mariadb)${DRIVER}:\/\/[^\s:/@]+:[^\s@]+@`) },
+  { name: "sqlserver-uri-with-creds", re: new RegExp(String.raw`(?:mssql|sqlserver)${DRIVER}:\/\/[^\s:/@]+:[^\s@]+@`) },
+  { name: "redis-uri-with-creds", re: new RegExp(String.raw`rediss?${DRIVER}:\/\/[^\s:/@]*:[^\s@]+@`) },
+  { name: "amqp-uri-with-creds", re: new RegExp(String.raw`amqps?${DRIVER}:\/\/[^\s:/@]+:[^\s@]+@`) },
   { name: "aws-access-key", re: /\bAKIA[0-9A-Z]{16}\b/ },
   { name: "stripe-live-secret", re: /\bsk_live_[0-9a-zA-Z]{16,}\b/ },
-  { name: "github-pat", re: /\b(?:ghp_[0-9A-Za-z]{36}|github_pat_[0-9A-Za-z_]{40,})\b/ },
+  { name: "github-pat", re: /\b(?:gh[pousr]_[0-9A-Za-z]{36,}|github_pat_[0-9A-Za-z_]{40,})\b/ },
   { name: "google-api-key", re: /\bAIza[0-9A-Za-z\-_]{35}\b/ },
   { name: "slack-token", re: /\bxox[baprs]-[0-9A-Za-z-]{10,}\b/ },
+  // Anthropic before OpenAI: both start "sk-". The OpenAI rule takes the project /
+  // service-account / admin prefixes, or a legacy 32+ alphanumeric body — a bare
+  // "sk-" plus any 20 characters would fire on ordinary hyphenated words.
+  { name: "anthropic-key", re: /\bsk-ant-[A-Za-z0-9_-]{20,}/ },
+  { name: "openai-key", re: /\bsk-(?:(?:proj|svcacct|admin)-[A-Za-z0-9_-]{20,}|[A-Za-z0-9]{32,}\b)/ },
+  // Credentials in an http(s) URL (git remotes, webhook URLs with basic auth). User and
+  // password stop at "/", "?" and "#", so an "@" in a path, query or fragment is not one.
+  { name: "basic-auth-url", re: /\bhttps?:\/\/[^\s:/@?#]+:[^\s@/?#]+@/ },
 ];
 
 // Markers that void a connection-string match (placeholders, not real secrets).
@@ -122,7 +136,7 @@ function firstPatternHit(content) {
   if (ALLOW.test(content)) return null;
   for (const p of PATTERNS) {
     if (!p.re.test(content)) continue;
-    if (p.name.endsWith("uri-with-creds") && PLACEHOLDER.test(content)) return null;
+    if ((p.name.endsWith("uri-with-creds") || p.name === "basic-auth-url") && PLACEHOLDER.test(content)) return null;
     return p.name;
   }
   return null;
@@ -169,8 +183,10 @@ if (argv.includes("--help")) {
           SECRET-SHAPED PATH a value in a file name is withheld from the printed path
           RELATIVE diff.relative=true with --repo at a subdirectory still sweeps the whole repo
           GIT FAILS an unknown revision → ERROR, not NOTHING SWEPT
+          STAGED STRUCTURE a renamed file's added line and a "++ " line both fire on the staged path
+          VARIANTS rediss://, +driver schemes, the PGP key block and a gho_ token each fire
           plus staged / --message-file regression arms (exit 1 on a fixture, 0 on clean).
-        15 arms; a run where a different number ran is a FAIL.
+        17 arms; a run where a different number ran is a FAIL.
         exit 0 all arms pass · 1 an arm failed
   --help  this text
 
@@ -469,7 +485,7 @@ function pathIsPrintable(p) {
   // Inside the function on purpose: the history sweep runs at module top level, BEFORE a
   // module-scope const below this point would be initialised.
   const PRINTABLE = /^[A-Za-z0-9 ._/@+-]{1,240}$/;
-  const SECRET_PREFIX = /AKIA|sk_live_|ghp_|github_pat_|AIza|xox[baprs]-|PRIVATE KEY/;
+  const SECRET_PREFIX = /AKIA|sk_live_|gh[pousr]_|github_pat_|AIza|xox[baprs]-|sk-(?:ant|proj|svcacct|admin)-|sk-[A-Za-z0-9]{32}|PRIVATE KEY/;
   return PRINTABLE.test(p) && !SECRET_PREFIX.test(p);
 }
 
@@ -503,6 +519,11 @@ function selftestHistory(days) {
     ["github-pat", "GITHUB_TOKEN=ghp_FIXTUREFIXTUREFIXTUREFIXTUREFIXTURE0"], // pragma: allowlist secret gitleaks:allow
     ["google-api-key", "GOOGLE=AI" + "zaFIXTUREFIXTUREFIXTUREFIXTUREFIXTURE"], // pragma: allowlist secret gitleaks:allow
     ["slack-token", "SLACK=xoxb-FIXTUREFIXTURE0"], // pragma: allowlist secret gitleaks:allow
+    ["anthropic-key", "ANTHROPIC=sk-" + "ant-api03-FIXTUREFIXTUREFIXTUREFIXTURE"], // pragma: allowlist secret gitleaks:allow
+    ["openai-key", "OPENAI=sk-" + "proj-FIXTUREFIXTUREFIXTUREFIXTURE"], // pragma: allowlist secret gitleaks:allow
+    ["basic-auth-url", "GIT_REMOTE=https://fixtureuser:fixturepw@git.fixture.internal/repo.git"], // pragma: allowlist secret gitleaks:allow
+    // New fixtures go at the END: arms below pick fixtures by index (FIRE[6], [7], [8]).
+    ["sqlserver-uri-with-creds", "MSSQL=mssql://fixtureuser:fixturepw@db.fixture.internal/app"], // pragma: allowlist secret gitleaks:allow
   ];
   // Realistic repo content that must stay silent — URLs, base64-looking text,
   // placeholder connection strings, a CI secret reference, and ONE line that would
@@ -609,6 +630,63 @@ function selftestHistory(days) {
       "STAGED regression — exit 1 on a staged fixture, 0 on realistic staged content",
       r4.status === 1 && r4.out.includes("[stripe-live-secret]") && r5.status === 0,
       `fixture exit ${r4.status}, clean exit ${r5.status}`,
+    );
+
+    // STAGED STRUCTURE — the pre-commit path used to skip two subjects the history sweep
+    // covers: lines added to a RENAMED file (the diff filter was ACM), and an added line
+    // whose text begins "++ " (git prints it "+++ …", read as a file header — and its
+    // text then became the path printed beside the next hit).
+    const ren = initRepo("staged-rename");
+    writeFileSync(join(ren, "a.txt"), `${SILENT.join("\n")}\n`);
+    git(ren, ["add", "-A"]);
+    git(ren, ["commit", "-q", "-m", "base"]);
+    git(ren, ["mv", "a.txt", "b.txt"]);
+    writeFileSync(join(ren, "b.txt"), `${SILENT.join("\n")}\n${FIRE[7][1]}\n`);
+    git(ren, ["add", "-A"]);
+    const r17 = runSelf([], ren);
+    const spp = initRepo("staged-plus-plus");
+    writeFileSync(join(spp, "fixture.diff"), `++ ${FIRE[7][1]}\n${FIRE[6][1]}\n`);
+    git(spp, ["add", "-A"]);
+    const r18 = runSelf([], spp);
+    // Hunks joined by context (diff.interHunkContext): a removed "-- x" then an added
+    // "++ <value>" print as "--- x" / "+++ <value>" — a file-header pair — right after a
+    // context line. The config is set in the environment; the scan must still fire.
+    const ctx = initRepo("staged-context");
+    writeFileSync(join(ctx, "c.txt"), "a\nb\n-- harmless\nc\n");
+    git(ctx, ["add", "-A"]);
+    git(ctx, ["commit", "-q", "-m", "base"]);
+    writeFileSync(join(ctx, "c.txt"), `A\nb\n++ ${FIRE[7][1]}\nc\n`);
+    git(ctx, ["add", "-A"]);
+    const r18b = runSelf([], ctx, { GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "diff.interHunkContext", GIT_CONFIG_VALUE_0: "10" });
+    arm(
+      "STAGED STRUCTURE — a renamed file's added line fires; a \"++ \" line fires and the next hit names fixture.diff; hunks joined by context still fire; nothing leaks",
+      r17.status === 1 && r17.out.includes("[stripe-live-secret]") && leaked(r17.out).length === 0 &&
+        r18.status === 1 && r18.out.includes("[stripe-live-secret]") && /\[aws-access-key\]\s+fixture\.diff$/m.test(r18.out) && leaked(r18.out).length === 0 &&
+        r18b.status === 1 && /\[stripe-live-secret\]\s+c\.txt$/m.test(r18b.out) && leaked(r18b.out).length === 0,
+      `rename exit ${r17.status}; plus-plus exit ${r18.status}; context exit ${r18b.status}; out: ${r18b.out.slice(0, 200)}`,
+    );
+
+    // VARIANTS — scheme and prefix forms a single fixture per pattern does not reach:
+    // rediss://, a +driver scheme (SQLAlchemy), the PGP armour header, a non-ghp_ GitHub
+    // token. Each sits on its own staged line; each must fire under its own name.
+    const vr = initRepo("staged-variants");
+    const variants = [
+      ["redis-uri-with-creds", "REDIS=redis" + "s://default:fixturepw@cache.fixture.internal:6379"], // pragma: allowlist secret gitleaks:allow
+      ["postgres-uri-with-creds", "DB=postgresql+asyncpg://fixtureuser:fixturepw@db.fixture.internal/app"], // pragma: allowlist secret gitleaks:allow
+      // +mysqldb, not +pymysql: "pymysql://" contains "mysql://", which the old rule already matched.
+      ["mysql-uri-with-creds", "DB=mysql+mysqldb://fixtureuser:fixturepw@db.fixture.internal/app"], // pragma: allowlist secret gitleaks:allow
+      ["redis-uri-with-creds", "REDIS=redis+sentinel://default:fixturepw@cache.fixture.internal:26379"], // pragma: allowlist secret gitleaks:allow
+      ["private-key-block", "-----BEGIN PGP PRIVATE KEY BLOCK-----"], // pragma: allowlist secret gitleaks:allow
+      ["github-pat", "GH=gh" + "o_FIXTUREFIXTUREFIXTUREFIXTUREFIXTURE0"], // pragma: allowlist secret gitleaks:allow
+    ];
+    writeFileSync(join(vr, "v.txt"), `${variants.map(([, v]) => v).join("\n")}\n`);
+    git(vr, ["add", "-A"]);
+    const r19 = runSelf([], vr);
+    const missed = variants.filter(([n]) => !new RegExp(`^\\s*\\[${n}\\]\\s+v\\.txt$`, "m").test(r19.out)).map(([n, v]) => `${n}:${v.slice(0, 12)}`);
+    arm(
+      "VARIANTS — rediss://, +driver schemes, the PGP key block and a gho_ token each fire on the staged path",
+      r19.status === 1 && missed.length === 0 && variants.every(([, v]) => !r19.out.includes(v)),
+      `exit ${r19.status}; missed ${JSON.stringify(missed)}`,
     );
 
     // MESSAGE regression — the commit-msg path still exits 1 on a fixture, 0 on clean,
@@ -779,7 +857,7 @@ function selftestHistory(days) {
   }
   // An arm dropped by a later edit (or skipped behind an early return) must not still
   // read PASS: the expected count is stated once, here, and checked.
-  const EXPECTED_ARMS = 15;
+  const EXPECTED_ARMS = 17;
   if (failed === 0 && arms !== EXPECTED_ARMS) {
     failed++;
     console.log(`selftest arm — arm count: FAIL — ${arms} ran, ${EXPECTED_ARMS} expected`);
@@ -793,21 +871,54 @@ let diff = "";
 try {
   diff = execFileSync(
     "git",
-    ["diff", "--cached", "--unified=0", "--no-color", "--diff-filter=ACM"],
+    // R and T: lines added to a renamed (or type-changed) file are new content too.
+    // interHunkContext pinned to 0 so a config cannot join hunks with context lines.
+    ["-c", "diff.interHunkContext=0", "diff", "--cached", "--unified=0", "--no-color", "--diff-filter=ACMRT"],
     { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
   );
 } catch {
   process.exit(0); // no staged changes / git unavailable → never block
 }
 
+// The same reading rule as the history sweep: inside a hunk the @@ counts say what every
+// line is, so an added line whose text begins "++ " (printed "+++ …") is content, not a
+// file header. Outside a hunk, "+++ " is a header only right after "--- ". Unlike the
+// sweep this path stays fail-soft, so a line it cannot place is SCANNED, never skipped.
 const findings = [];
 let file = "?";
-for (const line of diff.split("\n")) {
-  if (line.startsWith("+++ b/")) { file = line.slice(6); continue; }
-  if (line.startsWith("+++") || line.startsWith("---")) continue;
-  if (!line.startsWith("+")) continue;
+let oldLeft = 0;
+let newLeft = 0;
+let sawMinusHeader = false;
+const scanAdded = (line) => {
   const pattern = firstPatternHit(line.slice(1));
   if (pattern) findings.push({ file, pattern });
+};
+for (const raw of diff.split("\n")) {
+  const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
+  if (oldLeft > 0 || newLeft > 0) {
+    if (line.startsWith("\\")) continue; // "\ No newline at end of file"
+    if (line.startsWith("-") && oldLeft > 0) { oldLeft--; continue; }
+    if (line.startsWith("+") && newLeft > 0) { newLeft--; scanAdded(line); continue; }
+    // Context (none under --unified=0, but diff.interHunkContext can join hunks with it).
+    if (line.startsWith(" ") && oldLeft > 0 && newLeft > 0) { oldLeft--; newLeft--; continue; }
+    oldLeft = 0; // the counts and the stream parted: read this line as structure below
+    newLeft = 0;
+  }
+  const afterMinus = sawMinusHeader;
+  sawMinusHeader = false;
+  if (line.startsWith("--- ")) { sawMinusHeader = true; continue; }
+  if (line.startsWith("+++ ") && afterMinus) {
+    const p = diffPath(line.slice(4));
+    file = pathIsPrintable(p) ? p : "<path withheld: not printable under the path rule>";
+    continue;
+  }
+  const m = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/.exec(line);
+  if (m) {
+    oldLeft = m[1] === undefined ? 1 : Number(m[1]);
+    newLeft = m[2] === undefined ? 1 : Number(m[2]);
+    continue;
+  }
+  if (line.startsWith("+")) scanAdded(line);
 }
 
 if (findings.length) {

@@ -4,6 +4,18 @@ Changes that matter to anyone who vendors a file from this repo. Each entry name
 
 ## 2026-10-05
 
+### Credential URLs and keys both tools missed; staged scan skipped renames
+
+**Re-pull:** `lib/snippet-redact.mjs`, `lib/secret_redaction.py`, `scripts/check-staged-secrets.mjs`.
+
+- Redactors and scanner: credentialed `rediss://`, `mariadb://`, `mssql://` and `sqlserver://` URIs now match, and every database scheme accepts a SQLAlchemy-style `+driver` suffix (`postgresql+asyncpg://`, `mysql+mysqldb://`, `redis+sentinel://`).
+- Redactors: a new `url-creds` shape replaces only `user:password@` in an `http(s)://` URL; the scheme, host and path stay readable. It stops at `/`, `?` and `#`, so an `@` in a query or fragment is not taken for credentials. A secret in the query string is not caught (LIMIT test).
+- Scanner: new `anthropic-key` (`sk-ant-`), `openai-key` (`sk-proj-`, `sk-svcacct-`, `sk-admin-`, or a legacy 32+ character body), `basic-auth-url` and `sqlserver-uri-with-creds` patterns, 15 in all. `github-pat` now covers `gho_`/`ghu_`/`ghs_`/`ghr_`. The PGP armour header (`BEGIN PGP PRIVATE KEY BLOCK`) now matches; the old alternative never could.
+- Scanner, pre-commit path: lines added to a renamed or type-changed file are scanned (`--diff-filter=ACMRT`). The staged diff is now read with the same hunk-count rule as the history sweep, context lines included, and `diff.interHunkContext` is pinned to 0, so an added line starting `++ ` is scanned instead of being taken for a file header. Staged file names follow the history path rule (withheld when secret-shaped, legacy `sk-` keys included).
+- Redactors: each prefixed shape checks its possible first character before the escape-residue anchor. No match changes (a differential run over about 104,000 inputs per language found none). On this machine's adversarial probes (Python 3.14) the Python port went from about 3.2 s to 0.5 s.
+
+Selftest: 17 arms (was 15). Sweeping this repo's full history with the new patterns adds 7 hits, all synthetic fixtures or documentation examples already in the tree.
+
 ### Redactors were quadratic on repeated JWT and DB-URI prefixes
 
 **Re-pull:** `lib/snippet-redact.mjs`, `lib/secret_redaction.py`.

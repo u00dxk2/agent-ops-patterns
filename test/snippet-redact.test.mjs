@@ -52,6 +52,15 @@ const ALTERNATIVES = [
   ["db-uri-creds", "mysql://root:hunter22secret@10.0.0.4:3306/app"], // pragma: allowlist secret
   ["db-uri-creds", "redis://default:hunter22secret@cache.example:6379"], // pragma: allowlist secret
   ["db-uri-creds", "amqps://svc:hunter22secret@broker.example/vhost"], // pragma: allowlist secret
+  // TLS Redis (rediss://), SQLAlchemy driver forms (+asyncpg, +pymysql), MariaDB.
+  ["db-uri-creds", "rediss://default:Abc123Def456Ghi789Jkl012Mno345Pq@redis.example:6379"], // pragma: allowlist secret
+  ["db-uri-creds", "postgresql+asyncpg://u:Abc123Def456Ghi789Jkl012Mno345Pq@db/x"], // pragma: allowlist secret
+  ["db-uri-creds", "mysql+pymysql://u:Abc123Def456Ghi789Jkl012Mno345Pq@db/x"], // pragma: allowlist secret
+  ["db-uri-creds", "mariadb://u:Abc123Def456Ghi789Jkl012Mno345Pq@db/x"], // pragma: allowlist secret
+  // Credentials in an http(s) URL (git remotes, basic-auth webhooks).
+  // The fixture ends at "@": the shape keeps the host readable (pinned separately).
+  ["url-creds", "https://deploy:Abc123Def456Ghi789Jkl012Mno345Pq@"], // pragma: allowlist secret
+  ["url-creds", "http://admin:Abc123Def456Ghi789Jkl012Mno345Pq@"], // pragma: allowlist secret
   ["stripe-key", "pk_test_FAKEfakeFAKEfake0123456789"], // pragma: allowlist secret
   // rk_TEST_, not rk_live_: GitHub's push protection flags the live-mode
   // restricted-key shape even on an obviously synthetic body, and it is right
@@ -210,7 +219,8 @@ for (const [shape, secret] of PREFIXED) {
       // `%`) and swallows it — that cell passed on the old code too, which is
       // why it cannot be the one proving the anchor.
       if (shape === "long-hex" && residue.includes("%")) continue;
-      assert.ok(text.includes(`line1${residue}[redacted:${shape}]`), `${JSON.stringify(residue)}: residue not preserved in ${text}`);
+      const kept = shape === "url-creds" ? secret.match(/^https?:\/\//)[0] : ""; // url-creds keeps the scheme
+      assert.ok(text.includes(`line1${residue}${kept}[redacted:${shape}]`), `${JSON.stringify(residue)}: residue not preserved in ${text}`);
     }
   });
 }
@@ -241,6 +251,24 @@ test("LIMIT: other escapes and escaped URI slashes pass (no decoding is done)", 
   for (const s of [String.raw`\x22` + k, "%2522" + k, String.raw`postgres:\/\/u:hunter22secret@db`]) {
     assert.deepEqual(redactSecretShapes(s).shapes, [], s); // pragma: allowlist secret
   }
+});
+
+test("url-creds replaces only scheme://user:password@ and keeps the host and path", () => {
+  const { text } = redactSecretShapes("git remote https://deploy:Abc123Def456Ghi789Jkl012Mno345Pq@git.example/repo.git"); // pragma: allowlist secret
+  assert.equal(text, "git remote https://[redacted:url-creds]git.example/repo.git");
+  // Keeping the scheme keeps the base64 rule's in-URL skip: a path segment stays.
+  const pathB64 = "Zx12".repeat(15);
+  assert.equal(redactSecretShapes(`https://u:pw@host/${pathB64}`).text, `https://[redacted:url-creds]host/${pathB64}`); // pragma: allowlist secret
+});
+
+test("url-creds needs a password before the @, and stops at the path, query and fragment", () => {
+  for (const s of ["https://h:443?token=value@else", "https://h/#a:b@c", "http://user@host/x", "https://medium.com/@user"]) {
+    assert.ok(!redactSecretShapes(s).shapes.includes("url-creds"), s); // pragma: allowlist secret
+  }
+});
+
+test("LIMIT: url-creds leaves secrets in the query string (no key-name rules)", () => {
+  assert.ok(redactSecretShapes("https://u:pw@host/?token=SeCrEt42").text.endsWith("?token=SeCrEt42")); // pragma: allowlist secret
 });
 
 test("LIMIT: a JWT glued onto `-` passes (the bound that keeps the JWT rule linear)", () => {
