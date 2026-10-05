@@ -59,6 +59,9 @@ shape-matcher cannot recognize a secret it has no shape for):
    (``\\x22``, double-encoded ``%2522``, ``\\b``, ``\\f``), and a URI whose own
    slashes are escaped (``postgres:\\/\\/…``). The base64 fallback catches some
    of these and not others; do not count on it.
+ - **Two rules that keep the scan linear**: a JWT glued straight onto a ``-``
+   (``token-eyJ…``, ``cache-eyJ….json``), and a credentialed DB URI whose
+   password contains ``://``.
  - **%XX is not decoded**, so any ``%XX`` counts as an escape: ``%62sk-…``
    (which decodes to ``bsk-…``) is redacted as a key. A display-only false
    positive, accepted.
@@ -134,13 +137,23 @@ _A = re.ASCII
 _LEAD = r"(?:(?<![A-Za-z0-9_])|(?<=\\[ntr])|(?<=%[0-9A-Fa-f]{2})|(?<=\\u[0-9A-Fa-f]{4}))"
 
 
-def _lead(body: str) -> re.Pattern[str]:
-    return re.compile(_LEAD + body, _A)
+def _lead(body: str, anchor: str = _LEAD) -> re.Pattern[str]:
+    return re.compile(anchor + body, _A)
+
+
+# The JWT anchor also refuses "-" before "eyJ" ("-" is in the JWT alphabet), so
+# "eyJ-eyJ-…" no longer gives the regex a fresh, end-of-string scan at every
+# repeat (quadratic). Cost: a JWT glued onto "-" is not matched. Mirrors JWT_LEAD.
+_JWT_LEAD = _LEAD.replace("(?<![A-Za-z0-9_])", "(?<![A-Za-z0-9_-])")
 
 
 _SHAPES: list[tuple[str, re.Pattern[str], Callable[[re.Match[str]], bool] | None]] = [
     ("private-key", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)", _A), None),
-    ("db-uri-creds", _lead(r"(?:mongodb(?:\+srv)?|postgres(?:ql)?|mysql|redis|amqps?)://[^\s:/@]*:[^\s@]+@[^\s\"')\]]+"), None),
+    # The password run may not cross another "://": unrestricted, every
+    # "postgres://u:" in a long run of them scanned to the end for an "@"
+    # (quadratic). Every start contains "://", so each scan now stops at the next
+    # start — linear with no length cap. Mirrors snippet-redact.mjs.
+    ("db-uri-creds", _lead(r"(?:mongodb(?:\+srv)?|postgres(?:ql)?|mysql|redis|amqps?)://[^\s:/@]*:(?:(?!://)[^\s@])+@[^\s\"')\]]+"), None),
     ("aws-key", _lead(r"AKIA[0-9A-Z]{16}\b"), None),
     ("stripe-key", _lead(r"[srp]k_(?:live|test)_[0-9a-zA-Z]{16,}\b"), None),
     ("github-token", _lead(r"(?:gh[pousr]_[0-9A-Za-z]{36,}|github_pat_[0-9A-Za-z_]{40,})\b"), None),
@@ -154,7 +167,7 @@ _SHAPES: list[tuple[str, re.Pattern[str], Callable[[re.Match[str]], bool] | None
     # trailing class, so the generic form already matches every prefixed
     # variant. Spelling them out looked like coverage and was dead regex.
     ("openai-key", _lead(r"sk-[A-Za-z0-9_-]{20,}"), None),
-    ("jwt", _lead(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}\b"), None),
+    ("jwt", _lead(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}\b", _JWT_LEAD), None),
     # ≥48 hex: sha256-length tokens redact; 40-hex git SHAs deliberately pass.
     ("long-hex", _lead(r"[0-9a-fA-F]{48,}\b"), None),
     # ≥40-char base64 run at a token boundary. NEGATIVE lookbehind (not another
@@ -367,6 +380,17 @@ def _self_check() -> None:
     for s in [r"\x22" + k, "%2522" + k, r"postgres:\/\/u:hunter22secret@db"]:  # pragma: allowlist secret
         assert redact_secret_shapes(s).shapes == [], s  # LIMIT: other escapes, escaped URI slashes
     assert redact_secret_shapes("https://example.test/%62sk-abcdefghijklmnopqrst").shapes == ["openai-key"]  # LIMIT: %XX not decoded
+    jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9P"
+    assert "jwt" not in redact_secret_shapes("token-" + jwt).shapes  # LIMIT: a JWT glued onto "-" (ReDoS bound)
+    assert "jwt" in redact_secret_shapes("token=" + jwt).shapes
+    # Long and URL-encoded DB-URI credentials still redact ("-"/"%" keep base64 out).
+    for uri in [
+        "postgres://u:" + "p%40" * 65 + "@db.example/x",
+        "postgres://u:" + "p-" * 600 + "@db.example/x",
+        "postgres://" + "u-" * 129 + ":pw-pw-pw@db.example/x",
+    ]:
+        assert "db-uri-creds" in redact_secret_shapes(uri).shapes, uri[:30]
+    assert "db-uri-creds" not in redact_secret_shapes("postgres://u:a://b-c-d@db.example/x").shapes  # LIMIT: "://" in a password  # pragma: allowlist secret
 
     # CROSS-LANGUAGE FIDELITY — cases that diverged from the JS before re.ASCII.
     e_aws = redact_secret_shapes("éAKIAIOSFODNN7EXAMPLE")  # pragma: allowlist secret
@@ -386,6 +410,9 @@ def _self_check() -> None:
         "sk-" + "a" * 200_000,
         "\\n" * 100_000 + "ghp_abcdefghijklmnopqrstuvwxyz0123456789",  # pragma: allowlist secret
         "%3D" * 100_000 + "ghp_abcdefghijklmnopqrstuvwxyz0123456789",  # pragma: allowlist secret
+        # MANY start positions, not one (quadratic if each runs unbounded).
+        "postgres://u:" * 15_000,
+        "eyJ-" * 50_000,
     ]:
         redact_secret_shapes(probe)
     assert time.monotonic() - started < 2.0, "redaction should stay linear on 200k-char input"

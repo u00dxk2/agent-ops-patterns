@@ -4,6 +4,12 @@ Changes that matter to anyone who vendors a file from this repo. Each entry name
 
 ## 2026-10-05
 
+### Redactors were quadratic on repeated JWT and DB-URI prefixes
+
+**Re-pull:** `lib/snippet-redact.mjs`, `lib/secret_redaction.py`.
+
+A string repeating `eyJ-` (200k characters) took about 60 seconds in the JavaScript library, and `postgres://u:` repeated to 195k characters took about 5 seconds. Each repeat was a new start for the regex, and each start scanned to the end of the text. The JWT rule now uses an anchor that also refuses a `-` before `eyJ`, and a DB-URI password may not run across another `://`, so each scan stops at the next start (no length cap, so long and URL-encoded passwords still redact). Both probes now finish in well under a second, in both languages. New limits, documented and tested: a JWT glued onto `-` (`token-eyJ…`, `cache-eyJ….json`) and a DB-URI password that contains `://` are not redacted.
+
 ### Commit-message mode printed part of the secret it caught
 
 **Re-pull:** `scripts/check-staged-secrets.mjs`.

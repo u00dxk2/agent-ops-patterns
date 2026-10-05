@@ -243,6 +243,27 @@ test("LIMIT: other escapes and escaped URI slashes pass (no decoding is done)", 
   }
 });
 
+test("LIMIT: a JWT glued onto `-` passes (the bound that keeps the JWT rule linear)", () => {
+  const jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9P";
+  assert.ok(!redactSecretShapes(`token-${jwt}`).shapes.includes("jwt"));
+  assert.ok(redactSecretShapes(`token=${jwt}`).shapes.includes("jwt"));
+});
+
+test("long and URL-encoded DB-URI credentials still redact (linear without a length cap)", () => {
+  // "-" and "%" keep the base64 fallback out of it, so the db-uri rule alone is tested.
+  for (const uri of [
+    `postgres://u:${"p%40".repeat(65)}@db.example/x`, // 130 decoded chars, 260 serialized  pragma: allowlist secret
+    `postgres://u:${"p-".repeat(600)}@db.example/x`, // pragma: allowlist secret
+    `postgres://${"u-".repeat(129)}:pw-pw-pw@db.example/x`, // pragma: allowlist secret
+  ]) {
+    assert.ok(redactSecretShapes(uri).shapes.includes("db-uri-creds"), uri.slice(0, 30));
+  }
+});
+
+test("LIMIT: a DB-URI password containing `://` passes (the rule that keeps the scan linear)", () => {
+  assert.ok(!redactSecretShapes("postgres://u:a://b-c-d@db.example/x").shapes.includes("db-uri-creds")); // pragma: allowlist secret
+});
+
 test("LIMIT: %XX is not decoded, so an encoded letter before `sk-` still reads as a boundary", () => {
   // `%62` is `b`: decoded, this is `bsk-…`, not a key. Accepted false positive.
   assert.deepEqual(redactSecretShapes("https://example.test/%62sk-abcdefghijklmnopqrst").shapes, ["openai-key"]);
@@ -314,6 +335,10 @@ test("no catastrophic backtracking on adversarial input", () => {
     "sk-" + "a".repeat(200_000),
     "\\n".repeat(100_000) + "ghp_abcdefghijklmnopqrstuvwxyz0123456789", // pragma: allowlist secret
     "%3D".repeat(100_000) + "ghp_abcdefghijklmnopqrstuvwxyz0123456789", // pragma: allowlist secret
+    // MANY start positions, not one: each repeat is a fresh place for the
+    // regex to begin, and an unbounded run from each one is quadratic.
+    "postgres://u:".repeat(15_000),
+    "eyJ-".repeat(50_000),
   ]) {
     redactSecretShapes(probe);
   }
