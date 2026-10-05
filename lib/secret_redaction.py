@@ -52,6 +52,16 @@ shape-matcher cannot recognize a secret it has no shape for):
  - **Vendors not in SHAPES** (SendGrid ``SG.``, Slack ``xapp-``, …). Adding a
    shape is a one-line PR; the list is what our own corpus actually leaked.
  - **Base64 under 40 chars**, and secrets split across a snippet boundary.
+ - **Prefixed keys in some encodings.** A prefixed shape matches an intact
+   key that starts after a non-word character or right after a ``\\n``,
+   ``\\t``, ``\\r``, ``%XX`` or ``\\uXXXX`` escape (see _LEAD). It misses a key
+   glued straight onto a word (``xghp_…``), a key behind any other escape
+   (``\\x22``, double-encoded ``%2522``, ``\\b``, ``\\f``), and a URI whose own
+   slashes are escaped (``postgres:\\/\\/…``). The base64 fallback catches some
+   of these and not others; do not count on it.
+ - **%XX is not decoded**, so any ``%XX`` counts as an escape: ``%62sk-…``
+   (which decodes to ``bsk-…``) is redacted as a key. A display-only false
+   positive, accepted.
  - **Generic base64 inside URLs, data: URIs, and hash-integrity strings is
    deliberately skipped** — those runs are overwhelmingly webhook paths,
    inline assets, and lockfile hashes, and mid-URL redaction mangles benign
@@ -113,25 +123,40 @@ def _skip_base64(match: re.Match[str]) -> bool:
 # Order matters: sk-ant… (Anthropic) before the generic sk-… (OpenAI).
 # Every pattern carries re.ASCII — see the fidelity note in the module docstring.
 _A = re.ASCII
+# Leading anchor for every prefixed shape (byte-identical to LEAD in
+# snippet-redact.mjs). A plain \b failed behind an escape: in JSONL text a
+# newline is the two characters "\" "n", so the char before the key is the
+# letter n and the whole key came back raw. Accept "not after a word char" OR
+# "right after \n \t \r, %XX or \uXXXX". \b and \f are left out on purpose
+# (they almost never precede a key, and accepting them redacted Windows paths
+# like C:\bsk-…). Each alternative is fixed-width, which Python's lookbehind
+# requires.
+_LEAD = r"(?:(?<![A-Za-z0-9_])|(?<=\\[ntr])|(?<=%[0-9A-Fa-f]{2})|(?<=\\u[0-9A-Fa-f]{4}))"
+
+
+def _lead(body: str) -> re.Pattern[str]:
+    return re.compile(_LEAD + body, _A)
+
+
 _SHAPES: list[tuple[str, re.Pattern[str], Callable[[re.Match[str]], bool] | None]] = [
     ("private-key", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)", _A), None),
-    ("db-uri-creds", re.compile(r"\b(?:mongodb(?:\+srv)?|postgres(?:ql)?|mysql|redis|amqps?)://[^\s:/@]*:[^\s@]+@[^\s\"')\]]+", _A), None),
-    ("aws-key", re.compile(r"\bAKIA[0-9A-Z]{16}\b", _A), None),
-    ("stripe-key", re.compile(r"\b[srp]k_(?:live|test)_[0-9a-zA-Z]{16,}\b", _A), None),
-    ("github-token", re.compile(r"\b(?:gh[pousr]_[0-9A-Za-z]{36,}|github_pat_[0-9A-Za-z_]{40,})\b", _A), None),
-    ("google-api-key", re.compile(r"\bAIza[0-9A-Za-z\-_]{35}\b", _A), None),
-    ("slack-token", re.compile(r"\bxox[baprs]-[0-9A-Za-z-]{10,}\b", _A), None),
+    ("db-uri-creds", _lead(r"(?:mongodb(?:\+srv)?|postgres(?:ql)?|mysql|redis|amqps?)://[^\s:/@]*:[^\s@]+@[^\s\"')\]]+"), None),
+    ("aws-key", _lead(r"AKIA[0-9A-Z]{16}\b"), None),
+    ("stripe-key", _lead(r"[srp]k_(?:live|test)_[0-9a-zA-Z]{16,}\b"), None),
+    ("github-token", _lead(r"(?:gh[pousr]_[0-9A-Za-z]{36,}|github_pat_[0-9A-Za-z_]{40,})\b"), None),
+    ("google-api-key", _lead(r"AIza[0-9A-Za-z\-_]{35}\b"), None),
+    ("slack-token", _lead(r"xox[baprs]-[0-9A-Za-z-]{10,}\b"), None),
     # A Slack incoming-webhook URL IS a credential — its own shape (the generic
     # base64 rule skips URL interiors).
-    ("slack-webhook", re.compile(r"\bhttps://hooks\.slack\.com/services/[A-Za-z0-9/]+", _A), None),
-    ("anthropic-key", re.compile(r"\bsk-ant-[A-Za-z0-9_-]{10,}", _A), None),
+    ("slack-webhook", _lead(r"https://hooks\.slack\.com/services/[A-Za-z0-9/]+"), None),
+    ("anthropic-key", _lead(r"sk-ant-[A-Za-z0-9_-]{10,}"), None),
     # No (?:proj-|admin-|svcacct-)? alternation, deliberately: "-" is in the
     # trailing class, so the generic form already matches every prefixed
     # variant. Spelling them out looked like coverage and was dead regex.
-    ("openai-key", re.compile(r"\bsk-[A-Za-z0-9_-]{20,}", _A), None),
-    ("jwt", re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}\b", _A), None),
+    ("openai-key", _lead(r"sk-[A-Za-z0-9_-]{20,}"), None),
+    ("jwt", _lead(r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}\b"), None),
     # ≥48 hex: sha256-length tokens redact; 40-hex git SHAs deliberately pass.
-    ("long-hex", re.compile(r"\b[0-9a-fA-F]{48,}\b", _A), None),
+    ("long-hex", _lead(r"[0-9a-fA-F]{48,}\b"), None),
     # ≥40-char base64 run at a token boundary. NEGATIVE lookbehind (not another
     # base64 char) rather than a delimiter allowlist: recall snippets are cut
     # mid-text, so the token can sit at index 0 or behind a bracket.
@@ -309,6 +334,40 @@ def _self_check() -> None:
     assert redact_secret_shapes('t="QWJjMTIzZGVmNDU2Z2hpNzg5amts"').shapes == []  # LIMIT: base64 under 40 chars passes
     assert redact_secret_shapes("ghp_abcdefghij").shapes == []  # LIMIT: a secret split across a snippet boundary passes
 
+    # ESCAPE RESIDUE — a key right after a literal \n, \t, \r, %3D or " (as
+    # stored in JSONL / URL-encoded text) redacts. Mirrors the JS suite.
+    residues = ["x\\n", "x\\t", "x\\r", "a%3D", "\\u0022", "\\\\n"]
+    alternatives = [
+        ("db-uri-creds", "mongodb+srv://u:hunter22secret@cluster0.example.net/db"),  # pragma: allowlist secret
+        ("stripe-key", "pk_test_FAKEfakeFAKEfake0123456789"),  # pragma: allowlist secret
+        ("github-token", "github_pat_11ABCDEFG0abcdefghijklmnopqrstuvwxyz0123456789"),  # pragma: allowlist secret
+        ("github-token", "gho_abcdefghijklmnopqrstuvwxyz0123456789ab"),  # pragma: allowlist secret
+        ("openai-key", "sk-abcdefghijklmnopqrstuvwxyz123456"),  # pragma: allowlist secret
+    ]
+    prefixed = [c for c in cases if c[0] not in ("private-key", "long-base64")] + alternatives
+    for shape, secret in prefixed:
+        for residue in residues:
+            text, shapes = redact_secret_shapes(f'{{"text":"line1{residue}{secret}"}}')
+            assert shape in shapes, f"{residue!r}: expected {shape} in {shapes}"
+            assert secret[-12:] not in text, f"{residue!r}: tail of {shape} survived"
+            if shape == "long-hex" and "%" in residue:
+                continue  # "3D" is hex: the run starts at "3" behind "%" (passed pre-fix too)
+            assert f"line1{residue}[redacted:{shape}]" in text, f"{residue!r}: residue not preserved in {text}"
+    glued_cases = [
+        "task-abcdefghijklmnopqrstuvwxyz",
+        "risk-abcdefghijklmnopqrstuvwxyz",
+        "myAKIAIOSFODNN7EXAMPLE",  # pragma: allowlist secret
+        r"C:\bsk-abcdefghijklmnopqrst",  # \b and \f are not residues: Windows paths pass
+        r"C:\fsk-abcdefghijklmnopqrst",
+    ]
+    for glued in glued_cases:
+        assert redact_secret_shapes(glued).shapes == [], glued  # the anchor keeps the word boundary
+    k = "ghp_abcdefghijklmnopqrstuvwxyz0123456789"  # pragma: allowlist secret
+    assert redact_secret_shapes("x" + k).shapes == []  # LIMIT: glued to a word, no escape
+    for s in [r"\x22" + k, "%2522" + k, r"postgres:\/\/u:hunter22secret@db"]:  # pragma: allowlist secret
+        assert redact_secret_shapes(s).shapes == [], s  # LIMIT: other escapes, escaped URI slashes
+    assert redact_secret_shapes("https://example.test/%62sk-abcdefghijklmnopqrst").shapes == ["openai-key"]  # LIMIT: %XX not decoded
+
     # CROSS-LANGUAGE FIDELITY — cases that diverged from the JS before re.ASCII.
     e_aws = redact_secret_shapes("éAKIAIOSFODNN7EXAMPLE")  # pragma: allowlist secret
     assert "aws-key" in e_aws.shapes, "Unicode \\b must not hide an ASCII-adjacent key"
@@ -325,6 +384,8 @@ def _self_check() -> None:
         "eyJ" + "a" * 200_000,
         " " + "A" * 200_000,
         "sk-" + "a" * 200_000,
+        "\\n" * 100_000 + "ghp_abcdefghijklmnopqrstuvwxyz0123456789",  # pragma: allowlist secret
+        "%3D" * 100_000 + "ghp_abcdefghijklmnopqrstuvwxyz0123456789",  # pragma: allowlist secret
     ]:
         redact_secret_shapes(probe)
     assert time.monotonic() - started < 2.0, "redaction should stay linear on 200k-char input"

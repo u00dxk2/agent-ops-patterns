@@ -191,6 +191,63 @@ test("redacts a base64 token behind a non-delimiter character", () => {
   assert.ok(redactSecretShapes(`(${b64})`).shapes.includes("long-base64"));
 });
 
+// ESCAPE RESIDUE. Recalled text is usually escaped text: a JSONL transcript
+// holds `\n`, `\t` and `"` as literal backslash sequences, and logged URLs
+// hold `%3D`. The escape's last character is a letter or digit, so a plain `\b`
+// before the key failed and the whole key came back raw. Every shape with a
+// leading word-boundary anchor is driven through every residue here.
+const RESIDUES = ["x\\n", "x\\t", "x\\r", "a%3D", "\\u0022", "\\\\n"];
+const PREFIXED = CASES.filter(([shape]) => !["private-key", "long-base64"].includes(shape)).concat(ALTERNATIVES);
+
+for (const [shape, secret] of PREFIXED) {
+  test(`redacts ${shape} behind escape residue: ${secret.slice(0, 10)}…`, () => {
+    for (const residue of RESIDUES) {
+      const { text, shapes } = redactSecretShapes(`{"text":"line1${residue}${secret}"}`);
+      assert.ok(shapes.includes(shape), `${JSON.stringify(residue)}: expected ${shape} in ${JSON.stringify(shapes)}`);
+      assert.ok(!text.includes(secret.slice(-12)), `${JSON.stringify(residue)}: the secret tail must not survive`);
+      // The escape itself survives: the key was matched AFTER it. One exempt
+      // cell: `3D` is hex, so a long-hex run legitimately starts at `3` (behind
+      // `%`) and swallows it — that cell passed on the old code too, which is
+      // why it cannot be the one proving the anchor.
+      if (shape === "long-hex" && residue.includes("%")) continue;
+      assert.ok(text.includes(`line1${residue}[redacted:${shape}]`), `${JSON.stringify(residue)}: residue not preserved in ${text}`);
+    }
+  });
+}
+
+test("the escape-residue anchor keeps the word boundary: a key glued to a word stays unmatched", () => {
+  // The anchor accepts residue, not any letter: `task-…` must not read as an
+  // OpenAI `sk-` key, and an identifier ending in a prefix must not either.
+  // `\b` and `\f` are not residues: Windows paths like C:\bsk-… must pass.
+  for (const s of [
+    "task-abcdefghijklmnopqrstuvwxyz",
+    "risk-abcdefghijklmnopqrstuvwxyz",
+    "myAKIAIOSFODNN7EXAMPLE", // pragma: allowlist secret
+    String.raw`C:\bsk-abcdefghijklmnopqrst`,
+    String.raw`C:\fsk-abcdefghijklmnopqrst`,
+  ]) {
+    assert.deepEqual(redactSecretShapes(s).shapes, [], s);
+  }
+});
+
+test("LIMIT: a key glued to a word character with no escape residue passes", () => {
+  // `xghp_…` has no delimiter of any kind. Matching it would mean dropping the
+  // boundary altogether, and `task-…` / `risk-…` show why that is not free.
+  assert.deepEqual(redactSecretShapes("xghp_abcdefghijklmnopqrstuvwxyz0123456789").shapes, []); // pragma: allowlist secret
+});
+
+test("LIMIT: other escapes and escaped URI slashes pass (no decoding is done)", () => {
+  const k = "ghp_abcdefghijklmnopqrstuvwxyz0123456789"; // pragma: allowlist secret
+  for (const s of [String.raw`\x22` + k, "%2522" + k, String.raw`postgres:\/\/u:hunter22secret@db`]) {
+    assert.deepEqual(redactSecretShapes(s).shapes, [], s); // pragma: allowlist secret
+  }
+});
+
+test("LIMIT: %XX is not decoded, so an encoded letter before `sk-` still reads as a boundary", () => {
+  // `%62` is `b`: decoded, this is `bsk-…`, not a key. Accepted false positive.
+  assert.deepEqual(redactSecretShapes("https://example.test/%62sk-abcdefghijklmnopqrst").shapes, ["openai-key"]);
+});
+
 // ---------------------------------------------------------------------------
 // DOCUMENTED LIMITS. These assert what the lib deliberately does NOT catch, so
 // the boundary is a tested contract rather than a surprise. See the "WHAT THIS
@@ -255,6 +312,8 @@ test("no catastrophic backtracking on adversarial input", () => {
     "eyJ" + "a".repeat(200_000),
     " " + "A".repeat(200_000),
     "sk-" + "a".repeat(200_000),
+    "\\n".repeat(100_000) + "ghp_abcdefghijklmnopqrstuvwxyz0123456789", // pragma: allowlist secret
+    "%3D".repeat(100_000) + "ghp_abcdefghijklmnopqrstuvwxyz0123456789", // pragma: allowlist secret
   ]) {
     redactSecretShapes(probe);
   }
