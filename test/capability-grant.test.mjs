@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   GRANT_SCHEMA_VERSION,
   DEFAULT_GRANT_TTL_MS,
+  MAX_GRANT_TTL_MS,
   normalizeCommand,
   commandHash,
   isAllowedGrantClass,
@@ -373,18 +374,21 @@ describe("matchGrant — exact-command authorization", () => {
     assert.equal(isAllowedGrantClass("git-push", shifty), false);
   });
 
-  it("an expired grant cannot read as live via an accessor clock", () => {
-    // hasValidShape read expiresAtMs, then the comparison read it again. A
+  it("an accessor clock is read once, and the verdict follows that one value", () => {
+    // hasValidShape used to read expiresAtMs, then the comparison read it again: a
     // getter returning a finite future value and then NaN made `nowMs >= NaN`
-    // false, which reads as "not expired".
-    let reads = 0;
-    const grant = {
-      ...mint(),
-      get expiresAtMs() {
-        return ++reads === 1 ? NOW + 1000 : Number.NaN;
-      },
-    };
-    assert.equal(isGrantLive(grant, NOW), false);
+    // false, which read as "not expired". Now the grant is snapshotted once, so
+    // there is no second value: the verdict is whatever the single read says.
+    for (const [first, then, expected] of [
+      [NOW + 1000, Number.NaN, true], // read once: a valid, unexpired grant
+      [Number.NaN, NOW + 1000, false], // read once: malformed, dead
+      [NOW - 1, NOW + 1000, false], // read once: expired, dead
+    ]) {
+      let reads = 0;
+      const grant = { ...mint(), get expiresAtMs() { return ++reads === 1 ? first : then; } };
+      assert.equal(isGrantLive(grant, NOW), expected, `first read ${first}`);
+      assert.equal(reads, 1);
+    }
   });
 
   it("FAIL-CLOSED: empty command, garbage list, bad clock, malformed grants, empty allowlist", () => {
@@ -421,6 +425,128 @@ describe("matchGrant — exact-command authorization", () => {
   });
 });
 
+describe("lifetime cap — no standing grants", () => {
+  const LONG = 1e13; // ~300 years
+  it("exports a one-hour cap, above the fifteen-minute default", () => {
+    assert.equal(MAX_GRANT_TTL_MS, 60 * 60 * 1000);
+    assert.ok(DEFAULT_GRANT_TTL_MS <= MAX_GRANT_TTL_MS);
+  });
+  it("buildGrant THROWS on a ttl over the cap; the cap itself mints", () => {
+    assert.throws(() => mint({ ttlMs: LONG }), /ttlMs/);
+    assert.throws(() => mint({ ttlMs: MAX_GRANT_TTL_MS + 1 }), /ttlMs/);
+    assert.equal(mint({ ttlMs: MAX_GRANT_TTL_MS }).expiresAtMs, NOW + MAX_GRANT_TTL_MS);
+  });
+  it("a hand-edited long-lived grant is dead: not live, not parsed, never matched", () => {
+    const g = { ...mint(), expiresAtMs: NOW + LONG };
+    assert.equal(isGrantLive(g, NOW + 1), false);
+    assert.equal(parseGrant(JSON.stringify(g), CLASSES), null);
+    assert.equal(matchGrant([g], { ...QUERY, nowMs: NOW + 1 }, CLASSES), null);
+  });
+  it("a grant minted in the future, or with no positive lifetime, is not live", () => {
+    assert.equal(isGrantLive(mint({ nowMs: NOW + 60_000 }), NOW), false);
+    assert.equal(isGrantLive({ ...mint(), expiresAtMs: NOW }, NOW - 1), false);
+  });
+  it("timestamps must be safe-integer milliseconds (a fraction can round a lifetime under the cap)", () => {
+    assert.equal(isGrantLive({ ...mint(), mintedAtMs: -(2 ** -32), expiresAtMs: MAX_GRANT_TTL_MS }, 0), false);
+    assert.equal(isGrantLive({ ...mint(), mintedAtMs: 0, expiresAtMs: Number.MIN_VALUE }, 0), false);
+    assert.throws(() => mint({ nowMs: NOW + 0.5 }), /nowMs/);
+    assert.throws(() => mint({ ttlMs: 1.5 }), /ttlMs/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// READ ONCE, JUDGE THE SNAPSHOT. Every function that judges a grant copies its
+// fields once into a plain object and decides on that copy only; the copy is
+// what matchGrant returns. Each test below is an accessor exploit that worked
+// against per-field re-reads (the previous shape of this file).
+// ---------------------------------------------------------------------------
+describe("grant snapshot — every grant field is read exactly once per call", () => {
+  const counting = (g) => {
+    const reads = {};
+    const proxy = new Proxy(g, {
+      get(target, prop, recv) {
+        if (typeof prop === "string") reads[prop] = (reads[prop] ?? 0) + 1;
+        return Reflect.get(target, prop, recv);
+      },
+    });
+    return { proxy, reads };
+  };
+
+  it("isGrantLive and matchGrant read each field once", () => {
+    for (const call of [(p) => isGrantLive(p, NOW), (p) => matchGrant([p], QUERY, CLASSES)]) {
+      const { proxy, reads } = counting(mint());
+      call(proxy);
+      for (const [field, n] of Object.entries(reads)) assert.equal(n, 1, `${field} read ${n} times`);
+      assert.ok(reads.commandSha256 === 1 && reads.expiresAtMs === 1, "the decision fields were read");
+    }
+  });
+
+  it("a commandSha256 getter cannot pass the integrity check and then match another command", () => {
+    let n = 0;
+    const g = { ...mint(), get commandSha256() { return ++n <= 3 ? commandHash(CMD) : commandHash("evil"); } };
+    assert.equal(matchGrant([g], { ...QUERY, command: "evil" }, CLASSES), null);
+  });
+
+  it("a mintedAtMs getter cannot pass as future-safe and then decide liveness with another value", () => {
+    let r = 0;
+    const g = { ...mint(), get mintedAtMs() { return ++r <= 3 ? NOW + 1000 : NOW; } };
+    assert.equal(isGrantLive(g, NOW), false);
+  });
+
+  it("a getter that rewrites the grant mid-match cannot widen what is returned", () => {
+    let s = 0;
+    const g = mint();
+    Object.defineProperty(g, "scope", { get() { if (++s >= 2) g.expiresAtMs = NOW + 1e13; return "my-app"; }, enumerable: true });
+    const m = matchGrant([g], QUERY, CLASSES);
+    assert.ok(m === null || m.expiresAtMs - m.mintedAtMs <= MAX_GRANT_TTL_MS, "the returned grant is the validated snapshot");
+  });
+
+  it("an expiresAtMs getter cannot pass the cap and then widen", () => {
+    let reads = 0;
+    const tricky = { ...mint() };
+    Object.defineProperty(tricky, "expiresAtMs", { get: () => (++reads <= 1 ? NOW + 1000 : NOW + 1e13), enumerable: true });
+    assert.equal(isGrantLive(tricky, NOW + MAX_GRANT_TTL_MS + 5), false);
+  });
+
+  it("matchGrant never throws: hostile query, grant list or allowlist reads are 'no match'", () => {
+    assert.equal(matchGrant([mint()], { ...QUERY, get command() { throw new Error("query"); } }, CLASSES), null);
+    assert.equal(matchGrant(Object.defineProperty([mint()], "0", { get() { throw new Error("index"); } }), QUERY, CLASSES), null);
+    assert.equal(matchGrant([mint()], QUERY, new Proxy(CLASSES, { get() { throw new Error("allowlist"); } })), null);
+    const revoked = Proxy.revocable([mint()], {});
+    revoked.revoke();
+    assert.equal(matchGrant(revoked.proxy, QUERY, CLASSES), null);
+  });
+
+  it("matchGrant reads the grant list by index, not through its iterator", () => {
+    const list = [mint()];
+    list[Symbol.iterator] = function* () { yield mint({ id: "smuggled" }); };
+    assert.equal(matchGrant(list, QUERY, CLASSES)?.id, "grant-abc123");
+  });
+
+  it("markConsumed copies only grant fields: a toJSON hook cannot drop the consumed stamp", () => {
+    const c = markConsumed({ ...mint(), toJSON: () => mint() }, NOW);
+    assert.equal(c.consumedAtMs, NOW);
+    assert.equal(isGrantLive(parseGrant(serializeGrant(c), CLASSES), NOW), false);
+    assert.throws(() => markConsumed(null, NOW), /readable grant/);
+  });
+
+  it("buildGrant reads the allowlist by index too: an iterator cannot smuggle a class into a mint", () => {
+    const allowed = ["deploy"];
+    allowed[Symbol.iterator] = function* () { yield "admin"; };
+    assert.throws(() => mint({ actionClass: "admin", allowedClasses: allowed }), /actionClass/);
+  });
+
+  it("buildGrant refuses an expiry past the safe-integer range", () => {
+    assert.throws(() => mint({ nowMs: Number.MAX_SAFE_INTEGER, ttlMs: 1 }), /safe-integer/);
+  });
+
+  it("a throwing getter fails closed (no throw out of isGrantLive / matchGrant)", () => {
+    const g = { ...mint(), get scope() { throw new Error("boom"); } };
+    assert.equal(isGrantLive(g, NOW), false);
+    assert.equal(matchGrant([g, mint()], QUERY, CLASSES)?.id, "grant-abc123"); // skips the bad, finds the good
+  });
+});
+
 describe("markConsumed + composeAuditLine", () => {
   it("markConsumed stamps consumedAtMs", () => {
     assert.equal(markConsumed(mint(), NOW + 5000).consumedAtMs, NOW + 5000);
@@ -431,14 +557,58 @@ describe("markConsumed + composeAuditLine", () => {
     assert.throws(() => markConsumed(mint(), "now"), /nowMs/);
   });
 
-  it("composeAuditLine emits parseable NDJSON with the event + command + hash", () => {
+  it("composeAuditLine emits parseable NDJSON with the event + hash, and NO raw command by default", () => {
+    // A command can carry a secret (`curl -H "Authorization: Bearer …"`), and the
+    // audit log is the file adopters are told to keep. The hash identifies the
+    // command; the text appears only through a caller-supplied redactor.
     const j = JSON.parse(composeAuditLine({ event: "consume", grant: mint(), nowMs: NOW, note: "matched pending command" }));
     assert.equal(j.event, "consume");
     assert.equal(j.atMs, NOW);
-    assert.equal(j.command, CMD);
+    assert.equal(j.command, null);
     assert.equal(j.commandSha256, commandHash(CMD));
     assert.equal(j.scope, "my-app");
     assert.equal(j.note, "matched pending command");
+  });
+
+  it("composeAuditLine writes the command only through the caller's redactor, fail-closed", () => {
+    const secretCmd = 'curl -H "Authorization: Bearer abc123SECRET" https://api.example/deploy';
+    const g = mint({ command: secretCmd });
+    const redact = (/** @type {string} */ s) => s.replace(/Bearer [^\s"]+/, "Bearer [redacted]");
+    const j = JSON.parse(composeAuditLine({ event: "mint", grant: g, nowMs: NOW, redact }));
+    assert.equal(j.command, 'curl -H "Authorization: Bearer [redacted]" https://api.example/deploy');
+    assert.equal(j.commandSha256, commandHash(secretCmd));
+    // A redactor that throws or returns a non-string leaves the command out.
+    const boom = () => { throw new Error("redactor failed"); };
+    assert.equal(JSON.parse(composeAuditLine({ event: "mint", grant: g, nowMs: NOW, redact: boom })).command, null);
+    assert.equal(JSON.parse(composeAuditLine({ event: "mint", grant: g, nowMs: NOW, redact: () => 42 })).command, null);
+  });
+
+  it("composeAuditLine: a command getter cannot hand the redactor one value and log another; throwing getters fail closed", () => {
+    let cr = 0;
+    const g = { ...mint(), get command() { return ++cr === 1 ? "Bearer SECRET" : { replace: () => "Bearer SECRET" }; } };
+    const out = JSON.parse(composeAuditLine({ event: "mint", grant: g, nowMs: NOW, redact: (s) => s.replace(/Bearer .+/, "[redacted]") }));
+    assert.notEqual(out.command, "Bearer SECRET");
+    const thrower = { ...mint(), get command() { throw new Error("boom"); } };
+    assert.equal(JSON.parse(composeAuditLine({ event: "mint", grant: thrower, nowMs: NOW, redact: (s) => s })).command, null);
+    const badOpts = { event: "mint", grant: mint(), nowMs: NOW, get redact() { throw new Error("boom"); } };
+    assert.equal(JSON.parse(composeAuditLine(badOpts)).command, null);
+  });
+
+  it("composeAuditLine logs strings and finite numbers only: no caller hook runs, nothing is coerced", () => {
+    assert.doesNotThrow(() => composeAuditLine({ event: "mint", nowMs: Symbol("t") }));
+    assert.equal(JSON.parse(composeAuditLine({ event: "mint", nowMs: Symbol("t") })).atMs, null);
+    const hooked = { ...mint(), mintedBy: { toJSON: () => CMD } };
+    assert.equal(JSON.parse(composeAuditLine({ event: "mint", grant: hooked, nowMs: NOW })).mintedBy, null);
+    assert.equal(JSON.parse(composeAuditLine({ event: { toString: () => CMD }, nowMs: NOW })).event, "unknown");
+    assert.equal(JSON.parse(composeAuditLine({ event: "mint", nowMs: NOW, note: 10n })).note, null);
+  });
+
+  it("composeAuditLine: event is from a closed set and commandSha256 must be a hash", () => {
+    assert.equal(JSON.parse(composeAuditLine({ event: CMD, nowMs: NOW })).event, "unknown");
+    const forged = { ...mint(), commandSha256: CMD };
+    assert.equal(JSON.parse(composeAuditLine({ event: "denied", grant: forged, nowMs: NOW })).commandSha256, null);
+    // Contract, pinned: caller-chosen metadata strings are logged as given.
+    assert.equal(JSON.parse(composeAuditLine({ event: "mint", grant: mint(), nowMs: NOW })).scope, "my-app");
   });
 
   it("composeAuditLine tolerates a missing grant (denied/no-grant events)", () => {

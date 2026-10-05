@@ -4,6 +4,15 @@ Changes that matter to anyone who vendors a file from this repo. Each entry name
 
 ## 2026-10-05
 
+### capability-grant: an accessor authorization bypass, a lifetime cap, no command text in the audit line
+
+**Re-pull:** `lib/capability-grant.mjs`. **Behavior changes:** read this whole entry before upgrading.
+
+- **Authorization bypass via an accessor (pre-existing, fixed).** `matchGrant` read `commandSha256` again after the grant had passed validation, so a grant object whose getter returned the approved command's hash during validation and another command's hash afterwards authorized the other command. Every function that judges a grant now copies its fields once into a plain object and decides on that copy only. `matchGrant` returns the copy, not your object, so consume by the grant's `id` or store key, not by object identity; fields outside the grant schema are not carried. Unmodified records from `parseGrant` (plain JSON) were not open to this exploit. `matchGrant` also no longer throws: an exception from anything it reads is no match. The grant list and the allowlist are read by index, so their iterators are never consulted; `buildGrant` reads the allowlist the same way.
+- Grants could effectively never expire: `buildGrant` accepted any positive finite TTL with no cap, and an otherwise valid grant stayed live until whatever expiry it carried. New `MAX_GRANT_TTL_MS` (one hour). Minting throws above it; `parseGrant`, `isGrantLive` and `matchGrant` reject a lifetime that exceeds it or is not positive; `isGrantLive` and `matchGrant` also reject a `mintedAtMs` after `nowMs`. Mint and expiry timestamps and `ttlMs` must be safe-integer milliseconds (a fractional mint time could round an over-long lifetime down to the cap): mint with `Date.now()`, not `performance.timeOrigin + performance.now()`. The `nowMs` you pass to `isGrantLive` / `matchGrant` may still be fractional.
+- `composeAuditLine` wrote the raw command into the audit log, and a command can carry a secret. The `command` field is now `null` unless you pass `redact` (a function from command to display-safe text); a redactor that throws or returns a non-string also gives `null`. `commandSha256` is unchanged. If you relied on the text, pass `redact: (s) => redactSecretShapes(s).text` from `lib/snippet-redact.mjs`. `event` must be one of `mint` / `consume` / `revoke` / `denied` (else `unknown`), `commandSha256` is logged only when it is a 64-character hex hash, and `atMs` only when it is a finite number. `id`, `scope`, `actionClass`, `mintedBy` and `note` are logged only if they are readable strings, and then as given, so keep secrets out of them. Nothing you pass is coerced or serialized through its own `toJSON` / `toString`.
+- `markConsumed` copies only the supported grant fields. It used to spread the object, keeping hooks such as a `toJSON` that could serialize the record back without its consumed stamp. It now throws on an unreadable grant.
+
 ### stale-basis accepted free text as a date
 
 **Re-pull:** `lib/stale-basis.mjs`. **Behavior change:** values that are not date-shaped are now skipped.
