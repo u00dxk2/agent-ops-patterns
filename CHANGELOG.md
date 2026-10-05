@@ -4,6 +4,12 @@ Changes that matter to anyone who vendors a file from this repo. Each entry name
 
 ## 2026-10-05
 
+### Commit-message mode printed part of the secret it caught
+
+**Re-pull:** `scripts/check-staged-secrets.mjs`.
+
+`--message-file` (the commit-msg hook) printed the first 60 characters of the message line that matched, which is enough for a whole GitHub token, and this output lands in agent transcripts and CI logs. It now prints the pattern, the line number and the line length, never the line's text. The selftest's MESSAGE arm checks that no part of the line is printed.
+
 ### Redactors missed a key that follows an escape sequence
 
 **Re-pull:** `lib/snippet-redact.mjs`, `lib/secret_redaction.py`.

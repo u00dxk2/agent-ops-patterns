@@ -9,7 +9,8 @@
  *                             content.                      exit 0 clean · 1 hits
  *   --message-file <path>     a COMMIT MESSAGE (the commit-msg hook's $1). A
  *                             remediation write-up must never quote the value it
- *                             removed.                      exit 0 clean · 1 hits
+ *                             removed. Prints pattern · line number · line length,
+ *                             never the line's text.        exit 0 clean · 1 hits
  *   --history <days>          every ADDED line of every hunk in REACHABLE history
  *                             for the window (`git log -p --all --since=<ISO>`).
  *                             exit 0 CLEAN · 2 ERROR or NOTHING SWEPT · 3 HITS
@@ -197,15 +198,21 @@ if (msgFlagIdx !== -1) {
   } catch {
     process.exit(0); // unreadable message file → never block (the diff hook already ran)
   }
+  // Report the pattern, the line NUMBER and the line LENGTH only — never any of
+  // the line's text. A 60-character excerpt was enough for a whole token, and this
+  // stderr lands in agent transcripts and CI logs (same rule as --history). Line
+  // numbers are physical lines of the file git hands the hook, before cleanup.
   const msgFindings = [];
-  for (const line of msg.split("\n")) {
-    if (line.startsWith("#")) continue; // comment lines are stripped by git anyway
+  msg.split("\n").forEach((line, i) => {
+    // Skipped: git strips "#" lines under the default cleanup. Under
+    // --cleanup=verbatim (or a custom core.commentChar) they survive unscanned.
+    if (line.startsWith("#")) return;
     const pattern = firstPatternHit(line);
-    if (pattern) msgFindings.push({ pattern, line: line.slice(0, 60) });
-  }
+    if (pattern) msgFindings.push({ pattern, lineNo: i + 1, length: line.replace(/\r$/, "").length });
+  });
   if (msgFindings.length) {
     console.error("\n✗ commit-msg: possible secret(s) in the COMMIT MESSAGE itself:\n");
-    for (const f of msgFindings) console.error(`  [${f.pattern}]  ${f.line}…`);
+    for (const f of msgFindings) console.error(`  [${f.pattern}]  message line ${f.lineNo} (${f.length} chars)`);
     console.error("\n  A remediation write-up must never quote the removed value.");
     console.error("  Reword the message; false positive? append `pragma: allowlist secret` to the line.\n");
     process.exit(1);
@@ -604,17 +611,22 @@ function selftestHistory(days) {
       `fixture exit ${r4.status}, clean exit ${r5.status}`,
     );
 
-    // MESSAGE regression — the commit-msg path still exits 1 on a fixture, 0 on clean.
+    // MESSAGE regression — the commit-msg path still exits 1 on a fixture, 0 on clean,
+    // and prints NOTHING of the line it caught (no value, no tail): this hook's
+    // stderr lands in agent transcripts and CI logs.
     const msgBad = join(base, "msg-bad.txt");
     const msgOk = join(base, "msg-ok.txt");
-    writeFileSync(msgBad, `fix: rotate the key\n\nold value was ${FIRE[8][1]}\n`);
+    const msgSecret = FIRE[8][1];
+    writeFileSync(msgBad, `fix: rotate the key\n\nold value was ${msgSecret}\n`);
     writeFileSync(msgOk, `fix: rotate the key\n\n# comment lines are ignored\nno value quoted here\n`);
     const r6 = runSelf(["--message-file", msgBad], base);
     const r7 = runSelf(["--message-file", msgOk], base);
+    const msgLeak = leaked(r6.out).length > 0 || r6.out.includes(msgSecret.slice(-8)) || r6.out.includes("old value was");
+    const msgLine = `  [github-pat]  message line 3 (${`old value was ${msgSecret}`.length} chars)`;
     arm(
-      "MESSAGE regression — exit 1 on a fixture in the message, 0 on a clean message",
-      r6.status === 1 && r6.out.includes("[github-pat]") && r7.status === 0,
-      `fixture exit ${r6.status}, clean exit ${r7.status}`,
+      "MESSAGE regression — exit 1 on a fixture in the message (pattern + line number + length, no line text), 0 on a clean message",
+      r6.status === 1 && r6.out.split(/\r?\n/).includes(msgLine) && !msgLeak && r7.status === 0,
+      `fixture exit ${r6.status}, clean exit ${r7.status}; line text PRINTED: ${msgLeak}`,
     );
 
     // RANGE — only the commits in <a>..<b> are swept: a hit inside fires, a hit before
