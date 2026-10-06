@@ -4,6 +4,12 @@ Changes that matter to anyone who vendors a file from this repo. Each entry name
 
 ## 2026-10-06
 
+### Scanner: eleven common vendor keys were not recognised
+
+**Re-pull:** `scripts/check-staged-secrets.mjs`.
+
+The scanner now knows Stripe restricted (`rk_live_`) and webhook (`whsec_`) secrets, Slack incoming-webhook URLs, Render API keys, Doppler tokens, SendGrid keys, Supabase access tokens, secret keys and service-role JWTs, PostHog personal keys, and Sentry tokens, bringing it to 26 shapes. It also covers documented variants: versioned Supabase tokens (`sbp_v0_`), Doppler service-account identity tokens (`dp.said.`), Slack's government domain (`hooks.slack-gov.com`), and Sentry user-app and integration tokens. A Supabase JWT fires only when its decoded payload says `"role":"service_role"`: anon keys are public by design and stay silent. Doppler and SendGrid follow their published lengths, so code such as `dp.st.application.reload()` or `SG.ConfigurationManager` stays silent. Render publishes no key format, so any `rnd_` followed by 24 or more letters and digits fires, including a variable name of that shape (a declared `LIMIT:` test; mark a false positive with `pragma: allowlist secret`). Every new pattern has a bounded length and a start boundary, and tests pin linear time on 40,000 repeats of each prefix and on a 6 MB line of overlapping JWT starts. Ported from the fleet scanner, then tightened after review. The two transcript redactors in `lib/` do not have these shapes yet.
+
 ### Scanner: a `refs/replace` ref could swap a credential for a clean stand-in
 
 **Re-pull:** `scripts/check-staged-secrets.mjs`.

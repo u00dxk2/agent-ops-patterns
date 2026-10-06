@@ -34,7 +34,7 @@
  *
  * WHERE IT STOPS. This is a shape matcher, not a credential validator.
  *   - A hit does NOT prove the value is live, and a clean scan does NOT prove you
- *     have no exposure: it knows the fifteen shapes in PATTERNS and nothing else. A
+ *     have no exposure: it knows the shapes in PATTERNS (26 as of 2026-10-06) and nothing else. A
  *     bare high-entropy string, a vendor format not listed, or a secret split across
  *     lines all read clean. So does a database-URI password that itself contains
  *     "://" — the bound that keeps the scan linear on repeated URI prefixes.
@@ -170,6 +170,23 @@ const DRIVER = String.raw`(?:\+[a-z0-9]+)?`;
 // 40,000 repeats took ~46 s. Every start contains "://", so each scan now stops at the
 // next start. Cost: a password that itself contains "://" is not caught (LIMIT test).
 const PASS = String.raw`(?:(?!:\/\/)[^\s@])+`;
+// Supabase-issued JWTs are compact JSON, so header and payload both start `eyJ` (base64url of
+// `{"`). Ported from the fleet scanner with its bounds, plus a start boundary: with `\b`, every
+// `eyJ` inside a run like `eyJ-eyJ-…` started a candidate that rescanned the same payload
+// (Codex round 1: 29.7 s on a 6 MB line). A JWT cannot start inside a base64url run.
+const JWT_RE = /(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{8,2048}\.(eyJ[A-Za-z0-9_-]{8,4096})\.[A-Za-z0-9_-]{8,1024}/g;
+/** True when any JWT on the line decodes to a payload with top-level role "service_role". */
+function hasServiceRoleJwt(content) {
+  for (const m of content.matchAll(JWT_RE)) {
+    try {
+      const payload = JSON.parse(Buffer.from(m[1], "base64url").toString("utf8"));
+      if (payload && typeof payload === "object" && payload.role === "service_role") return true;
+    } catch {
+      // not a JSON payload, so not a Supabase key: stay silent
+    }
+  }
+  return false;
+}
 const PATTERNS = [
   // PGP armour is "-----BEGIN PGP PRIVATE KEY BLOCK-----"; the old "PGP " alternative  pragma: allowlist secret
   // before "PRIVATE KEY-----" could never match it.
@@ -191,6 +208,31 @@ const PATTERNS = [
   // "sk-" plus any 20 characters would fire on ordinary hyphenated words.
   { name: "anthropic-key", re: /\bsk-ant-[A-Za-z0-9_-]{20,}/ },
   { name: "openai-key", re: /\bsk-(?:(?:proj|svcacct|admin)-[A-Za-z0-9_-]{20,}|[A-Za-z0-9]{32,}\b)/ },
+  // Vendor shapes ported from the fleet scanner (SY-1 c, 2026-10-06). Every quantifier is
+  // BOUNDED ({m,n}): an unbounded run whose charset contains its own prefix rescans to end of
+  // line from every start, which the fleet measured at >1.5 s on a 48 KB line.
+  // Start boundary `(?<![A-Za-z0-9_-])`, not `\b`: `\b` allowed a start after `-` inside a
+  // base64url blob. Doppler and SendGrid follow their published lengths, so ordinary
+  // identifiers with those prefixes stay silent (Codex round 1). Render publishes no body
+  // format, so its rule claims less: any `rnd_` + 24-128 letters and digits fires, and an
+  // identifier of that shape is a declared false positive (a digit requirement was tried and
+  // failed two review rounds: off-by-one, and it could miss a letters-only key).
+  { name: "stripe-restricted-live", re: /(?<![A-Za-z0-9_-])rk_live_[0-9a-zA-Z]{16,256}/ },
+  { name: "stripe-webhook-secret", re: /(?<![A-Za-z0-9_-])whsec_[0-9a-zA-Z+/=]{24,256}/ },
+  { name: "slack-webhook", re: /\bhttps:\/\/hooks\.slack(?:-gov)?\.com\/services\/[A-Za-z0-9]{1,64}\/[A-Za-z0-9]{1,64}\/[A-Za-z0-9]{16,64}/ },
+  { name: "render-api-key", re: /(?<![A-Za-z0-9_-])rnd_[A-Za-z0-9]{24,128}/ },
+  // Doppler: a 40-44 character alphanumeric body; service tokens may carry one bounded segment first.
+  { name: "doppler-token", re: /(?<![A-Za-z0-9_-])dp\.(?:st\.(?:[A-Za-z0-9_-]{1,64}\.)?|(?:ct|pt|sa|said|scim|audit)\.)[A-Za-z0-9]{40,44}(?![A-Za-z0-9])/ },
+  // SendGrid: SG. + 22 + . + 43, 69 characters in all.
+  { name: "sendgrid-key", re: /(?<![A-Za-z0-9_-])SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])/ },
+  // Supabase personal access tokens, with or without the `v0_` version segment.
+  { name: "supabase-access-token", re: /(?<![A-Za-z0-9_-])sbp_(?:v0_)?[A-Za-z0-9]{32,128}/ },
+  { name: "supabase-secret-key", re: /(?<![A-Za-z0-9_-])sb_secret_[A-Za-z0-9_-]{20,256}/ },
+  // Anon keys are public by design: only a JWT whose decoded payload says service_role fires.
+  { name: "supabase-service-role-jwt", test: hasServiceRoleJwt },
+  { name: "posthog-personal-key", re: /(?<![A-Za-z0-9_-])phx_[A-Za-z0-9]{30,128}/ },
+  // Sentry user (u), org (s), user-app (a) and integration (i) tokens.
+  { name: "sentry-token", re: /(?<![A-Za-z0-9_-])sntry[suai]_[A-Za-z0-9+/=_-]{30,512}/ },
   // Credentials in an http(s) URL (git remotes, webhook URLs with basic auth). User and
   // password stop at "/", "?" and "#", so an "@" in a path, query or fragment is not one.
   { name: "basic-auth-url", re: /\bhttps?:\/\/[^\s:/@?#]+:[^\s@/?#]+@/ },
@@ -222,6 +264,10 @@ for (const p of PATTERNS) {
 function firstPatternHit(content) {
   if (ALLOW.test(content)) return null;
   for (const p of PATTERNS) {
+    if (p.test) {
+      if (p.test(content)) return p.name;
+      continue;
+    }
     if (!p.all) {
       if (p.re.test(content)) return p.name;
       continue;
@@ -622,6 +668,19 @@ function selftestHistory(days) {
     ["basic-auth-url", "GIT_REMOTE=https://fixtureuser:fixturepw@git.fixture.internal/repo.git"], // pragma: allowlist secret gitleaks:allow
     // New fixtures go at the END: arms below pick fixtures by index (FIRE[6], [7], [8]).
     ["sqlserver-uri-with-creds", "MSSQL=mssql://fixtureuser:fixturepw@db.fixture.internal/app"], // pragma: allowlist secret gitleaks:allow
+    // SY-1 (c) vendor shapes, 2026-10-06.
+    ["stripe-restricted-live", "STRIPE=rk_" + "live_FIXTUREFIXTUREFIXTURE"], // pragma: allowlist secret gitleaks:allow
+    ["stripe-webhook-secret", "WEBHOOK=wh" + "sec_FIXTUREFIXTUREFIXTUREFIXTURE"], // pragma: allowlist secret gitleaks:allow
+    ["slack-webhook", "HOOK=https://hooks." + "slack.com/services/T0FIXTURE/B0FIXTURE/FIXTUREFIXTUREFIXTURE"], // pragma: allowlist secret gitleaks:allow
+    ["render-api-key", "RENDER=rn" + "d_FIXTUREFIXTUREFIXTUREFIXTURE0"], // pragma: allowlist secret gitleaks:allow
+    ["doppler-token", "DOPPLER=dp" + ".st.FIXTUREFIXTUREFIXTUREFIXTUREFIXTUREFIXTURE"], // pragma: allowlist secret gitleaks:allow
+    ["sendgrid-key", "SENDGRID=SG" + ".FIXTUREFIXTUREFIXTURE0.FIXTUREFIXTUREFIXTUREFIXTUREFIXTUREFIXTURE0"], // pragma: allowlist secret gitleaks:allow
+    ["supabase-access-token", "SUPABASE=sb" + "p_FIXTUREFIXTUREFIXTUREFIXTUREFIXTURE"], // pragma: allowlist secret gitleaks:allow
+    ["supabase-secret-key", "SUPABASE=sb_" + "secret_FIXTUREFIXTUREFIXTURE"], // pragma: allowlist secret gitleaks:allow
+    // Header {"alg":"HS256"}, payload {"role":"service_role"} encoded at run time, fake signature.
+    ["supabase-service-role-jwt", "SUPABASE_SERVICE=eyJhbGciOiJIUzI1NiJ9." + Buffer.from('{"role":"service_role"}').toString("base64url") + ".FIXTUREFIXTURE"], // pragma: allowlist secret gitleaks:allow
+    ["posthog-personal-key", "POSTHOG=ph" + "x_FIXTUREFIXTUREFIXTUREFIXTUREFIXTURE"], // pragma: allowlist secret gitleaks:allow
+    ["sentry-token", "SENTRY=sntry" + "u_FIXTUREFIXTUREFIXTUREFIXTUREFIXTURE"], // pragma: allowlist secret gitleaks:allow
   ];
   // Realistic repo content that must stay silent — URLs, base64-looking text,
   // placeholder connection strings, a CI secret reference, and ONE line that would
