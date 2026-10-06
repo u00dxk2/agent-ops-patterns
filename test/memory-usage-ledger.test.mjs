@@ -21,6 +21,23 @@ describe("tallyUsage — evidence for eviction, never a verdict", () => {
     assert.equal(t.rowsRead, 3);
   });
 
+  it("last touch is the latest INSTANT, not the lexically largest string (AOP-R6)", () => {
+    // 11:00+02:00 is 09:00Z, an hour BEFORE 10:00Z, but sorts after it as text.
+    const a = { ts: "2026-08-14T10:00:00Z", name: "alpha" };
+    const b = { ts: "2026-08-14T11:00:00+02:00", name: "alpha" };
+    for (const rows of [[a, b], [b, a]]) {
+      const t = tallyUsage(rows, ["alpha"], { days: 90, now: NOW });
+      assert.equal(t.touched[0].count, 2);
+      assert.equal(t.touched[0].lastTouch, a.ts);
+      assert.deepEqual(Object.keys(t.touched[0]).sort(), ["count", "lastTouch", "name"], "no extra fields in the output");
+    }
+    // Two spellings of one instant: the pick does not depend on input order.
+    const z = { ts: "2026-08-14T09:00:00Z", name: "beta" };
+    const picks = [[b, z], [z, b]].map((rows) =>
+      tallyUsage(rows.map((r) => ({ ...r, name: "beta" })), ["beta"], { days: 90, now: NOW }).touched[0].lastTouch);
+    assert.equal(picks[0], picks[1]);
+  });
+
   it("a touch outside the window does not count — the file reads never-touched IN THE WINDOW", () => {
     const rows = [{ ts: iso(200), name: "beta", session: "s0" }];
     const t = tallyUsage(rows, ["beta"], { days: 90, now: NOW });

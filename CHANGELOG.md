@@ -4,6 +4,12 @@ Changes that matter to anyone who vendors a file from this repo. Each entry name
 
 ## 2026-10-05
 
+### memory-usage-ledger: last touch compared timestamps as text
+
+**Re-pull:** `lib/memory-usage-ledger.mjs`.
+
+`tallyUsage` parsed each timestamp for the window test but picked `lastTouch` by string comparison, so `2026-10-04T11:00:00+02:00` (09:00 UTC) beat `2026-10-04T10:00:00Z` and an older touch was reported as the latest. It now compares parsed instants, keeps the winning row's original string, and breaks a tie between two spellings of one instant by string so the result does not depend on row order. Ledgers written by `makeTouchRows` (all UTC `Z`) were not affected.
+
 ### strip-comments: `return typeof /re/` let a trailing comment through
 
 **Re-pull:** `lib/strip-comments.mjs`.
