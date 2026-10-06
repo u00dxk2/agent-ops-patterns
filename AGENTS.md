@@ -43,7 +43,8 @@ A new library, or a change to one, should leave it:
 
 Not every existing file meets all three yet. Bring the one you touch up to it; do not reformat the rest.
 
-Do not add a dependency, a build step, or a secret to any workflow. CONTRIBUTING.md explains why the
+Do not add a dependency, a build step, or a secret to any workflow. Every external action is pinned
+to a full commit SHA with its version in a comment (`test/workflow-pins.test.mjs` enforces it). CONTRIBUTING.md explains why the
 workflow's read-only posture is a property to keep.
 
 ## Traps
