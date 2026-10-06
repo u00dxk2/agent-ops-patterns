@@ -26,6 +26,10 @@ says how it was found.
 
 **Got a score? [Tell me](https://github.com/u00dxk2/agent-ops-patterns/issues/new?template=ran-the-audit.yml)** — your number and which questions failed. Verdicts only: don't paste your agent's output.
 
+## Gallery: who decides what inside open-source agents
+
+[`gallery/`](./gallery/README.md) holds cognitive operations maps of open-source agent systems. Each one lists the recurring judgments it found in a system, who holds each (code, a model, or a person), how it has failed and what checks it, with the prompt templates or assembly source behind the model-held seats and a ranked report of what the mapping exposed. The first is **[OpenHands](./gallery/openhands/index.html)**: 45 seats and 14 ranked findings (one more was withdrawn after review) in its agent SDK, checked against its code on 2026-10-06. Three of the findings were reproduced with tests and reported to the project as public issues. It's one self-contained HTML file; download it and open it in a browser.
+
 ## What's here
 
 | Artifact | What it does | How to adopt |
@@ -51,6 +55,7 @@ says how it was found.
 | [`patterns/durability-tiered-write-governance.md`](./patterns/durability-tiered-write-governance.md) | Gate agent actions by how hard they are to undo, on a three-rung ladder: effect-free authorized reads never sent for approval, schema-bounded reversible writes machine-approved, substrate/irreversible writes human-direct via minted grants. Replaces case-law permission accretion with an admission test per rule. | **Read and apply** — `capability-grant` is the rung-3 mechanism |
 | [`skills/cs329a-self-improving-agents/`](./skills/cs329a-self-improving-agents/SKILL.md) | An Agent Skill: your agent reads Stanford CS329A's ten load-bearing ideas (verifier filtering before ensembling, meta-verification, signal-needs-spread, reliability horizon, the deep-research ceiling…) against YOUR repo and writes a disposition record — one verdict per idea, a quoted `file:line` or a scoped command with its exit code and output per verdict, bars pre-committed before any deciding number. Offers; never assigns. | **Install** — `claude plugin marketplace add u00dxk2/agent-ops-patterns` then `claude plugin install agent-ops-skills@agent-ops-patterns`; or copy the folder (Agent Skills format). Citations link the papers, never the lectures; CI checks every link resolves |
 | [`skills/cog-ops-map/`](./skills/cog-ops-map/SKILL.md) | An Agent Skill: your agent maps every recurring judgment in a system as a seat (question, holder, real failure, validator), sorts seats rule vs ruling × human vs machine, and builds a map a teammate without repo access can read, with each model-call seat's prompt template or assembly source inline, plus a gap report. | **Install** — same plugin as above; or copy the folder (Agent Skills format) |
+| [`gallery/`](./gallery/README.md) | Cognitive operations maps of open-source agent systems, built with the skill above. First: [OpenHands](./gallery/openhands/index.html) (45 seats, 14 ranked findings, prompt templates inline). | **Read** — download a map and open it in a browser |
 
 I run a software portfolio by myself, through a lot of concurrent Claude Code agent sessions coordinated over a Postgres message bus and watched by a layer of small detectors that make no model calls. These patterns came out of that. The origin story is still my word - but [OPS-SNAPSHOT.md](./OPS-SNAPSHOT.md) is the part I can measure, with the command next to each number and an honest list of what I can't produce. Judge the code on the code: the libraries are all here and all tested, the written protocols are practices rather than executable specifications, and every library says where it stops working.
 
@@ -112,7 +117,7 @@ person), how it has failed, and what checks it. Seats are sorted rule vs ruling 
 machine. The map is built for a teammate without repo access: an authenticated page, a
 self-contained HTML file, or a Markdown fallback, showing the prompt template or assembly source
 for every seat that calls a model and the working context of seats held by an agent. The mapping
-also writes a gap report. Dated notes in the skill mark the incident that motivated a rule. Say "build a cognitive operations map of <system>" once the plugin is installed.
+also writes a gap report. Dated notes in the skill mark the incident that motivated a rule. Say "build a cognitive operations map of <system>" once the plugin is installed. For a finished one, see the [OpenHands map](./gallery/openhands/index.html) in the [gallery](./gallery/README.md).
 
 ## Quickstart
 
