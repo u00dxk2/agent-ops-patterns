@@ -91,18 +91,36 @@ test("usage errors never echo the value they refuse (SR-1)", () => {
   const repo = join(dir, "echo");
   execFileSync("git", ["init", "-q", repo]);
   execFileSync("git", ["-C", repo, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-q", "--allow-empty", "-m", "base"]);
-  for (const args of [
-    ["--history", token],
-    ["--range", token],
-    ["--range", `${token}..HEAD`],
-    [`--${token}`],
-    [`--${token}=x`],
+  // A ref NAMED like a token resolves, so a range over it runs (and reads NOTHING SWEPT).
+  execFileSync("git", ["-C", repo, "branch", token]);
+  // An unprefixed, plain-letters credential: no prefix rule can know it is one.
+  const plain = "Ab3dEf7hIj9kLm2nOp4qRs6tUv8wXy0z";
+  for (const [args, value] of [
+    [["--history", token], token],
+    [["--range", token], token],
+    [["--range", `${token}..HEAD`], token],
+    [["--range", `HEAD:${token}`], token], // git prints the path part on its own
+    [["--range", `${token}..${token}`], token], // resolves: NOTHING SWEPT summary
+    [[`--${token}`], token],
+    [[`--${token}=x`], token],
+    [[`--${plain}`], plain],
+    [[`--${plain}=x`], plain],
   ]) {
     const r = spawnSync(process.execPath, [SCRIPT, ...args], { cwd: repo, encoding: "utf8" });
-    assert.equal(r.status, 2, args.join(" ").slice(0, 20));
+    // Refused (2), or — where the token is a real ref name — a run that resolves (0).
+    // Either way, no outcome may print the value.
+    assert.ok(r.status === 2 || r.status === 0, `${args.join(" ").slice(0, 20)} exit ${r.status}`);
     const out = `${r.stdout}\n${r.stderr}`;
-    assert.ok(!out.includes(token.slice(4)), `value echoed for ${args[0].slice(0, 9)}…`);
+    assert.ok(!out.includes(value.slice(4)), `value echoed for ${args.join(" ").slice(0, 12)}…`);
   }
+  // Still legible: a typo gets a suggestion that names only the known flag...
+  const typo = spawnSync(process.execPath, [SCRIPT, "--histroy", "1"], { cwd: repo, encoding: "utf8" });
+  assert.equal(typo.status, 2);
+  assert.match(typo.stderr, /did you mean --history\?/);
+  // ...and a commit-id range is printed in the denominator, as CI needs.
+  const head = execFileSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  const ok = spawnSync(process.execPath, [SCRIPT, "--range", `${head}..${head}`], { cwd: repo, encoding: "utf8" });
+  assert.match(ok.stdout, new RegExp(`range ${head}\\.\\.${head}`));
 });
 
 test("a placeholder URI voids only itself, not other secrets on the line (AOP-R2)", () => {

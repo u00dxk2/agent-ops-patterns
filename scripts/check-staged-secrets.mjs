@@ -76,28 +76,66 @@ function refuseUnknownFlags(args) {
   const equalsForm = flags.filter((a) => a.includes("="));
   if (unknown.length === 0 && equalsForm.length === 0) return;
   if (unknown.length) {
+    // The unknown name is never printed (it may be a pasted token); a suggestion names
+    // only a KNOWN flag, so it is always safe to print.
+    const near = [...new Set(unknown.map(nearestKnownFlag).filter(Boolean))];
     console.error(
-      `${SCRIPT}: unknown flag(s) ${unknown.map(flagLabel).join(", ")} — nothing was scanned. ` +
+      `${SCRIPT}: ${unknown.length} unknown flag(s), names not echoed${near.length ? ` (did you mean ${near.map((f) => `--${f}`).join(", ")}?)` : ""} — nothing was scanned. ` +
         `A dropped flag would return a clean verdict over the wrong scope. Run --help for the flag list.`,
     );
   }
-  if (equalsForm.length) {
-    // Names only: the value after "=" may be a path or a range, and is not echoed.
+  const knownEquals = equalsForm.map((a) => a.slice(2).split("=")[0]).filter((f) => KNOWN_FLAGS.has(f));
+  if (knownEquals.length) {
+    // Known names only; the value after "=" is not echoed.
     console.error(
-      `${SCRIPT}: ${equalsForm.map((a) => flagLabel(a.slice(2).split("=")[0])).join(", ")} given as --flag=value — nothing was scanned. ` +
+      `${SCRIPT}: ${knownEquals.map((f) => `--${f}`).join(", ")} given as --flag=value — nothing was scanned. ` +
         `Pass the value as the next argument (--range <a>..<b>).`,
     );
   }
   process.exit(2);
 }
-// NO ECHO OF REFUSED INPUT. A token pasted into the wrong argument lands in the error
-// that refuses it, and this output goes to transcripts and CI logs. So a refusal names
-// the flag and describes the value (its length), never prints it. A flag NAME is printed
-// only when it is plain (letters, digits, "-") and passes the path rule's secret-prefix
-// test. Exception, on purpose: the --repo path is echoed in git errors, so a
+// NO ECHO OF COMMAND-LINE INPUT, by rule rather than by matcher. A token pasted into
+// the wrong argument used to come back in the error that refused it, and this output
+// goes to transcripts and CI logs. Trying to scrub the value out of messages was
+// tried first and missed forms of it (git prints a range's parts separately), so the
+// rule is now: an unknown flag name, a refused value and git's own error text are never
+// printed. A refusal names a KNOWN flag and gives the value's length; a git failure is
+// reported as a fixed category; a range is printed only when every side is a commit id
+// or HEAD-relative (see printableRange). Kept on purpose: the --repo path, so a
 // wrong-directory error stays legible.
-function flagLabel(name) {
-  return /^[A-Za-z][A-Za-z0-9-]{0,40}$/.test(name) && pathIsPrintable(name) ? `--${name}` : "--<flag name withheld: not plain>";
+function nearestKnownFlag(name) {
+  const lower = String(name).toLowerCase();
+  let best = null;
+  let bestD = Infinity;
+  for (const k of KNOWN_FLAGS) {
+    const prev = Array.from({ length: k.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= lower.length; i++) {
+      let diag = prev[0];
+      prev[0] = i;
+      for (let j = 1; j <= k.length; j++) {
+        const tmp = prev[j];
+        prev[j] = Math.min(prev[j] + 1, prev[j - 1] + 1, diag + (lower[i - 1] === k[j - 1] ? 0 : 1));
+        diag = tmp;
+      }
+    }
+    if (prev[k.length] < bestD) { bestD = prev[k.length]; best = k; }
+  }
+  return best !== null && bestD <= Math.min(3, Math.ceil(best.length / 3)) ? best : null;
+}
+/** A range is echoed only when each side is a commit id (7-64 hex) or HEAD with ~/^ steps. */
+function printableRange(range) {
+  const sides = String(range).split(/\.{2,3}/);
+  const plain = sides.every((s) => s === "" || /^[0-9a-f]{7,64}$/.test(s) || /^HEAD(?:[~^]\d{0,4})*$/.test(s));
+  return plain ? range : `of ${String(range).length} characters (not echoed: a side is not a commit id or HEAD-relative)`;
+}
+/** git's stderr, reduced to a fixed category: its text quotes the arguments it rejects. */
+function gitFailureCategory(text) {
+  const t = String(text ?? "");
+  if (/unknown revision|bad revision|ambiguous argument|invalid object name|does not exist in|not a valid object name|bad revision range/i.test(t)) return "a revision in the range does not resolve";
+  if (/not a git repository/i.test(t)) return "not a git repository";
+  if (/bad object|missing object|corrupt|unable to read/i.test(t)) return "the repository is missing or cannot read an object";
+  if (/does not have any commits/i.test(t)) return "the branch has no commits";
+  return "git log failed (its message is not echoed)";
 }
 function describeValue(v) {
   return v == null || v === "" ? "nothing" : `a value of ${v.length} characters (not echoed)`;
@@ -321,12 +359,7 @@ if (historyIdx !== -1 || rangeIdx !== -1) {
       console.error(`${SCRIPT}: --range requires a revision range such as <a>..<b> (got ${describeValue(range)})`);
       finish(2, "ERROR", "bad --range argument");
     }
-    // git's own error text quotes a revision it cannot resolve; the range and each side
-    // of it are blanked out of any error before it is printed (longest first). Values under
-    // 8 characters are left alone: no credential is that short, and blanking "a" or "HEAD"
-    // would mangle the rest of git's message.
-    const hide = [range, ...range.split(/\.{2,3}/)].filter((v) => v.length >= 8).sort((a, b) => b.length - a.length);
-    scope = { revArgs: ["--end-of-options", range], label: `range ${range}`, hide };
+    scope = { revArgs: ["--end-of-options", range], label: `range ${printableRange(range)}` };
   } else {
     const daysRaw = argv[historyIdx + 1];
     if (!/^\d+$/.test(daysRaw ?? "") || Number(daysRaw) < 1) {
@@ -344,9 +377,8 @@ if (historyIdx !== -1 || rangeIdx !== -1) {
 
   const r = await sweepHistory({ repo, ...scope });
   if (r.error) {
-    const error = (scope.hide ?? []).reduce((s, v) => s.split(v).join("<range>"), r.error);
-    console.error(`${SCRIPT}: ${error}`);
-    finish(2, "ERROR", error);
+    console.error(`${SCRIPT}: ${r.error}`);
+    finish(2, "ERROR", r.error);
   }
   console.log(r.summary);
   if (r.nothingSwept) {
@@ -525,7 +557,7 @@ async function sweepHistory({ repo, revArgs, label }) {
     const detail = err ? err.message
       : streamErr ? `reading git log failed: ${streamErr.message}`
       : signal ? `git log killed by ${signal}`
-      : stderrFatal || tail.at(-1) || `git log exited ${code}`;
+      : `${gitFailureCategory(stderrFatal || tail.at(-1))} (git exit ${code})`;
     return { summary: "", hits: [], nothingSwept: false, error: `git unreadable (${repo}): ${String(detail).split("\n")[0]}` };
   }
 
