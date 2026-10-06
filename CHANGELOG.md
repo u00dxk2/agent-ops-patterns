@@ -34,6 +34,8 @@ The redactors got this bound earlier today; the scanner's six database rules did
 
 A credential URI or URL match was voided if the placeholder test (`localhost`, `example.com`, `<…>`, `:password@` and the rest) passed anywhere on the LINE, and the scan returned clean straight away. So a JSON line holding a placeholder database URI and a real GitHub token, or a placeholder URI and a real one, read clean. The placeholder test now runs on each URI candidate alone (its credentials plus its host and port, never its path), and a skipped candidate no longer stops the scan: the rest of the line and the remaining patterns are still checked. On this repo's full history (107 commits, 12,751 added lines) the hit list is identical before and after.
 
+Two fixes followed a second review the same evening. The host after `@` stops at `<`, so markup straight after a real host (`@db.internal<br>`) is no longer read as a `<…>` placeholder; a host wholly in angle brackets (`@<host>`) still is. And the `<…>` placeholder test now stops at the next `<`: a candidate holding a long run of `<` made it quadratic (160,000 of them took about 27 seconds on the regex alone, and the old whole-line test had the same cost).
+
 ### A Google-shaped key ending in `-` escaped all three tools
 
 **Re-pull:** `lib/snippet-redact.mjs`, `lib/secret_redaction.py`, `scripts/check-staged-secrets.mjs`.

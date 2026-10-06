@@ -30,8 +30,10 @@ test("a Google-shaped key whose last character is `-` fires (AOP-R1)", () => {
     assert.equal(r.status, 1, line.slice(0, 12));
     assert.match(r.err, /\[google-api-key\]/);
   }
-  // A key ending in a word character still fires, as before.
+  // What the old `\b` matched still matches: a word-character ending, and a `-` ending
+  // followed by a word character.
   assert.equal(scanMessage(`GOOGLE=${"AI" + "za" + "b".repeat(35)}\n`).status, 1);
+  assert.equal(scanMessage(`GOOGLE=${key}x\n`).status, 1);
 });
 
 test("repeated credential-URI prefixes scan in linear time (AOP-R3)", () => {
@@ -43,6 +45,15 @@ test("repeated credential-URI prefixes scan in linear time (AOP-R3)", () => {
     assert.equal(r.signal, null, `${prefix} timed out after ${Date.now() - t0} ms`);
     assert.equal(r.status, 0, prefix);
   }
+});
+
+test("judging a candidate for placeholders is linear too (Codex round 1)", () => {
+  // A long run of "<" inside a candidate made `<[^>]*>` search to the end from every
+  // "<": 160k took ~27 s on the regex alone. The candidate is real, so it must fire.
+  const t0 = Date.now();
+  const r = scanMessage("postgres://u:password@localhost postgres://u:" + "<".repeat(160_000) + "@db.prod.internal\n", 15_000);
+  assert.equal(r.signal, null, `timed out after ${Date.now() - t0} ms`);
+  assert.equal(r.status, 1);
 });
 
 test("LIMIT: a credential-URI password containing `://` passes (the bound that keeps the scan linear)", () => {
@@ -65,6 +76,11 @@ test("an equals-form flag is refused with exit 2, never run as the default scan 
     assert.equal(r.status, 2, args.join(" "));
     assert.match(r.stderr, /nothing was scanned/, args.join(" "));
     assert.doesNotMatch(r.stdout, /^history:/m, args.join(" "));
+    // The value after "=" is never echoed, on either stream.
+    for (const a of args.filter((x) => x.includes("="))) {
+      const value = a.slice(a.indexOf("=") + 1);
+      assert.ok(!r.stdout.includes(value) && !r.stderr.includes(value), `value of ${a.split("=")[0]} echoed`);
+    }
   }
 });
 
@@ -83,6 +99,12 @@ test("a placeholder URI voids only itself, not other secrets on the line (AOP-R2
   // ...and in the other order, with no quote between them: a real URI's candidate
   // stops at its host and does not borrow the next URI's placeholder.
   assert.equal(scanMessage(`${real},${placeholder}\n`).status, 1);
+  // Markup straight after a real host is not a placeholder (Codex round 1).
+  assert.equal(scanMessage(`DB=${real.replace("/x", "")}<br>\n`).status, 1);
+  // Other families: a placeholder URL next to a real basic-auth URL still fires.
+  const r3 = scanMessage(`a=https://user:pass@example.com/r b=https://deploy:${"Qw8" + "rTy2"}@git.prod.internal/r\n`);
+  assert.equal(r3.status, 1);
+  assert.match(r3.err, /\[basic-auth-url\]/);
   // A placeholder word elsewhere on the line no longer voids a real URI.
   assert.equal(scanMessage(`see example.com — DATABASE_URL=${real}\n`).status, 1);
   // Placeholders alone stay silent, in every form the selftest's SILENT list uses.

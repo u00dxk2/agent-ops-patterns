@@ -144,12 +144,16 @@ const PATTERNS = [
 ];
 
 // Markers that void a connection-string match (placeholders, not real secrets).
+// `<[^<>]*>`, not `<[^>]*>`: the latter searched to the end of the text from every "<",
+// so a long run of "<" cost quadratic time; now each search stops at the next "<".
 const PLACEHOLDER =
-  /(localhost|127\.0\.0\.1|example\.com|<[^>]*>|:password@|:pass@|:changeme@|:your[-_]|:xxx+@|REDACTED|\*\*\*)/i;
+  /(localhost|127\.0\.0\.1|example\.com|<[^<>]*>|:password@|:pass@|:changeme@|:your[-_]|:xxx+@|REDACTED|\*\*\*)/i;
 const ALLOW = /(pragma:\s*allowlist secret|gitleaks:allow|secret-scan:ignore)/i;
 // The host and port after a credential URI's "@" — no path, so a candidate never runs
-// into a neighbouring URI and borrows its placeholder.
-const URI_HOST = /^[A-Za-z0-9._\-:[\]<>]*/;
+// into a neighbouring URI and borrows its placeholder. A host in angle brackets
+// (`@<host>`) is one placeholder token; otherwise "<" ends the host, so markup after a
+// real host (`@db.internal<br>`) is not read as a placeholder.
+const URI_HOST = /^(?:<[^<>\s]*>|[A-Za-z0-9._\-:[\]]*)/;
 for (const p of PATTERNS) {
   if (p.name.endsWith("uri-with-creds") || p.name === "basic-auth-url") p.all = new RegExp(p.re.source, "g");
 }
