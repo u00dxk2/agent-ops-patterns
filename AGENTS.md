@@ -46,7 +46,7 @@ Not every existing file meets all three yet. Bring the one you touch up to it; d
 Do not add a dependency, a build step, or a secret to any workflow. Every external action is pinned
 to a full commit SHA with a version comment (`test/workflow-pins.test.mjs` checks the shape, not
 that SHA and comment correspond); `.github/dependabot.yml` checks weekly and proposes pin bumps
-by PR, and watches nothing else. A bump PR runs the proposed action in CI before anyone reviews it. CONTRIBUTING.md explains why the
+by PR, and watches nothing else. A bump PR can run the proposed action in CI before human review. CONTRIBUTING.md explains why the
 workflow's read-only posture is a property to keep.
 
 ## Traps

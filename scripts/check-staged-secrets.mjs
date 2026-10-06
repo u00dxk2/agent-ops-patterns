@@ -98,11 +98,14 @@ function refuseUnknownFlags(args) {
 // the wrong argument used to come back in the error that refused it, and this output
 // goes to transcripts and CI logs. Trying to scrub the value out of messages was
 // tried first and missed forms of it (git prints a range's parts separately), so the
-// rule is now: an unknown flag name, a refused value and git's own error text are never
-// printed. A refusal names a KNOWN flag and gives the value's length; a git failure is
-// reported as a fixed category; a range is printed only when every side is a commit id
-// or HEAD-relative (see printableRange). Kept on purpose: the --repo path, so a
-// wrong-directory error stays legible.
+// rule is now: an unknown flag name and a refused value are never printed, and the
+// history/range sweep never prints git's error text. A refusal names only KNOWN flags
+// (a bad separate --history/--range value is described by its length); a sweep's git
+// failure is reported as a fixed category; a range is printed only when every component
+// is empty, 7-64 lowercase hex, or HEAD with ~/^ steps (see printableRange — a syntax
+// allowlist, not a check that the hex names a commit). Kept on purpose: the --repo path,
+// so a wrong-directory error stays legible. The staged (pre-commit) path passes git's
+// stderr through, but it hands git none of the scanner's arguments.
 function nearestKnownFlag(name) {
   const lower = String(name).toLowerCase();
   let best = null;
@@ -122,7 +125,7 @@ function nearestKnownFlag(name) {
   }
   return best !== null && bestD <= Math.min(3, Math.ceil(best.length / 3)) ? best : null;
 }
-/** A range is echoed only when each side is a commit id (7-64 hex) or HEAD with ~/^ steps. */
+/** A range is echoed only when each component is empty, 7-64 lowercase hex, or HEAD with ~/^ steps. */
 function printableRange(range) {
   const sides = String(range).split(/\.{2,3}/);
   const plain = sides.every((s) => s === "" || /^[0-9a-f]{7,64}$/.test(s) || /^HEAD(?:[~^]\d{0,4})*$/.test(s));
