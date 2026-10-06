@@ -1003,8 +1003,6 @@ try {
   } catch {
     process.exit(0);
   }
-  // No test reaches a non-overflow failure here (git's own text-diff refusal needs a >1 GiB
-  // fixture); the catch above takes every failure by construction, with no condition on it.
   console.error("⚠ pre-commit: the full staged read failed; fell back to the plain read, so a file git treats as binary, a repo-configured diff driver, rename/copy detection or diff.relative may hide lines.");
 }
 

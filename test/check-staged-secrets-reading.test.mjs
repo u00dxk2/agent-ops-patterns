@@ -90,6 +90,21 @@ test("a file a textconv driver kept small does not make both reads overflow (Cod
   assertCaught(scan(r, CAPPED), "z.cfg", "both reads overflowed and the commit passed unread");
 });
 
+test("a full read that fails WITHOUT overflowing also falls back (Codex round 3)", () => {
+  // A diff driver marked binary, with a broken hunk-header regex: the old read never applies
+  // the regex to a binary file, but --text does, and git exits 128. No large file involved.
+  const r = repo();
+  writeFileSync(join(r, ".gitattributes"), "*.dat diff=broken\n");
+  git(r, "config", "diff.broken.binary", "true");
+  git(r, "config", "diff.broken.xfuncname", "[");
+  writeFileSync(join(r, "a.dat"), "ordinary\ncontent\n");
+  writeFileSync(join(r, "z.cfg"), `TOKEN=${TOKEN}\n`);
+  git(r, "add", ".gitattributes", "a.dat", "z.cfg");
+  const out = scan(r);
+  assertCaught(out, "z.cfg", "a full read that git refused made the commit pass unread");
+  assert.match(out.stderr, /fell back to the plain read/);
+});
+
 test("LIMIT: after a fallback, a `-diff` file is not read (the fallback's declared ceiling)", () => {
   const r = repo();
   bigFile(r, "blob.bin", 0);
