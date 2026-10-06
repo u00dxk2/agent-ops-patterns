@@ -127,18 +127,32 @@ const PATTERNS = [
 const PLACEHOLDER =
   /(localhost|127\.0\.0\.1|example\.com|<[^>]*>|:password@|:pass@|:changeme@|:your[-_]|:xxx+@|REDACTED|\*\*\*)/i;
 const ALLOW = /(pragma:\s*allowlist secret|gitleaks:allow|secret-scan:ignore)/i;
+// The host and port after a credential URI's "@" — no path, so a candidate never runs
+// into a neighbouring URI and borrows its placeholder.
+const URI_HOST = /^[A-Za-z0-9._\-:[\]<>]*/;
+for (const p of PATTERNS) {
+  if (p.name.endsWith("uri-with-creds") || p.name === "basic-auth-url") p.all = new RegExp(p.re.source, "g");
+}
 
 /**
  * The one judgement every caller makes about one line: the FIRST pattern that fires,
- * or null. An allowlisted line never fires; a connection-string match on a
- * placeholder voids the line.
+ * or null. An allowlisted line never fires. A connection-string match is judged
+ * CANDIDATE BY CANDIDATE: one whose own text (credentials, host and port) carries a
+ * placeholder is skipped, and the scan goes on to the rest of the line and the rest of
+ * the patterns. Testing the placeholder against the whole line let one example URI
+ * void every other secret on it.
  */
 function firstPatternHit(content) {
   if (ALLOW.test(content)) return null;
   for (const p of PATTERNS) {
-    if (!p.re.test(content)) continue;
-    if ((p.name.endsWith("uri-with-creds") || p.name === "basic-auth-url") && PLACEHOLDER.test(content)) return null;
-    return p.name;
+    if (!p.all) {
+      if (p.re.test(content)) return p.name;
+      continue;
+    }
+    for (const m of content.matchAll(p.all)) {
+      const host = URI_HOST.exec(content.slice(m.index + m[0].length))[0];
+      if (!PLACEHOLDER.test(m[0] + host)) return p.name;
+    }
   }
   return null;
 }

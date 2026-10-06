@@ -33,3 +33,31 @@ test("a Google-shaped key whose last character is `-` fires (AOP-R1)", () => {
   // A key ending in a word character still fires, as before.
   assert.equal(scanMessage(`GOOGLE=${"AI" + "za" + "b".repeat(35)}\n`).status, 1);
 });
+
+test("a placeholder URI voids only itself, not other secrets on the line (AOP-R2)", () => {
+  const token = "gh" + "p_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8";
+  const placeholder = "postgres://user:password@localhost:5432/app";
+  const real = "postgres://svc:" + "Zq9wLk2@db.prod.internal/x";
+  // A placeholder URI and a token on one JSON line: the token still fires.
+  const r1 = scanMessage(`{"db":"${placeholder}","t":"${token}"}\n`);
+  assert.equal(r1.status, 1);
+  assert.match(r1.err, /\[github-pat\]/);
+  // Two URIs where only the first is a placeholder: the second still fires.
+  const r2 = scanMessage(`{"a":"${placeholder}","b":"${real}"}\n`);
+  assert.equal(r2.status, 1);
+  assert.match(r2.err, /\[postgres-uri-with-creds\]/);
+  // ...and in the other order, with no quote between them: a real URI's candidate
+  // stops at its host and does not borrow the next URI's placeholder.
+  assert.equal(scanMessage(`${real},${placeholder}\n`).status, 1);
+  // A placeholder word elsewhere on the line no longer voids a real URI.
+  assert.equal(scanMessage(`see example.com — DATABASE_URL=${real}\n`).status, 1);
+  // Placeholders alone stay silent, in every form the selftest's SILENT list uses.
+  for (const line of [
+    placeholder,
+    "MONGODB_URI=mongodb" + "+srv://<user>:<password>@cluster.example.com/db",
+    "GIT_REMOTE=https://user:" + "pass@example.com/repo.git",
+    `{"a":"${placeholder}","b":"mysql://root:changeme@127.0.0.1/x"}`,
+  ]) {
+    assert.equal(scanMessage(`${line}\n`).status, 0, line.slice(0, 24));
+  }
+});

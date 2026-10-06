@@ -4,6 +4,12 @@ Changes that matter to anyone who vendors a file from this repo. Each entry name
 
 ## 2026-10-05
 
+### Scanner: one placeholder URI cleared every secret on its line
+
+**Re-pull:** `scripts/check-staged-secrets.mjs`. **Behavior change:** a line that mixes an example URI with a real secret now fires.
+
+A credential URI or URL match was voided if the placeholder test (`localhost`, `example.com`, `<…>`, `:password@` and the rest) passed anywhere on the LINE, and the scan returned clean straight away. So a JSON line holding a placeholder database URI and a real GitHub token, or a placeholder URI and a real one, read clean. The placeholder test now runs on each URI candidate alone (its credentials plus its host and port, never its path), and a skipped candidate no longer stops the scan: the rest of the line and the remaining patterns are still checked. On this repo's full history (107 commits, 12,751 added lines) the hit list is identical before and after.
+
 ### A Google-shaped key ending in `-` escaped all three tools
 
 **Re-pull:** `lib/snippet-redact.mjs`, `lib/secret_redaction.py`, `scripts/check-staged-secrets.mjs`.
