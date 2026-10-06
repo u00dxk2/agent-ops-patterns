@@ -86,7 +86,7 @@ test("keywords separated by whitespace or a comment stay two tokens (AOP-R5)", (
   assert.ok(stripComments(div).includes("total / count;"));
 });
 
-test("a keyword used as an identifier cannot make a false regex swallow a comment opener (Codex round 1)", () => {
+test("a false regex may not close on a comment opener's first slash (Codex round 1)", () => {
   // `of` is a legal parameter name; `return of / /* … */` is division. A false regex
   // `/ /` closed on the comment's first `/` and left the comment, or, with a quote in
   // the comment, opened a string that ate real code up to `//prod`.
@@ -109,6 +109,34 @@ test("every JavaScript whitespace character ends a word (Codex round 1)", () => 
   for (const gap of [" ", "\f", "\v", " ", "﻿", " "]) {
     const src = `function f() { return typeof${gap}/["]/; } // sentinel`;
     assert.equal(includesOutsideComments(src, "sentinel"), false, JSON.stringify(gap));
+  }
+});
+
+test("a line comment ends at every JavaScript line terminator (Codex round 2)", () => {
+  for (const eol of [" ", " ", "\r"]) {
+    const src = `// note${eol}const sentinel = 1;`;
+    assert.ok(stripComments(src).includes("const sentinel = 1;"), JSON.stringify(eol));
+    assert.ok(!stripComments(src).includes("note"), JSON.stringify(eol));
+  }
+  // CRLF is unchanged: the comment and its CR go, the LF stays.
+  assert.equal(stripComments("a; // note\r\nb;"), "a; \nb;");
+});
+
+// THE CEILING (see the header): known shapes where the division-vs-regex guess goes
+// wrong. Pinned so a change that moves the error somewhere new goes red and is read.
+test("LIMIT: a contextual keyword used as a variable can still keep a comment", () => {
+  // `of` is a parameter here; the scanner reads it as the keyword and enters a regex.
+  assert.equal(includesOutsideComments('function f(of) { return of / "/".length; } // sentinel', "sentinel"), true);
+  assert.equal(includesOutsideComments("function f(of) { return of / [ /* sentinel */ 2 ][0] / 2; }", "sentinel"), true);
+});
+
+test("LIMIT: the same misread can strip real code", () => {
+  assert.equal(stripComments('function f(of) { return of / "/".length + "https://prod"; }').includes("prod"), false);
+});
+
+test("LIMIT: a regex followed directly by `*` or `/` is refused and read as division", () => {
+  for (const src of ['const x = /["]/*1; // sentinel', 'const x = /["]/g*1; // sentinel', 'const x = /["]//2; // sentinel']) {
+    assert.equal(includesOutsideComments(src, "sentinel"), true, src);
   }
 });
 
