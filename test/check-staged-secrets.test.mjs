@@ -5,7 +5,7 @@
 // so this file's own text matches no pattern.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -47,6 +47,25 @@ test("repeated credential-URI prefixes scan in linear time (AOP-R3)", () => {
 
 test("LIMIT: a credential-URI password containing `://` passes (the bound that keeps the scan linear)", () => {
   assert.equal(scanMessage("DB=postgres://u:" + "a://b-c-d@db.prod.internal/x\n").status, 0);
+});
+
+test("an equals-form flag is refused with exit 2, never run as the default scan (AOP-R4)", () => {
+  // A clean index: before the fix every one of these fell through to the staged scan,
+  // found nothing staged and exited 0 — a clean verdict over a scope nobody asked for.
+  const repo = join(dir, "equals-form");
+  execFileSync("git", ["init", "-q", repo]);
+  for (const args of [
+    ["--range=HEAD~1..HEAD"],
+    ["--history=1"],
+    ["--message-file=msg.txt"],
+    ["--history", "1", "--repo=elsewhere"],
+    ["--history", "1", "--selftest=yes"],
+  ]) {
+    const r = spawnSync(process.execPath, [SCRIPT, ...args], { cwd: repo, encoding: "utf8" });
+    assert.equal(r.status, 2, args.join(" "));
+    assert.match(r.stderr, /nothing was scanned/, args.join(" "));
+    assert.doesNotMatch(r.stdout, /^history:/m, args.join(" "));
+  }
 });
 
 test("a placeholder URI voids only itself, not other secrets on the line (AOP-R2)", () => {

@@ -4,6 +4,12 @@ Changes that matter to anyone who vendors a file from this repo. Each entry name
 
 ## 2026-10-05
 
+### Scanner: `--range=a..b` ran the staged scan instead
+
+**Re-pull:** `scripts/check-staged-secrets.mjs`. **Behavior change:** `--flag=value` now exits 2.
+
+The unknown-flag check accepted `--range=…`, `--history=…`, `--message-file=…` and `--repo=…` by their names, but the modes look flags up by exact token, so each one fell through: `--range=HEAD~1..HEAD` with a clean index ran the default staged scan and exited 0 without reading a single commit, and `--repo=<path>` swept the current directory. Any `--flag=value` is now refused with exit 2 before anything is scanned; the refusal names the flag and does not echo its value. Pass the value as the next argument.
+
 ### Scanner was quadratic on repeated database-URI prefixes
 
 **Re-pull:** `scripts/check-staged-secrets.mjs`.

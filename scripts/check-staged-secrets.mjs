@@ -68,12 +68,26 @@ import { fileURLToPath } from "node:url";
 // nothing scanned; RESULT line in result-line.mjs's format, kept in step by hand.
 const KNOWN_FLAGS = new Set(["help", "message-file", "history", "range", "repo", "selftest"]);
 function refuseUnknownFlags(args) {
-  const unknown = args.filter((a) => a.startsWith("--")).map((a) => a.slice(2).split("=")[0]).filter((f) => !KNOWN_FLAGS.has(f));
-  if (unknown.length === 0) return;
-  console.error(
-    `${SCRIPT}: unknown flag(s) ${unknown.map((f) => `--${f}`).join(", ")} — nothing was scanned. ` +
-      `A dropped flag would return a clean verdict over the wrong scope. Run --help for the flag list.`,
-  );
+  const flags = args.filter((a) => a.startsWith("--"));
+  const unknown = flags.map((a) => a.slice(2).split("=")[0]).filter((f) => !KNOWN_FLAGS.has(f));
+  // `--flag=value` is refused, not parsed: the modes below look flags up by exact token,
+  // so `--range=a..b` passed this check by its name and then ran the default STAGED scan
+  // (exit 0 over a scope nobody asked for). One spelling, read one way.
+  const equalsForm = flags.filter((a) => a.includes("="));
+  if (unknown.length === 0 && equalsForm.length === 0) return;
+  if (unknown.length) {
+    console.error(
+      `${SCRIPT}: unknown flag(s) ${unknown.map((f) => `--${f}`).join(", ")} — nothing was scanned. ` +
+        `A dropped flag would return a clean verdict over the wrong scope. Run --help for the flag list.`,
+    );
+  }
+  if (equalsForm.length) {
+    // Names only: the value after "=" may be a path or a range, and is not echoed.
+    console.error(
+      `${SCRIPT}: ${equalsForm.map((a) => a.split("=")[0]).join(", ")} given as --flag=value — nothing was scanned. ` +
+        `Pass the value as the next argument (--range <a>..<b>).`,
+    );
+  }
   process.exit(2);
 }
 let resultDetail = "";
@@ -210,6 +224,8 @@ if (argv.includes("--help")) {
         17 arms; a run where a different number ran is a FAIL.
         exit 0 all arms pass · 1 an arm failed
   --help  this text
+
+Flag values go in the NEXT argument. --flag=value is refused with exit 2, nothing scanned.
 
 Allowlist (all modes, same semantics): a trailing \`pragma: allowlist secret\`
 (or gitleaks:allow / secret-scan:ignore) on the line.`);
