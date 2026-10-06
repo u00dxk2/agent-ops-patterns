@@ -84,6 +84,27 @@ test("an equals-form flag is refused with exit 2, never run as the default scan 
   }
 });
 
+test("usage errors never echo the value they refuse (SR-1)", () => {
+  // A token pasted into the wrong argument lands in an error message, and this script's
+  // output goes to transcripts and CI logs. Every refusal names the flag, not the value.
+  const token = "gh" + "p_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8";
+  const repo = join(dir, "echo");
+  execFileSync("git", ["init", "-q", repo]);
+  execFileSync("git", ["-C", repo, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-q", "--allow-empty", "-m", "base"]);
+  for (const args of [
+    ["--history", token],
+    ["--range", token],
+    ["--range", `${token}..HEAD`],
+    [`--${token}`],
+    [`--${token}=x`],
+  ]) {
+    const r = spawnSync(process.execPath, [SCRIPT, ...args], { cwd: repo, encoding: "utf8" });
+    assert.equal(r.status, 2, args.join(" ").slice(0, 20));
+    const out = `${r.stdout}\n${r.stderr}`;
+    assert.ok(!out.includes(token.slice(4)), `value echoed for ${args[0].slice(0, 9)}…`);
+  }
+});
+
 test("a placeholder URI voids only itself, not other secrets on the line (AOP-R2)", () => {
   const token = "gh" + "p_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8";
   const placeholder = "postgres://user:password@localhost:5432/app";

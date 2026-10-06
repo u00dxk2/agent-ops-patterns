@@ -77,18 +77,30 @@ function refuseUnknownFlags(args) {
   if (unknown.length === 0 && equalsForm.length === 0) return;
   if (unknown.length) {
     console.error(
-      `${SCRIPT}: unknown flag(s) ${unknown.map((f) => `--${f}`).join(", ")} — nothing was scanned. ` +
+      `${SCRIPT}: unknown flag(s) ${unknown.map(flagLabel).join(", ")} — nothing was scanned. ` +
         `A dropped flag would return a clean verdict over the wrong scope. Run --help for the flag list.`,
     );
   }
   if (equalsForm.length) {
     // Names only: the value after "=" may be a path or a range, and is not echoed.
     console.error(
-      `${SCRIPT}: ${equalsForm.map((a) => a.split("=")[0]).join(", ")} given as --flag=value — nothing was scanned. ` +
+      `${SCRIPT}: ${equalsForm.map((a) => flagLabel(a.slice(2).split("=")[0])).join(", ")} given as --flag=value — nothing was scanned. ` +
         `Pass the value as the next argument (--range <a>..<b>).`,
     );
   }
   process.exit(2);
+}
+// NO ECHO OF REFUSED INPUT. A token pasted into the wrong argument lands in the error
+// that refuses it, and this output goes to transcripts and CI logs. So a refusal names
+// the flag and describes the value (its length), never prints it. A flag NAME is printed
+// only when it is plain (letters, digits, "-") and passes the path rule's secret-prefix
+// test. Exception, on purpose: the --repo path is echoed in git errors, so a
+// wrong-directory error stays legible.
+function flagLabel(name) {
+  return /^[A-Za-z][A-Za-z0-9-]{0,40}$/.test(name) && pathIsPrintable(name) ? `--${name}` : "--<flag name withheld: not plain>";
+}
+function describeValue(v) {
+  return v == null || v === "" ? "nothing" : `a value of ${v.length} characters (not echoed)`;
 }
 let resultDetail = "";
 let resultArmed = false;
@@ -306,14 +318,19 @@ if (historyIdx !== -1 || rangeIdx !== -1) {
     const range = argv[rangeIdx + 1];
     // An option-shaped value would be read by git as an option, not a revision.
     if (!range || range.startsWith("-")) {
-      console.error(`${SCRIPT}: --range requires a revision range such as <a>..<b> (got ${JSON.stringify(range ?? "")})`);
+      console.error(`${SCRIPT}: --range requires a revision range such as <a>..<b> (got ${describeValue(range)})`);
       finish(2, "ERROR", "bad --range argument");
     }
-    scope = { revArgs: ["--end-of-options", range], label: `range ${range}` };
+    // git's own error text quotes a revision it cannot resolve; the range and each side
+    // of it are blanked out of any error before it is printed (longest first). Values under
+    // 8 characters are left alone: no credential is that short, and blanking "a" or "HEAD"
+    // would mangle the rest of git's message.
+    const hide = [range, ...range.split(/\.{2,3}/)].filter((v) => v.length >= 8).sort((a, b) => b.length - a.length);
+    scope = { revArgs: ["--end-of-options", range], label: `range ${range}`, hide };
   } else {
     const daysRaw = argv[historyIdx + 1];
     if (!/^\d+$/.test(daysRaw ?? "") || Number(daysRaw) < 1) {
-      console.error(`${SCRIPT}: --history requires a positive whole number of days (got ${JSON.stringify(daysRaw ?? "")})`);
+      console.error(`${SCRIPT}: --history requires a positive whole number of days (got ${describeValue(daysRaw)})`);
       finish(2, "ERROR", "bad --history argument");
     }
     const days = Number(daysRaw);
@@ -327,8 +344,9 @@ if (historyIdx !== -1 || rangeIdx !== -1) {
 
   const r = await sweepHistory({ repo, ...scope });
   if (r.error) {
-    console.error(`${SCRIPT}: ${r.error}`);
-    finish(2, "ERROR", r.error);
+    const error = (scope.hide ?? []).reduce((s, v) => s.split(v).join("<range>"), r.error);
+    console.error(`${SCRIPT}: ${error}`);
+    finish(2, "ERROR", error);
   }
   console.log(r.summary);
   if (r.nothingSwept) {
