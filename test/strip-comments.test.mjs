@@ -65,6 +65,27 @@ test("division vs regex: `return a / b; // note` strips the note", () => {
   assert.ok(stripComments(src).includes("return a / b;"));
 });
 
+test("keywords separated by whitespace or a comment stay two tokens (AOP-R5)", () => {
+  // Whitespace used to be skipped without ending the word, so `return typeof` read as
+  // one identifier `returntypeof`, the regex after it read as division, and its `"`
+  // opened a string that copied the trailing comment through.
+  for (const src of [
+    'function f() { return typeof /["]/; } // sentinel',
+    'function f() { return\ttypeof\n/["]/; } // sentinel',
+    'function f() { return /* gap */ typeof /["]/; } // sentinel',
+    'function f() { return/* gap */typeof /["]/; } // sentinel',
+    "function f() { return // gap\n typeof /[']/; } // sentinel",
+  ]) {
+    assert.equal(includesOutsideComments(src, "sentinel"), false, JSON.stringify(src));
+    assert.ok(stripComments(src).includes("typeof"), JSON.stringify(src));
+  }
+  assert.ok(stripComments('return typeof /["]/;').includes('/["]/'), "the regex is kept verbatim");
+  // Two identifiers split by whitespace end in a plain identifier: `/` is division.
+  const div = "const z = total / count; // note\n";
+  assert.equal(includesOutsideComments(div, "note"), false);
+  assert.ok(stripComments(div).includes("total / count;"));
+});
+
 test("a real regex body may contain // and is copied verbatim", () => {
   const src = String.raw`const p = /https:\/\/example/; // trailing`;
   const out = stripComments(src);

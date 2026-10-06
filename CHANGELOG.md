@@ -4,6 +4,12 @@ Changes that matter to anyone who vendors a file from this repo. Each entry name
 
 ## 2026-10-05
 
+### strip-comments: `return typeof /re/` let a trailing comment through
+
+**Re-pull:** `lib/strip-comments.mjs`.
+
+Whitespace and comments were skipped without ending the current word, so `return typeof` was read as one identifier, `returntypeof`. That is not a keyword, so the `/` after it was taken for division, a quote inside the regex then opened a string, and the string copied the comment after it into the output: `includesOutsideComments('return typeof /["]/; // sentinel', "sentinel")` returned `true`, the false green this library exists to prevent. Whitespace and comments now end a word, and the completed word still decides the slash. Over 6,309 real source files (this repo plus a 73-million-character production codebase) the output is byte-identical before and after.
+
 ### Scanner: `--range=a..b` ran the staged scan instead
 
 **Re-pull:** `scripts/check-staged-secrets.mjs`. **Behavior change:** `--flag=value` now exits 2.
