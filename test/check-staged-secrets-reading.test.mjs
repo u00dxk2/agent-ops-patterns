@@ -103,10 +103,7 @@ test("LIMIT: after a fallback, a `-diff` file is not read (the fallback's declar
   assertCaught(scan(r), "app.cfg", "control: the uncapped full read should catch it");
 });
 
-test("a renamed-and-edited file's added line is read (rename detection stays on)", () => {
-  // The fleet scanner turned renames off because its filter (ACM) dropped status R.
-  // This fork reads R and T, so a rename prints its edit hunks: the added credential
-  // is seen, and content that only MOVED is not re-flagged as new.
+test("a renamed-and-edited file's added line is read", () => {
   const r = repo();
   const body = Array.from({ length: 40 }, (_, i) => `line ${i} of an ordinary file`).join("\n") + "\n";
   writeFileSync(join(r, "old.txt"), body);
@@ -117,6 +114,21 @@ test("a renamed-and-edited file's added line is read (rename detection stays on)
   git(r, "add", "new.txt");
   assert.match(git(r, "diff", "--cached", "--name-status"), /^R\d+/m, "fixture precondition: git saw a rename");
   assertCaught(scan(r), "new.txt", "the credential added to a renamed file passed");
+});
+
+test("an unchanged rename of a credential file is flagged: renames are off (Codex round 2, declared cost)", () => {
+  // With rename detection on, this prints as R100 with no lines. Detection is off, so the
+  // new path is an addition and the moved credential is flagged again. That is the
+  // intended cost of not letting git settings decide what counts as added.
+  const r = repo();
+  writeFileSync(join(r, "old.cfg"), `TOKEN=${TOKEN}\n`);
+  git(r, "add", "old.cfg");
+  git(r, "commit", "-q", "--no-verify", "-m", "base");
+  git(r, "mv", "old.cfg", "new.cfg");
+  for (const setting of ["true", "false", "copies"]) {
+    git(r, "config", "diff.renames", setting);
+    assertCaught(scan(r), "new.cfg", `diff.renames=${setting}: an unchanged rename hid the moved credential`);
+  }
 });
 
 test("diff.renames=copies does not hide a copied file (Codex round 1)", () => {

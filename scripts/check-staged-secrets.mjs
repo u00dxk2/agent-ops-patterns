@@ -974,14 +974,15 @@ const MAX_BUFFER = Number.isInteger(askedBuffer) && askedBuffer > 0 && askedBuff
 //   diff.external (each settable by the repo being committed to) otherwise makes git print
 //   "Binary files differ" or another program's view instead of the lines, and the scan read
 //   nothing and passed (ported from the fleet scanner, SY-1).
-// - diff.renames pinned to plain rename detection: with `copies`, a file copied from a
-//   modified one prints as C100 with no lines. Renames stay ON (the fleet turned them off
-//   because its filter was ACM): a renamed file's edit hunks are read, and content that only
-//   moved is not re-flagged as new.
+// - --no-renames: with rename or copy detection, a file whose content came from elsewhere
+//   prints as R100/C100 with no lines, and which git settings (diff.renames, renameLimit)
+//   decide that changed twice under review. With detection off, a renamed or copied file is
+//   an addition and every line of it is read. COST, declared: moving a file that already
+//   held a credential flags it again (intended; the fleet does the same; pinned by a test).
 // - --no-relative: diff.relative would drop staged files outside the current directory.
 const FULL_READ = [
-  "-c", "diff.interHunkContext=0", "-c", "diff.renames=true",
-  "diff", "--cached", "--unified=0", "--no-color", "--no-relative",
+  "-c", "diff.interHunkContext=0",
+  "diff", "--cached", "--unified=0", "--no-color", "--no-relative", "--no-renames",
   "--text", "--no-textconv", "--no-ext-diff", "--diff-filter=ACMRT",
 ];
 // The read this scanner did before SY-1, byte for byte. Used only when the full read fails.
@@ -1002,7 +1003,9 @@ try {
   } catch {
     process.exit(0);
   }
-  console.error("⚠ pre-commit: the full staged read failed (too large, or git refused it); fell back to the plain read, so a file git treats as binary or a repo-configured diff driver may hide lines.");
+  // No test reaches a non-overflow failure here (git's own text-diff refusal needs a >1 GiB
+  // fixture); the catch above takes every failure by construction, with no condition on it.
+  console.error("⚠ pre-commit: the full staged read failed; fell back to the plain read, so a file git treats as binary, a repo-configured diff driver, rename/copy detection or diff.relative may hide lines.");
 }
 
 // The same reading rule as the history sweep: inside a hunk the @@ counts say what every
