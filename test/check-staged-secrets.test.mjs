@@ -34,6 +34,21 @@ test("a Google-shaped key whose last character is `-` fires (AOP-R1)", () => {
   assert.equal(scanMessage(`GOOGLE=${"AI" + "za" + "b".repeat(35)}\n`).status, 1);
 });
 
+test("repeated credential-URI prefixes scan in linear time (AOP-R3)", () => {
+  // 40k repeats took ~46 s before the bound (quadratic); a linear scan is well under 15 s
+  // even with process start-up on a slow runner. One probe per scheme family.
+  for (const prefix of ["postgres://u:", "mongodb://u:", "mysql://u:", "mssql://u:", "redis://:", "amqp://u:"]) {
+    const t0 = Date.now();
+    const r = scanMessage(prefix.repeat(40_000) + "\n", 15_000);
+    assert.equal(r.signal, null, `${prefix} timed out after ${Date.now() - t0} ms`);
+    assert.equal(r.status, 0, prefix);
+  }
+});
+
+test("LIMIT: a credential-URI password containing `://` passes (the bound that keeps the scan linear)", () => {
+  assert.equal(scanMessage("DB=postgres://u:" + "a://b-c-d@db.prod.internal/x\n").status, 0);
+});
+
 test("a placeholder URI voids only itself, not other secrets on the line (AOP-R2)", () => {
   const token = "gh" + "p_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8";
   const placeholder = "postgres://user:password@localhost:5432/app";

@@ -36,7 +36,8 @@
  *   - A hit does NOT prove the value is live, and a clean scan does NOT prove you
  *     have no exposure: it knows the fifteen shapes in PATTERNS and nothing else. A
  *     bare high-entropy string, a vendor format not listed, or a secret split across
- *     lines all read clean.
+ *     lines all read clean. So does a database-URI password that itself contains
+ *     "://" — the bound that keeps the scan linear on repeated URI prefixes.
  *   - FAIL-SOFT on the staged path, deliberately: no staged changes, or git
  *     unavailable, exits 0 rather than blocking a commit it could not read. It is a
  *     guard against accidents, not an adversary who controls the hook.
@@ -97,16 +98,21 @@ function armResultLine(map) {
 // `(?:\+[a-z0-9]+)?` after a scheme: SQLAlchemy-style driver forms
 // (postgresql+asyncpg://, mysql+pymysql://) carry the same credentials.
 const DRIVER = String.raw`(?:\+[a-z0-9]+)?`;
+// The password run may not cross another "://" (the redactors' bound). Unrestricted,
+// every "postgres://u:" in a long run of them scanned to the end of the line for an "@":
+// 40,000 repeats took ~46 s. Every start contains "://", so each scan now stops at the
+// next start. Cost: a password that itself contains "://" is not caught (LIMIT test).
+const PASS = String.raw`(?:(?!:\/\/)[^\s@])+`;
 const PATTERNS = [
   // PGP armour is "-----BEGIN PGP PRIVATE KEY BLOCK-----"; the old "PGP " alternative  pragma: allowlist secret
   // before "PRIVATE KEY-----" could never match it.
   { name: "private-key-block", re: /-----BEGIN (?:(?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY|PGP PRIVATE KEY BLOCK)-----/ },
-  { name: "mongodb-uri-with-creds", re: new RegExp(String.raw`mongodb(?:\+srv)?${DRIVER}:\/\/[^\s:/@]+:[^\s@]+@`) },
-  { name: "postgres-uri-with-creds", re: new RegExp(String.raw`postgres(?:ql)?${DRIVER}:\/\/[^\s:/@]+:[^\s@]+@`) },
-  { name: "mysql-uri-with-creds", re: new RegExp(String.raw`(?:mysql|mariadb)${DRIVER}:\/\/[^\s:/@]+:[^\s@]+@`) },
-  { name: "sqlserver-uri-with-creds", re: new RegExp(String.raw`(?:mssql|sqlserver)${DRIVER}:\/\/[^\s:/@]+:[^\s@]+@`) },
-  { name: "redis-uri-with-creds", re: new RegExp(String.raw`rediss?${DRIVER}:\/\/[^\s:/@]*:[^\s@]+@`) },
-  { name: "amqp-uri-with-creds", re: new RegExp(String.raw`amqps?${DRIVER}:\/\/[^\s:/@]+:[^\s@]+@`) },
+  { name: "mongodb-uri-with-creds", re: new RegExp(String.raw`mongodb(?:\+srv)?${DRIVER}:\/\/[^\s:/@]+:${PASS}@`) },
+  { name: "postgres-uri-with-creds", re: new RegExp(String.raw`postgres(?:ql)?${DRIVER}:\/\/[^\s:/@]+:${PASS}@`) },
+  { name: "mysql-uri-with-creds", re: new RegExp(String.raw`(?:mysql|mariadb)${DRIVER}:\/\/[^\s:/@]+:${PASS}@`) },
+  { name: "sqlserver-uri-with-creds", re: new RegExp(String.raw`(?:mssql|sqlserver)${DRIVER}:\/\/[^\s:/@]+:${PASS}@`) },
+  { name: "redis-uri-with-creds", re: new RegExp(String.raw`rediss?${DRIVER}:\/\/[^\s:/@]*:${PASS}@`) },
+  { name: "amqp-uri-with-creds", re: new RegExp(String.raw`amqps?${DRIVER}:\/\/[^\s:/@]+:${PASS}@`) },
   { name: "aws-access-key", re: /\bAKIA[0-9A-Z]{16}\b/ },
   { name: "stripe-live-secret", re: /\bsk_live_[0-9a-zA-Z]{16,}\b/ },
   { name: "github-pat", re: /\b(?:gh[pousr]_[0-9A-Za-z]{36,}|github_pat_[0-9A-Za-z_]{40,})\b/ },

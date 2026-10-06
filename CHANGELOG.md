@@ -4,6 +4,12 @@ Changes that matter to anyone who vendors a file from this repo. Each entry name
 
 ## 2026-10-05
 
+### Scanner was quadratic on repeated database-URI prefixes
+
+**Re-pull:** `scripts/check-staged-secrets.mjs`.
+
+The redactors got this bound earlier today; the scanner's six database rules did not. One line of `postgres://u:` repeated 40,000 times took about 46 seconds to scan, because every repeat started a password scan that ran to the end of the line. The password run may no longer cross another `://`, so each scan stops at the next start: the same line now takes under a second, including process start-up. New limit, documented and tested: a database-URI password that contains `://` is not caught. Over this repo's full history the hit list is unchanged (9 before, 9 after, same lines).
+
 ### Scanner: one placeholder URI cleared every secret on its line
 
 **Re-pull:** `scripts/check-staged-secrets.mjs`. **Behavior change:** a line that mixes an example URI with a real secret now fires.
