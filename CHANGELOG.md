@@ -2,6 +2,14 @@
 
 Changes that matter to anyone who vendors a file from this repo. Each entry names the files to re-pull.
 
+## 2026-10-06
+
+### Scanner: a repo's own diff settings could hide a staged secret
+
+**Re-pull:** `scripts/check-staged-secrets.mjs`.
+
+The pre-commit scan reads `git diff --cached`, and three settings the committed-to repo controls changed what git printed there: a `.gitattributes` `-diff` (or `binary`) entry made git print "Binary files differ", a textconv driver printed another program's view, and `diff.external` handed the diff to an outside program. In each case the scan saw no added lines and a staged credential passed (reproduced with a GitHub token, all three exit 0 before the fix). The staged read now runs `--text --no-textconv --no-ext-diff`. Because `--text` prints a staged binary in full, a large one can overflow the read buffer; the scan then falls back to the read without `--text` and says so on stderr, rather than passing the commit unread. After that fallback a file git treats as binary is not read (a declared `LIMIT:` test). Rename detection stays on: renamed files were already read, because the filter keeps status R. Ported from the fleet scanner. Its other change of the same day, refusing the commit when git cannot be read, was not ported: the staged path here stays fail-soft.
+
 ## 2026-10-05
 
 ### Scanner: usage errors printed the value they refused

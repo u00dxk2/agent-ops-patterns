@@ -961,17 +961,41 @@ function selftestHistory(days) {
 }
 
 // ---------------------------------------------------------------- staged (default)
+// SECRET_SCAN_MAX_BUFFER exists only so a test can reach the overflow path with a small
+// fixture. It may only LOWER the limit: anything but a positive integer at or under the
+// default is ignored.
+const DEFAULT_MAX_BUFFER = 64 * 1024 * 1024;
+const askedBuffer = Number(process.env.SECRET_SCAN_MAX_BUFFER);
+const MAX_BUFFER = Number.isInteger(askedBuffer) && askedBuffer > 0 && askedBuffer <= DEFAULT_MAX_BUFFER ? askedBuffer : DEFAULT_MAX_BUFFER;
+// R and T: lines added to a renamed (or type-changed) file are new content too.
+// interHunkContext pinned to 0 so a config cannot join hunks with context lines.
+// --no-textconv --no-ext-diff --text: a textconv driver, diff.external or a `-diff`/binary
+// attribute (each settable by the repo being committed to) otherwise makes git print another
+// program's view or "Binary files differ" instead of the lines, and the scan read nothing and
+// passed (ported from the fleet scanner, SY-1). Rename detection stays ON: R is in the filter,
+// so a renamed file's edit hunks are read, and content that only moved is not re-flagged as
+// new (the fleet turned renames off because its filter was ACM).
+const readStaged = (text) =>
+  execFileSync(
+    "git",
+    ["-c", "diff.interHunkContext=0", "diff", "--cached", "--unified=0", "--no-color", "--no-textconv", "--no-ext-diff", ...(text ? ["--text"] : []), "--diff-filter=ACMRT"],
+    { encoding: "utf8", maxBuffer: MAX_BUFFER },
+  );
 let diff = "";
 try {
-  diff = execFileSync(
-    "git",
-    // R and T: lines added to a renamed (or type-changed) file are new content too.
-    // interHunkContext pinned to 0 so a config cannot join hunks with context lines.
-    ["-c", "diff.interHunkContext=0", "diff", "--cached", "--unified=0", "--no-color", "--diff-filter=ACMRT"],
-    { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
-  );
-} catch {
-  process.exit(0); // no staged changes / git unavailable → never block
+  diff = readStaged(true);
+} catch (err) {
+  // --text prints a staged binary in full, so a large one can overflow the buffer. This path
+  // is fail-soft by design, and passing the whole commit unread would be WORSE than before
+  // --text existed, so an overflow falls back to the read without it (binaries print one
+  // line, as they always did) and says so. Any other failure keeps the old posture.
+  if (!(err && err.code === "ENOBUFS")) process.exit(0); // no staged changes / git unavailable → never block
+  try {
+    diff = readStaged(false);
+  } catch {
+    process.exit(0);
+  }
+  console.error("⚠ pre-commit: the staged diff is too large to read with binaries expanded; scanned without --text, so a file git treats as binary was not read.");
 }
 
 // The same reading rule as the history sweep: inside a hunk the @@ counts say what every
