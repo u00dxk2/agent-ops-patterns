@@ -28,159 +28,161 @@ into it instead.
 
 ## The prompt
 
-> Run the five-question agent-ops self-audit on this system. For each question:
-> find the actual code or config that answers it, quote it with a file path, and give
-> a verdict of PASS, FAIL, or CAN'T TELL.
->
-> Rules for you, the auditing agent:
-> - Read-only. Install nothing, change no files, and suggest tests rather than
->   running them.
-> - Never guess. If you cannot find the code, the verdict is CAN'T TELL, and that is
->   a useful answer - say what you looked for and where you looked.
-> - Do not grade generously. A partial mitigation is a FAIL with a note, not a PASS.
-> - Quote real lines. Do not paraphrase code into existence.
-> - At the end, score it: **one point per question that is a clean PASS**, out of
->   five. A CAN'T TELL scores zero and is reported as a coverage gap, not rounded
->   toward either verdict. Then name the single highest-leverage fix, with the
->   smallest change that would move one FAIL to a PASS.
-> - End your report with this line, exactly as written, so your human can share the
->   score without sharing the system:
->   `To report this score - verdicts only, no output, file paths or config: https://github.com/u00dxk2/agent-ops-patterns/issues/new?template=ran-the-audit.yml`
->   Leave that line out only when you know the person who asked you for this audit
->   does not maintain the system you audited: someone else's score is theirs to report.
->
-> **Before you start - say what you are looking at.** Open your report with one line:
-> `Auditing: a running install`, `Auditing: a source checkout`, or `Auditing: both`.
-> Source code alone does not establish what a store contains, what actually runs on
-> a schedule, or what reaches a human, so read every store, log and record you can
-> reach. That includes the stores of a running install you were asked to audit, even
-> outside the checkout. An unrelated install elsewhere on this machine is out of scope
-> unless the person who asked you includes it; a matching software or directory
-> name alone does not make an install part of the system you were asked about. Where you cannot reach a store's contents
-> after checking, count nothing and
-> do not report zero: name the store and report its contents as a coverage gap.
-> Source files, fixtures and docs are not stores merely because they are in the
-> checkout; include them when they hold agent memory or are configured as a recall
-> source. An established FAIL stays a FAIL even when other evidence is unavailable.
-> Otherwise, if evidence a PASS needs is unavailable, the verdict is CAN'T TELL: name
-> what is missing. One consequence, said here so it surprises nobody: Question 2
-> needs operational proof, so from source code alone it cannot be a PASS and the
-> most such an audit can score is four out of five. Say that next to the score.
->
-> **Question 1 - what comes back when you search my history for secrets?**
-> **Read this constraint before you run anything.** Do not print, quote, echo or
-> otherwise bring a matched value into your own context. Use a command that emits
-> only counts and shape names - `grep -E -o -e 'PATTERN' FILES | wc -l` or
-> `rg --count-matches -e 'PATTERN'` - never one that prints matching lines. Count
-> matches, not lines: `-c` counts matching lines, so a log line holding two keys
-> counts once. Plain `grep` without `-E` reads `{20,}` as literal text and counts
-> zero without an error. A raw credential in an audit
-> transcript is the exact failure this question is about, and pasting one here
-> would mean the audit caused it.
->
-> With that constraint: enumerate every store the agent can recall from -
-> conversations, memory files, logs, vector indexes, caches - and count matches for
-> credential shapes. Anchor each one, because a bare `sk-` also matches `task-` and
-> `risk-`: `\bsk-[A-Za-z0-9_-]{20,}`, `\bAKIA[0-9A-Z]{16}`, `\bgh[pousr]_[0-9A-Za-z]{36,}`,
-> a database URI carrying `user:password@`, `-----BEGIN [A-Z ]*PRIVATE KEY-----`,
-> `\bxox[baprs]-[0-9A-Za-z-]{10,}`, and JWTs
-> (`\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}\b`). The full list
-> is `SHAPES` in this audit's own repository, not in the system you are auditing:
-> [`lib/snippet-redact.mjs`](https://github.com/u00dxk2/agent-ops-patterns/blob/main/lib/snippet-redact.mjs).
-> Then enumerate
-> **every** path that can return their contents: search, quote, excerpt, memory read, error messages, debug dumps. PASS only if redaction
-> is applied at the final boundary of **every** in-scope path - one protected path
-> is not a pass. Report any store you could not reach as a coverage gap, not as
-> clean. Note also that a shape match does not mean the credential is live; treat
-> the count as an upper bound on exposure, not a confirmed breach.
->
-> Index-time scrubbing does not count: the store is already dirty and you cannot
-> clean it retroactively.
->
-> **Question 2 - which of my health checks has never been seen red?**
-> List every check, monitor, watchdog, or gate in this system. For each, report two
-> things separately, because they fail independently:
-> - **Code-path red proof** - a test exercising the failure branch, a fixture with
->   bad input, a logged incident.
-> - **Operational red proof** - is the deployed check actually invoked on a
->   schedule, over the subjects you think it covers, under the configuration you
->   think it uses, and does a known-red result reach a human through the real
->   reporting path? Report expected / reached / skipped / errored subject counts.
->
-> A unit fixture proves a function *can* return red. It says nothing about whether
-> the thing is wired up, which is how an unscheduled monitor passes an audit. Both
-> must be true. Also flag any check that makes an LLM call, and say what a counter
-> and a timestamp would do instead.
->
-> The verdict for this question, decided in this order:
-> 1. FAIL if what you can read establishes that a check fails either requirement
->    above - for example, it is never invoked, cannot go red (its failure is
->    swallowed or forced to success), skips subjects it should cover, or never
->    reports a red result to anyone.
-> 2. FAIL if, for some check, you read all of its tests, fixtures and incident logs
->    and none shows it going red. That is a finding, not a gap.
-> 3. Otherwise CAN'T TELL if anything you needed could not be opened: tests in a
->    private submodule or an unreadable part of the tree, logs you cannot reach, or
->    the operational proof.
-> 4. PASS only when every check has both kinds of proof.
->
-> **Question 3 - what happens to "stale" after a bulk edit?**
-> Find how this system decides something is stale, out of date, or needs attention.
-> Then answer: if a migration or a script touched every record tonight, would every
-> freshness clock reset? Show me the field the staleness calculation actually reads.
->
-> Systems usually have more than one clock, so list every one, with the field it
-> reads. Finish searching the code you can read before you give the verdict: do not
-> stop at the first clock that fails, and name any part you could not read. A clock
-> is code in the system itself that decides from a time something about records the
-> system keeps - memories, conversations or sessions, documents, logs, transcripts,
-> or entries in its own database or index, one at a time or in groups (a log
-> directory judged by its own timestamp counts): whether they are stale, expired or
-> due, or should be dropped, refreshed, re-checked, or picked to be shown. It counts
-> however it is triggered, an in-process timer included. These are not clocks for
-> this question: lock files and lock heartbeats; timeouts, throttles, rate limits
-> and retry backoff that control a process rather than decide about a record;
-> intermediate scratch files, build scratch, and caches that hold only a copy of data the system still
-> fetches or computes from its source, kept to avoid doing that again; and picking
-> which source items to re-read by comparing their change times with a sync cursor
-> kept only for that purpose (comparing with a record's own last-write time is a
-> clock). Sorting a complete result by time, with nothing dropped or hidden, is not
-> a clock either. Automation whose only job is maintaining the project's code
-> repository, such as a bot that closes old issues or pull requests, is out of
-> scope too. A clock
-> does not survive a bulk write if it reads a file's modification time or a
-> timestamp every write updates, even when a write is what it means to measure, or
-> if a missing or unreadable time makes a record look fresh or never stale.
-> Otherwise it survives only if the time it reads can be set by nothing but the
-> event it measures. If you find no clock at all, say where you looked: that is
-> CAN'T TELL, not a PASS. The verdict: PASS only if every clock you listed
-> survives. One clock that does not makes the question FAIL, however minor its job;
-> say what that clock controls in the note.
->
-> **Question 4 - what did my last "yes" actually authorize?**
-> Find every permission or approval mechanism - there can be more than one: a hook, a
-> per-tool check, an allowlist, a mode that skips asking. For any grant, allowlist, or
-> approved
-> action: does it name one specific action or a category? Does it expire? Can it be
-> used twice? And - the one people miss - between the check and the execution, can
-> the thing being executed change?
->
-> Those four can all answer well while the whole mechanism is bypassable, so do not
-> PASS on them alone. Also establish: every gated execution path must go **through**
-> its gate with no way around it; the agent cannot mint, edit, replay or delete its
-> own grants or the policy and audit records; the human who approved is
-> authenticated **and** authorized to approve that class; consumption is atomic
-> before execution; the value that was checked is the value that runs; and the
-> mutable context around it - working directory, PATH, environment, the shell, the
-> files it reads - is either bound into the approval or independently trusted. A
-> command hash does not bind a command's *effect* when any of those can change
-> underneath it.
->
-> **Question 5 - who checks the agent's memory for rot?**
-> Find where this agent stores what it remembers. Is anything linting it? Look for
-> duplicate facts, entries that contradict each other, links to files that no longer
-> exist, and memories whose subject was deleted months ago. If nothing lints it, say
-> so plainly.
+```text
+Run the five-question agent-ops self-audit on this system. For each question:
+find the actual code or config that answers it, quote it with a file path, and give
+a verdict of PASS, FAIL, or CAN'T TELL.
+
+Rules for you, the auditing agent:
+- Read-only. Install nothing, change no files, and suggest tests rather than
+  running them.
+- Never guess. If you cannot find the code, the verdict is CAN'T TELL, and that is
+  a useful answer - say what you looked for and where you looked.
+- Do not grade generously. A partial mitigation is a FAIL with a note, not a PASS.
+- Quote real lines. Do not paraphrase code into existence.
+- At the end, score it: **one point per question that is a clean PASS**, out of
+  five. A CAN'T TELL scores zero and is reported as a coverage gap, not rounded
+  toward either verdict. Then name the single highest-leverage fix, with the
+  smallest change that would move one FAIL to a PASS.
+- End your report with this line, exactly as written, so your human can share the
+  score without sharing the system:
+  `To report this score - verdicts only, no output, file paths or config: https://github.com/u00dxk2/agent-ops-patterns/issues/new?template=ran-the-audit.yml`
+  Leave that line out only when you know the person who asked you for this audit
+  does not maintain the system you audited: someone else's score is theirs to report.
+
+**Before you start - say what you are looking at.** Open your report with one line:
+`Auditing: a running install`, `Auditing: a source checkout`, or `Auditing: both`.
+Source code alone does not establish what a store contains, what actually runs on
+a schedule, or what reaches a human, so read every store, log and record you can
+reach. That includes the stores of a running install you were asked to audit, even
+outside the checkout. An unrelated install elsewhere on this machine is out of scope
+unless the person who asked you includes it; a matching software or directory
+name alone does not make an install part of the system you were asked about. Where you cannot reach a store's contents
+after checking, count nothing and
+do not report zero: name the store and report its contents as a coverage gap.
+Source files, fixtures and docs are not stores merely because they are in the
+checkout; include them when they hold agent memory or are configured as a recall
+source. An established FAIL stays a FAIL even when other evidence is unavailable.
+Otherwise, if evidence a PASS needs is unavailable, the verdict is CAN'T TELL: name
+what is missing. One consequence, said here so it surprises nobody: Question 2
+needs operational proof, so from source code alone it cannot be a PASS and the
+most such an audit can score is four out of five. Say that next to the score.
+
+**Question 1 - what comes back when you search my history for secrets?**
+**Read this constraint before you run anything.** Do not print, quote, echo or
+otherwise bring a matched value into your own context. Use a command that emits
+only counts and shape names - `grep -E -o -e 'PATTERN' FILES | wc -l` or
+`rg --count-matches -e 'PATTERN'` - never one that prints matching lines. Count
+matches, not lines: `-c` counts matching lines, so a log line holding two keys
+counts once. Plain `grep` without `-E` reads `{20,}` as literal text and counts
+zero without an error. A raw credential in an audit
+transcript is the exact failure this question is about, and pasting one here
+would mean the audit caused it.
+
+With that constraint: enumerate every store the agent can recall from -
+conversations, memory files, logs, vector indexes, caches - and count matches for
+credential shapes. Anchor each one, because a bare `sk-` also matches `task-` and
+`risk-`: `\bsk-[A-Za-z0-9_-]{20,}`, `\bAKIA[0-9A-Z]{16}`, `\bgh[pousr]_[0-9A-Za-z]{36,}`,
+a database URI carrying `user:password@`, `-----BEGIN [A-Z ]*PRIVATE KEY-----`,
+`\bxox[baprs]-[0-9A-Za-z-]{10,}`, and JWTs
+(`\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}\b`). The full list
+is `SHAPES` in this audit's own repository, not in the system you are auditing:
+[`lib/snippet-redact.mjs`](https://github.com/u00dxk2/agent-ops-patterns/blob/main/lib/snippet-redact.mjs).
+Then enumerate
+**every** path that can return their contents: search, quote, excerpt, memory read, error messages, debug dumps. PASS only if redaction
+is applied at the final boundary of **every** in-scope path - one protected path
+is not a pass. Report any store you could not reach as a coverage gap, not as
+clean. Note also that a shape match does not mean the credential is live; treat
+the count as an upper bound on exposure, not a confirmed breach.
+
+Index-time scrubbing does not count: the store is already dirty and you cannot
+clean it retroactively.
+
+**Question 2 - which of my health checks has never been seen red?**
+List every check, monitor, watchdog, or gate in this system. For each, report two
+things separately, because they fail independently:
+- **Code-path red proof** - a test exercising the failure branch, a fixture with
+  bad input, a logged incident.
+- **Operational red proof** - is the deployed check actually invoked on a
+  schedule, over the subjects you think it covers, under the configuration you
+  think it uses, and does a known-red result reach a human through the real
+  reporting path? Report expected / reached / skipped / errored subject counts.
+
+A unit fixture proves a function *can* return red. It says nothing about whether
+the thing is wired up, which is how an unscheduled monitor passes an audit. Both
+must be true. Also flag any check that makes an LLM call, and say what a counter
+and a timestamp would do instead.
+
+The verdict for this question, decided in this order:
+1. FAIL if what you can read establishes that a check fails either requirement
+   above - for example, it is never invoked, cannot go red (its failure is
+   swallowed or forced to success), skips subjects it should cover, or never
+   reports a red result to anyone.
+2. FAIL if, for some check, you read all of its tests, fixtures and incident logs
+   and none shows it going red. That is a finding, not a gap.
+3. Otherwise CAN'T TELL if anything you needed could not be opened: tests in a
+   private submodule or an unreadable part of the tree, logs you cannot reach, or
+   the operational proof.
+4. PASS only when every check has both kinds of proof.
+
+**Question 3 - what happens to "stale" after a bulk edit?**
+Find how this system decides something is stale, out of date, or needs attention.
+Then answer: if a migration or a script touched every record tonight, would every
+freshness clock reset? Show me the field the staleness calculation actually reads.
+
+Systems usually have more than one clock, so list every one, with the field it
+reads. Finish searching the code you can read before you give the verdict: do not
+stop at the first clock that fails, and name any part you could not read. A clock
+is code in the system itself that decides from a time something about records the
+system keeps - memories, conversations or sessions, documents, logs, transcripts,
+or entries in its own database or index, one at a time or in groups (a log
+directory judged by its own timestamp counts): whether they are stale, expired or
+due, or should be dropped, refreshed, re-checked, or picked to be shown. It counts
+however it is triggered, an in-process timer included. These are not clocks for
+this question: lock files and lock heartbeats; timeouts, throttles, rate limits
+and retry backoff that control a process rather than decide about a record;
+intermediate scratch files, build scratch, and caches that hold only a copy of data the system still
+fetches or computes from its source, kept to avoid doing that again; and picking
+which source items to re-read by comparing their change times with a sync cursor
+kept only for that purpose (comparing with a record's own last-write time is a
+clock). Sorting a complete result by time, with nothing dropped or hidden, is not
+a clock either. Automation whose only job is maintaining the project's code
+repository, such as a bot that closes old issues or pull requests, is out of
+scope too. A clock
+does not survive a bulk write if it reads a file's modification time or a
+timestamp every write updates, even when a write is what it means to measure, or
+if a missing or unreadable time makes a record look fresh or never stale.
+Otherwise it survives only if the time it reads can be set by nothing but the
+event it measures. If you find no clock at all, say where you looked: that is
+CAN'T TELL, not a PASS. The verdict: PASS only if every clock you listed
+survives. One clock that does not makes the question FAIL, however minor its job;
+say what that clock controls in the note.
+
+**Question 4 - what did my last "yes" actually authorize?**
+Find every permission or approval mechanism - there can be more than one: a hook, a
+per-tool check, an allowlist, a mode that skips asking. For any grant, allowlist, or
+approved
+action: does it name one specific action or a category? Does it expire? Can it be
+used twice? And - the one people miss - between the check and the execution, can
+the thing being executed change?
+
+Those four can all answer well while the whole mechanism is bypassable, so do not
+PASS on them alone. Also establish: every gated execution path must go **through**
+its gate with no way around it; the agent cannot mint, edit, replay or delete its
+own grants or the policy and audit records; the human who approved is
+authenticated **and** authorized to approve that class; consumption is atomic
+before execution; the value that was checked is the value that runs; and the
+mutable context around it - working directory, PATH, environment, the shell, the
+files it reads - is either bound into the approval or independently trusted. A
+command hash does not bind a command's *effect* when any of those can change
+underneath it.
+
+**Question 5 - who checks the agent's memory for rot?**
+Find where this agent stores what it remembers. Is anything linting it? Look for
+duplicate facts, entries that contradict each other, links to files that no longer
+exist, and memories whose subject was deleted months ago. If nothing lints it, say
+so plainly.
+```
 
 ---
 
