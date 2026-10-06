@@ -10,6 +10,9 @@ Instructions for a coding agent working in this repository. Humans: [README.md](
 - `patterns/` — written protocols. Nothing executes them; they are held to accuracy and stated scope.
 - `skills/` — Agent Skills: `cs329a-self-improving-agents` (validated by
   `test/skill-references.test.mjs`) and `cog-ops-map` (validated by `test/cog-ops-map-skill.test.mjs`).
+- `gallery/` — published cognitive operations maps of OTHER projects' agent code (first: OpenHands).
+  Every sentence there is a claim about someone else's code: change one only with a quoted `file:line`
+  read on their current main and a cross-family claims pass, and keep the commit and date each map names.
 - `scripts/check-staged-secrets.mjs` + `.githooks/pre-commit` — refuses a commit whose staged lines
   carry a secret shape. Turn it on in your clone with `git config core.hooksPath .githooks` (running
   `npm install` does this through `prepare`). `--history <days> --selftest` proves it can go red.
