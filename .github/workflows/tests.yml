@@ -13,8 +13,8 @@ permissions:
 
 # Every action is pinned to a full commit SHA (version in the comment), so a moved
 # upstream tag cannot change what runs here; test/workflow-pins.test.mjs enforces it.
-# Dependabot (.github/dependabot.yml) opens weekly PRs that bump the SHA and the
-# comment together. By hand: resolve the new tag to its commit, replace both.
+# Dependabot (.github/dependabot.yml) checks weekly and proposes bumps by PR. By hand:
+# resolve the new tag to its commit and replace both the SHA and the comment.
 
 jobs:
   node:

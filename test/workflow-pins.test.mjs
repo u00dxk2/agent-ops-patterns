@@ -29,13 +29,14 @@ test("every external `uses:` is pinned to a 40-hex commit with its version in a 
 });
 
 test("the pins have an update path: Dependabot watches github-actions, and only that", () => {
-  // Pins never move on their own. Dependabot's github-actions updater bumps a SHA pin and
-  // rewrites its `# vX.Y.Z` comment, so the test above stays the guard on its PRs. This
-  // repo has no dependencies, so no other ecosystem belongs in the file.
+  // Pins never move on their own; Dependabot is their update path (it proposes a bump by
+  // PR, and the test above checks the pin's shape on it). Regex reads, not a YAML parser:
+  // this pins the four lines that matter, not the file's validity. The repo has no
+  // dependencies, so no other ecosystem belongs in the file.
   const cfg = readFileSync(fileURLToPath(new URL("../.github/dependabot.yml", import.meta.url)), "utf8");
   const ecosystems = [...cfg.matchAll(/package-ecosystem:\s*["']?([\w-]+)/g)].map((m) => m[1]);
   assert.deepEqual(ecosystems, ["github-actions"]);
   assert.match(cfg, /^version:\s*2\s*$/m);
   assert.match(cfg, /directory:\s*["']?\/["']?\s*$/m);
-  assert.match(cfg, /interval:\s*["']?(daily|weekly|monthly)/);
+  assert.match(cfg, /^\s*interval:\s*["']?weekly["']?\s*$/m);
 });

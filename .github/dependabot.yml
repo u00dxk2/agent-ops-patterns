@@ -1,6 +1,8 @@
 # The workflow's actions are pinned to full commit SHAs, which never move on their own.
-# This is their update path: Dependabot bumps each pin and rewrites its `# vX.Y.Z`
-# comment, and test/workflow-pins.test.mjs checks every bump PR keeps both.
+# This is their update path: Dependabot is configured to check weekly and propose action
+# updates by PR, bumping the SHA and (per its documentation) the `# vX.Y.Z` comment.
+# test/workflow-pins.test.mjs runs on those PRs; it checks the SHA shape and that a
+# version comment is present, not that the two correspond, so read a bump PR's diff.
 # The repo has no dependencies, so github-actions is the only ecosystem here.
 version: 2
 updates:

@@ -44,8 +44,9 @@ A new library, or a change to one, should leave it:
 Not every existing file meets all three yet. Bring the one you touch up to it; do not reformat the rest.
 
 Do not add a dependency, a build step, or a secret to any workflow. Every external action is pinned
-to a full commit SHA with its version in a comment (`test/workflow-pins.test.mjs` enforces it);
-`.github/dependabot.yml` bumps those pins weekly and watches nothing else. CONTRIBUTING.md explains why the
+to a full commit SHA with a version comment (`test/workflow-pins.test.mjs` checks the shape, not
+that SHA and comment correspond); `.github/dependabot.yml` checks weekly and proposes pin bumps
+by PR, and watches nothing else. A bump PR runs the proposed action in CI before anyone reviews it. CONTRIBUTING.md explains why the
 workflow's read-only posture is a property to keep.
 
 ## Traps
