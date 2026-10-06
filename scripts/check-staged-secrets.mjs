@@ -422,10 +422,14 @@ async function sweepHistory({ repo, revArgs, label }) {
       // hide the root commit's diff (log.showRoot), rename the a/ b/ prefixes, quote
       // non-ASCII paths, or emit blank context lines (interHunkContext + suppressBlankEmpty),
       // and each of those made this parser miss content or misread a valid log.
+      // --no-replace-objects: a refs/replace ref would show a clean stand-in for a committed
+      // credential blob (SY-1 b; the staged read has the same flag).
+      "--no-replace-objects",
       "-C", repo,
       "-c", "core.quotePath=false", "-c", "diff.interHunkContext=0", "-c", "diff.suppressBlankEmpty=false",
       "log", "-p", "--root", "--no-color", "--unified=0", "--no-ext-diff", "--no-textconv",
       "--src-prefix=a/", "--dst-prefix=b/",
+      "--output-indicator-new=+", "--output-indicator-old=-", "--output-indicator-context= ",
       // diff.relative would drop every file outside a --repo subdirectory (CLEAN over them);
       // diff.submodule=log emits indented summaries the strict header grammar rejects.
       "--no-relative", "--submodule=short",
@@ -984,10 +988,18 @@ const FULL_READ = [
   "-c", "diff.interHunkContext=0",
   "diff", "--cached", "--unified=0", "--no-color", "--no-relative", "--no-renames",
   "--text", "--no-textconv", "--no-ext-diff", "--diff-filter=ACMRT",
+  // The parser keys on `+` / `-` / space, so they are stated, not left to defaults. No git
+  // config sets them (diff.outputIndicatorNew is not a key; checked 2026-10-06), so this has
+  // no red test: it is a statement of what the parser assumes.
+  "--output-indicator-new=+", "--output-indicator-old=-", "--output-indicator-context= ",
 ];
 // The read this scanner did before SY-1, byte for byte. Used only when the full read fails.
 const LEGACY_READ = ["-c", "diff.interHunkContext=0", "diff", "--cached", "--unified=0", "--no-color", "--diff-filter=ACMRT"];
-const readStaged = (args) => execFileSync("git", args, { encoding: "utf8", maxBuffer: MAX_BUFFER });
+// --no-replace-objects on BOTH reads (SY-1 b, ported from the fleet scanner c67f44578): a
+// local `refs/replace/<blob>` made git show a clean replacement while the index, and so the
+// commit, still named the credential blob; the scan judged the wrong bytes and passed. It is a
+// global option, so it sits before the subcommand and leaves LEGACY_READ's own args as they were.
+const readStaged = (args) => execFileSync("git", ["--no-replace-objects", ...args], { encoding: "utf8", maxBuffer: MAX_BUFFER });
 let diff = "";
 try {
   diff = readStaged(FULL_READ);

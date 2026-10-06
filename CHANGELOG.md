@@ -4,6 +4,12 @@ Changes that matter to anyone who vendors a file from this repo. Each entry name
 
 ## 2026-10-06
 
+### Scanner: a `refs/replace` ref could swap a credential for a clean stand-in
+
+**Re-pull:** `scripts/check-staged-secrets.mjs`.
+
+`git replace <blob> <other>` makes git show `<other>` wherever `<blob>` is read, but the index and the commit still name the original. With a replace ref pointing a credential blob at a clean one, both the pre-commit scan and `--history` (and so CI's `--range`) judged the stand-in and passed (reproduced on Windows git 2.55, where git applies the replace ref to both reads). Every git read now runs `git --no-replace-objects`. Whether a host's git applies replace refs to an index diff varies, so the tests report that precondition instead of asserting it. The diff output indicators are also pinned on the command line (`+`, `-`, space), because the parser keys on them; no git config can change them, so that part has no failing test.
+
 ### Scanner: a repo's own diff settings could hide a staged secret
 
 **Re-pull:** `scripts/check-staged-secrets.mjs`.

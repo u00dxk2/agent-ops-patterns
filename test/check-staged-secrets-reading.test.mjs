@@ -118,6 +118,37 @@ test("LIMIT: after a fallback, a `-diff` file is not read (the fallback's declar
   assertCaught(scan(r), "app.cfg", "control: the uncapped full read should catch it");
 });
 
+/** Stage a credential blob, then point a refs/replace ref at a clean blob in its place. */
+function replacedRepo() {
+  const r = repo();
+  writeFileSync(join(r, "app.cfg"), `TOKEN=${TOKEN}\n`);
+  git(r, "add", "app.cfg");
+  const real = git(r, "rev-parse", ":app.cfg").trim();
+  const clean = execFileSync("git", ["-C", r, "hash-object", "-w", "--stdin"], { input: "TOKEN=placeholder\n", encoding: "utf8" }).trim();
+  git(r, "replace", real, clean);
+  return r;
+}
+
+test("a refs/replace object does not stand in for the staged blob (SY-1 b: --no-replace-objects)", (t) => {
+  const r = replacedRepo();
+  // Whether git applies the replace ref to a plain index diff varies by host (the fleet's
+  // ubuntu runner did not, skylark-site c8a9e8f68), so the precondition is REPORTED, not
+  // asserted. The scanner must catch the credential either way.
+  const plain = git(r, "diff", "--cached");
+  t.diagnostic(`host git applies refs/replace to the index diff: ${!plain.includes(TOKEN.slice(4))}`);
+  assertCaught(scan(r), "app.cfg", "a replace ref showed git a clean blob and the staged credential passed");
+});
+
+test("a refs/replace object does not stand in for a committed blob in --history (SY-1 b)", (t) => {
+  const r = replacedRepo();
+  git(r, "commit", "-q", "--no-verify", "-m", "add");
+  const plain = git(r, "log", "-p", "-1");
+  t.diagnostic(`host git applies refs/replace to log -p: ${!plain.includes(TOKEN.slice(4))}`);
+  const out = spawnSync(process.execPath, [SCRIPT, "--history", "1", "--repo", r], { encoding: "utf8" });
+  assert.equal(out.status, 3, `history sweep missed the replaced credential:\n${out.stdout}${out.stderr}`);
+  assert.match(out.stdout + out.stderr, /github-pat/);
+});
+
 test("a renamed-and-edited file's added line is read", () => {
   const r = repo();
   const body = Array.from({ length: 40 }, (_, i) => `line ${i} of an ordinary file`).join("\n") + "\n";
