@@ -86,6 +86,32 @@ test("keywords separated by whitespace or a comment stay two tokens (AOP-R5)", (
   assert.ok(stripComments(div).includes("total / count;"));
 });
 
+test("a keyword used as an identifier cannot make a false regex swallow a comment opener (Codex round 1)", () => {
+  // `of` is a legal parameter name; `return of / /* … */` is division. A false regex
+  // `/ /` closed on the comment's first `/` and left the comment, or, with a quote in
+  // the comment, opened a string that ate real code up to `//prod`.
+  for (const src of [
+    "function f(of) { return of / /* sentinel */ 2; }",
+    "function f(of) { const y = of / /* sentinel */ 2; }",
+    "function f(of) { return of / // sentinel\n 2; }",
+  ]) {
+    assert.equal(includesOutsideComments(src, "sentinel"), false, JSON.stringify(src));
+  }
+  const code = 'function f(of) { return of / /* " */ 2 + "https://prod"; }';
+  assert.ok(stripComments(code).includes('"https://prod"'), "real code must not be stripped");
+  // A real regex followed by a space and an operator still reads as a regex.
+  const re = 'x = /["]/ * 1; // sentinel';
+  assert.equal(includesOutsideComments(re, "sentinel"), false);
+  assert.ok(stripComments(re).includes('/["]/ * 1;'));
+});
+
+test("every JavaScript whitespace character ends a word (Codex round 1)", () => {
+  for (const gap of [" ", "\f", "\v", " ", "﻿", " "]) {
+    const src = `function f() { return typeof${gap}/["]/; } // sentinel`;
+    assert.equal(includesOutsideComments(src, "sentinel"), false, JSON.stringify(gap));
+  }
+});
+
 test("a real regex body may contain // and is copied verbatim", () => {
   const src = String.raw`const p = /https:\/\/example/; // trailing`;
   const out = stripComments(src);
