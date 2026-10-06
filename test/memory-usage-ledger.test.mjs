@@ -36,6 +36,7 @@ describe("tallyUsage — evidence for eviction, never a verdict", () => {
     const picks = [[b, z], [z, b]].map((rows) =>
       tallyUsage(rows.map((r) => ({ ...r, name: "beta" })), ["beta"], { days: 90, now: NOW }).touched[0].lastTouch);
     assert.equal(picks[0], picks[1]);
+    assert.equal(picks[0], b.ts, "the tie goes to the lexically larger spelling");
   });
 
   it("a touch outside the window does not count — the file reads never-touched IN THE WINDOW", () => {
