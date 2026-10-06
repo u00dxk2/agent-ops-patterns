@@ -27,3 +27,15 @@ test("every external `uses:` is pinned to a 40-hex commit with its version in a 
   assert.ok(refs > 0, "no external uses: lines found — the check read nothing");
   assert.deepEqual(unpinned, []);
 });
+
+test("the pins have an update path: Dependabot watches github-actions, and only that", () => {
+  // Pins never move on their own. Dependabot's github-actions updater bumps a SHA pin and
+  // rewrites its `# vX.Y.Z` comment, so the test above stays the guard on its PRs. This
+  // repo has no dependencies, so no other ecosystem belongs in the file.
+  const cfg = readFileSync(fileURLToPath(new URL("../.github/dependabot.yml", import.meta.url)), "utf8");
+  const ecosystems = [...cfg.matchAll(/package-ecosystem:\s*["']?([\w-]+)/g)].map((m) => m[1]);
+  assert.deepEqual(ecosystems, ["github-actions"]);
+  assert.match(cfg, /^version:\s*2\s*$/m);
+  assert.match(cfg, /directory:\s*["']?\/["']?\s*$/m);
+  assert.match(cfg, /interval:\s*["']?(daily|weekly|monthly)/);
+});

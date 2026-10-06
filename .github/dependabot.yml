@@ -1,0 +1,10 @@
+# The workflow's actions are pinned to full commit SHAs, which never move on their own.
+# This is their update path: Dependabot bumps each pin and rewrites its `# vX.Y.Z`
+# comment, and test/workflow-pins.test.mjs checks every bump PR keeps both.
+# The repo has no dependencies, so github-actions is the only ecosystem here.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
