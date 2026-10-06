@@ -4,6 +4,12 @@ Changes that matter to anyone who vendors a file from this repo. Each entry name
 
 ## 2026-10-05
 
+### A Google-shaped key ending in `-` escaped all three tools
+
+**Re-pull:** `lib/snippet-redact.mjs`, `lib/secret_redaction.py`, `scripts/check-staged-secrets.mjs`.
+
+The `google-api-key` rule ended in `\b`, which needs a word character on one side. A key whose last character is `-` (part of the key alphabet), followed by a space, a quote or the end of the text, failed it, and at 39 characters it is under the base64 fallback's floor, so it passed both redactors and the scanner intact. The rule now ends in `(?:\b|(?![0-9A-Za-z_]))`: every match the old rule made still matches, and the trailing-`-` key now does too.
+
 ### capability-grant: an accessor authorization bypass, a lifetime cap, no command text in the audit line
 
 **Re-pull:** `lib/capability-grant.mjs`. **Behavior changes:** read this whole entry before upgrading.

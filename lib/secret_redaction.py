@@ -165,7 +165,7 @@ _SHAPES: list[tuple[str, re.Pattern[str], Callable[[re.Match[str]], bool] | None
     ("aws-key", _lead("A", r"AKIA[0-9A-Z]{16}\b"), None),
     ("stripe-key", _lead("[srp]", r"[srp]k_(?:live|test)_[0-9a-zA-Z]{16,}\b"), None),
     ("github-token", _lead("g", r"(?:gh[pousr]_[0-9A-Za-z]{36,}|github_pat_[0-9A-Za-z_]{40,})\b"), None),
-    ("google-api-key", _lead("A", r"AIza[0-9A-Za-z\-_]{35}\b"), None),
+    ("google-api-key", _lead("A", r"AIza[0-9A-Za-z\-_]{35}(?:\b|(?![0-9A-Za-z_]))"), None),
     ("slack-token", _lead("x", r"xox[baprs]-[0-9A-Za-z-]{10,}\b"), None),
     # A Slack incoming-webhook URL IS a credential — its own shape (the generic
     # base64 rule skips URL interiors).
@@ -285,6 +285,14 @@ def _self_check() -> None:
         assert f"[redacted:{shape}]" in text
         assert "context before" in text and "context after" in text
         assert secret[-12:] not in text, f"tail of {shape} fixture survived"
+
+    # A Google-shaped key whose last character is "-" redacts whole: a trailing \b
+    # needs a word character on one side, and "-" plus a delimiter has none.
+    dash_key = "AI" + "za" + "a" * 34 + "-"
+    for s in (dash_key, f"key {dash_key} end", f'"{dash_key}"'):
+        r = redact_secret_shapes(s)
+        assert r.shapes == ["google-api-key"], (s, r.shapes)
+        assert "AI" + "za" not in r.text, s
 
     # Benign text passes byte-identical.
     benign = "R-071 closed at commit 0c71e3a — feed restored; see docs/specs/x.md and https://example.com/path?utm_source=bus"

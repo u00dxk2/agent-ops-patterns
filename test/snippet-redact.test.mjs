@@ -240,6 +240,15 @@ test("the escape-residue anchor keeps the word boundary: a key glued to a word s
   }
 });
 
+test("a Google-shaped key whose last character is `-` redacts whole (AOP-R1)", () => {
+  const key = "AI" + "za" + "a".repeat(34) + "-";
+  for (const text of [key, `key ${key} end`, `"${key}"`]) {
+    const r = redactSecretShapes(text);
+    assert.deepEqual(r.shapes, ["google-api-key"], text);
+    assert.ok(!r.text.includes("AI" + "za"), text);
+  }
+});
+
 test("LIMIT: a key glued to a word character with no escape residue passes", () => {
   // `xghp_…` has no delimiter of any kind. Matching it would mean dropping the
   // boundary altogether, and `task-…` / `risk-…` show why that is not free.

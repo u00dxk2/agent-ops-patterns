@@ -110,7 +110,8 @@ const PATTERNS = [
   { name: "aws-access-key", re: /\bAKIA[0-9A-Z]{16}\b/ },
   { name: "stripe-live-secret", re: /\bsk_live_[0-9a-zA-Z]{16,}\b/ },
   { name: "github-pat", re: /\b(?:gh[pousr]_[0-9A-Za-z]{36,}|github_pat_[0-9A-Za-z_]{40,})\b/ },
-  { name: "google-api-key", re: /\bAIza[0-9A-Za-z\-_]{35}\b/ },
+  // Ends at `\b` OR "no word character next": `\b` alone missed a key ending in "-".
+  { name: "google-api-key", re: /\bAIza[0-9A-Za-z\-_]{35}(?:\b|(?![0-9A-Za-z_]))/ },
   { name: "slack-token", re: /\bxox[baprs]-[0-9A-Za-z-]{10,}\b/ },
   // Anthropic before OpenAI: both start "sk-". The OpenAI rule takes the project /
   // service-account / admin prefixes, or a legacy 32+ alphanumeric body — a bare
