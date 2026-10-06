@@ -967,35 +967,42 @@ function selftestHistory(days) {
 const DEFAULT_MAX_BUFFER = 64 * 1024 * 1024;
 const askedBuffer = Number(process.env.SECRET_SCAN_MAX_BUFFER);
 const MAX_BUFFER = Number.isInteger(askedBuffer) && askedBuffer > 0 && askedBuffer <= DEFAULT_MAX_BUFFER ? askedBuffer : DEFAULT_MAX_BUFFER;
-// R and T: lines added to a renamed (or type-changed) file are new content too.
-// interHunkContext pinned to 0 so a config cannot join hunks with context lines.
-// --no-textconv --no-ext-diff --text: a textconv driver, diff.external or a `-diff`/binary
-// attribute (each settable by the repo being committed to) otherwise makes git print another
-// program's view or "Binary files differ" instead of the lines, and the scan read nothing and
-// passed (ported from the fleet scanner, SY-1). Rename detection stays ON: R is in the filter,
-// so a renamed file's edit hunks are read, and content that only moved is not re-flagged as
-// new (the fleet turned renames off because its filter was ACM).
-const readStaged = (text) =>
-  execFileSync(
-    "git",
-    ["-c", "diff.interHunkContext=0", "diff", "--cached", "--unified=0", "--no-color", "--no-textconv", "--no-ext-diff", ...(text ? ["--text"] : []), "--diff-filter=ACMRT"],
-    { encoding: "utf8", maxBuffer: MAX_BUFFER },
-  );
+// The read, and what each setting closes:
+// - R and T in the filter: lines added to a renamed (or type-changed) file are new content too.
+// - interHunkContext pinned to 0 so a config cannot join hunks with context lines.
+// - --text --no-textconv --no-ext-diff: a `-diff`/binary attribute, a textconv driver or
+//   diff.external (each settable by the repo being committed to) otherwise makes git print
+//   "Binary files differ" or another program's view instead of the lines, and the scan read
+//   nothing and passed (ported from the fleet scanner, SY-1).
+// - diff.renames pinned to plain rename detection: with `copies`, a file copied from a
+//   modified one prints as C100 with no lines. Renames stay ON (the fleet turned them off
+//   because its filter was ACM): a renamed file's edit hunks are read, and content that only
+//   moved is not re-flagged as new.
+// - --no-relative: diff.relative would drop staged files outside the current directory.
+const FULL_READ = [
+  "-c", "diff.interHunkContext=0", "-c", "diff.renames=true",
+  "diff", "--cached", "--unified=0", "--no-color", "--no-relative",
+  "--text", "--no-textconv", "--no-ext-diff", "--diff-filter=ACMRT",
+];
+// The read this scanner did before SY-1, byte for byte. Used only when the full read fails.
+const LEGACY_READ = ["-c", "diff.interHunkContext=0", "diff", "--cached", "--unified=0", "--no-color", "--diff-filter=ACMRT"];
+const readStaged = (args) => execFileSync("git", args, { encoding: "utf8", maxBuffer: MAX_BUFFER });
 let diff = "";
 try {
-  diff = readStaged(true);
-} catch (err) {
-  // --text prints a staged binary in full, so a large one can overflow the buffer. This path
-  // is fail-soft by design, and passing the whole commit unread would be WORSE than before
-  // --text existed, so an overflow falls back to the read without it (binaries print one
-  // line, as they always did) and says so. Any other failure keeps the old posture.
-  if (!(err && err.code === "ENOBUFS")) process.exit(0); // no staged changes / git unavailable → never block
+  diff = readStaged(FULL_READ);
+} catch {
+  // The full read can fail where the old one did not: --text prints a large binary in full
+  // (Node's buffer overflows, or git itself refuses a text diff over ~1 GiB), and
+  // --no-textconv can expand a file a driver used to shrink. This path is fail-soft by
+  // design, and passing the whole commit unread would be WORSE than before SY-1, so ANY
+  // failure falls back to the old read and says so. If that fails too, it passes, as it
+  // always did (no staged changes, git not installed, an unreadable repo).
   try {
-    diff = readStaged(false);
+    diff = readStaged(LEGACY_READ);
   } catch {
     process.exit(0);
   }
-  console.error("⚠ pre-commit: the staged diff is too large to read with binaries expanded; scanned without --text, so a file git treats as binary was not read.");
+  console.error("⚠ pre-commit: the full staged read failed (too large, or git refused it); fell back to the plain read, so a file git treats as binary or a repo-configured diff driver may hide lines.");
 }
 
 // The same reading rule as the history sweep: inside a hunk the @@ counts say what every
