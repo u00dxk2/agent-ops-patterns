@@ -6,11 +6,11 @@ The method is ["Cognitive Operations Maps"](https://uncagedminds.substack.com/p/
 
 | Map | System | Seats | Checked against |
 |---|---|---|---|
-| [OpenHands](./openhands/index.html) | [`OpenHands/software-agent-sdk`](https://github.com/OpenHands/software-agent-sdk), the agent loop of the OpenHands coding agent | 45 (31 rule, 12 ruling, 2 human); 14 ranked findings, 1 withdrawn | commit `aae9c437`, 2026-10-06 |
+| [OpenHands](https://u00dxk2.github.io/agent-ops-patterns/gallery/openhands/) | [`OpenHands/software-agent-sdk`](https://github.com/OpenHands/software-agent-sdk), the agent loop of the OpenHands coding agent | 45 (31 rule, 12 ruling, 2 human); 14 ranked findings, 1 withdrawn | commit `aae9c437`, 2026-10-06 |
 
 ## How to read one
 
-Each map is one self-contained HTML file with no external requests. GitHub shows HTML files as source, so download the file and open it in a browser. A "Download .md" button on the page exports the seat cards, the gap report, the census and the prompt and code excerpts as Markdown, if you'd rather hand it to your own assistant.
+Each map is one self-contained HTML file with no external requests. The links in the table open it in your browser; the files are also in this folder (for example [`openhands/index.html`](./openhands/index.html)) if you would rather download one. A "Download .md" button on the page exports the seat cards, the gap report, the census and the prompt and code excerpts as Markdown, if you'd rather hand it to your own assistant.
 
 ## What a map is, and is not
 
