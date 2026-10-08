@@ -23,8 +23,20 @@ function mapFolders() {
 
 const pages = () => ["index.html", "gallery/index.html", ...mapFolders().map((m) => `gallery/${m}/index.html`)];
 
+// Double- and single-quoted attributes both count; an unquoted href fails the
+// test outright rather than slipping past it.
 function hrefs(html) {
-  return [...html.matchAll(/\shref="([^"]*)"/g)].map((m) => m[1]);
+  assert.doesNotMatch(html, /\shref=[^"'\s>]/, "every href is quoted");
+  return [...html.matchAll(/\shref=(["'])(.*?)\1/g)].map((m) => m[2]);
+}
+
+// Pages serves a folder only through its index.html, so a link to an existing
+// folder without one is as broken as a link to a missing file.
+function servable(target) {
+  const abs = path.join(root, target);
+  if (!fs.existsSync(abs)) return false;
+  if (fs.statSync(abs).isDirectory()) return fs.existsSync(path.join(abs, "index.html"));
+  return true;
 }
 
 // Resolve a relative href the way the browser does from the page's served URL,
@@ -70,7 +82,7 @@ describe("gallery pages on GitHub Pages", () => {
         if (target === null) continue;
         followed++;
         assert.ok(!target.startsWith(".."), `${page}: "${href}" leaves the site`);
-        assert.ok(fs.existsSync(path.join(root, target)), `${page}: "${href}" -> ${target} does not exist`);
+        assert.ok(servable(target), `${page}: "${href}" -> ${target} is not a file Pages can serve`);
         assert.doesNotMatch(target, /\.md$/i, `${page}: "${href}" -> ${target} is served as raw Markdown`);
       }
     }
@@ -92,6 +104,14 @@ describe("gallery pages on GitHub Pages", () => {
     assert.equal(servedFile("gallery/index.html", "../"), "index.html");
     assert.equal(servedFile("gallery/index.html", "#x"), null);
     assert.throws(() => servedFile("index.html", "/gallery/"), /site-absolute/);
+  });
+
+  it("hrefs reads single-quoted links and refuses unquoted ones; servable refuses a folder with no index.html", () => {
+    assert.deepEqual(hrefs(`<a href='./README.md'>x</a> <a href="../">y</a>`), ["./README.md", "../"]);
+    assert.throws(() => hrefs(`<a href=./x/>z</a>`), /quoted/);
+    assert.equal(servable("skills"), false, "skills/ has no index.html (if it gains one, pick another folder)");
+    assert.equal(servable("gallery"), true);
+    assert.equal(servable("gallery/index.html"), true);
   });
 
   it("LIMIT: links to other sites (github.com, substack) are not fetched", () => {
