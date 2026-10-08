@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Decision Maps</title>
+<meta name="description" content="Cognitive operations maps of open-source agent systems: every recurring judgment as a seat, who holds it, how it fails and what checks it.">
+<style>
+:root{
+  --bg:#fbfaf7;--fg:#1d1d1b;--muted:#5d5b55;--line:#dedad0;--card:#ffffff;--code:#f2efe8;--link:#2f6f8f;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--card:#1d1c19;--code:#262520;--link:#6fb3d4;}}
+:root[data-theme="dark"]{
+  --bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--card:#1d1c19;--code:#262520;--link:#6fb3d4;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:760px;margin:0 auto;padding:0 16px 64px}
+a{color:var(--link)}
+h1{font-size:1.7rem;line-height:1.2;margin:28px 0 8px}
+h2{font-size:1.2rem;margin:36px 0 10px;padding-top:8px;border-top:1px solid var(--line)}
+p,li{max-width:68ch}
+code{background:var(--code);padding:1px 4px;border-radius:4px;font-size:.88em;overflow-wrap:anywhere}
+pre{background:var(--code);padding:10px 12px;border-radius:6px;overflow-x:auto;font-size:.85rem}
+.crumbs{font-size:.9rem;color:var(--muted);margin-top:18px}
+.map{display:block;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:14px 16px;margin:12px 0;color:inherit;text-decoration:none}
+.map:hover,.map:focus-visible{border-color:var(--link)}
+.map .name{font-size:1.15rem;font-weight:700;color:var(--link)}
+.map .sys{margin:4px 0}
+.map .facts{color:var(--muted);font-size:.92rem}
+.meta{color:var(--muted);font-size:.9rem}
+</style>
+</head>
+<body>
+<main>
+
+<p class="crumbs"><a href="../">agent-ops-patterns</a> / gallery</p>
+
+<h1>Who decides what inside open-source agents</h1>
+
+<p>Each map takes one open-source agent system and lists the recurring judgments it found there, each as a <em>seat</em>: the question the judgment answers, who holds it (code, a model, or a person), how it has failed, and what checks it. Seats are sorted rule vs ruling and human vs machine. Every seat a model holds shows its prompt templates, or the code that assembles them, sliced from the project's source. Each map ends with a ranked report of the gaps the mapping exposed.</p>
+
+<p>The method is <a href="https://uncagedminds.substack.com/p/cognitive-operations-maps">"Cognitive Operations Maps"</a>.</p>
+
+<h2>The maps</h2>
+
+<a class="map" href="./openhands/">
+  <span class="name">OpenHands</span>
+  <div class="sys"><code>OpenHands/software-agent-sdk</code>, the agent loop of the OpenHands coding agent</div>
+  <div class="facts">45 seats (31 rule, 12 ruling, 2 human) · 14 ranked findings, 1 withdrawn · checked against commit <code>aae9c437</code>, 2026-10-06</div>
+</a>
+
+<h2>Make a map of your own system</h2>
+
+<p>The skill that builds one is <a href="https://github.com/u00dxk2/agent-ops-patterns/tree/main/skills/cog-ops-map"><code>skills/cog-ops-map/</code></a>. In Claude Code:</p>
+
+<pre><code>claude plugin marketplace add u00dxk2/agent-ops-patterns
+claude plugin install agent-ops-skills@agent-ops-patterns</code></pre>
+
+<p>Or copy the folder; it is in the Agent Skills format.</p>
+
+<h2>How to read one</h2>
+
+<p>Each map is one self-contained HTML file with no external requests. The links above open it in your browser; the files are also in the <a href="https://github.com/u00dxk2/agent-ops-patterns/tree/main/gallery">repository's <code>gallery/</code> folder</a> if you would rather download one. A "Download .md" button on the page exports the seat cards, the gap report, the census and the prompt and code excerpts as Markdown, if you'd rather hand it to your own assistant.</p>
+
+<h2>What a map is, and is not</h2>
+
+<ul>
+<li><strong>Not exhaustive.</strong> Each map names the folders it covered and how its seats were found; a judgment outside those, or in a helper nobody opened, is not on it.</li>
+<li><strong>A snapshot.</strong> It describes the code at the commit it names. The project keeps moving, so a cited line number can stop pointing at what it describes; each map says which parts were checked at which commit.</li>
+<li><strong>A reading, mostly.</strong> Each gap says whether it was reproduced with a test or read from the source. Most are readings of code paths, not observed failures.</li>
+<li><strong>Not a security audit, and not a verdict on the project.</strong> The maps describe behaviour. Where a project's own docstring states a choice, the map quotes or cites it.</li>
+<li><strong>Shared with the project first.</strong> Findings that were reproduced are reported to the project in public before or alongside the map, and the map names those reports by issue number.</li>
+</ul>
+
+<p>Corrections are welcome as an <a href="https://github.com/u00dxk2/agent-ops-patterns/issues">issue</a>. A wrong sentence about someone else's code is the worst bug a map can have.</p>
+
+<p class="meta">The prompt and code excerpts in each map belong to the mapped project and keep its licence, which each map names. Source for this page: <a href="https://github.com/u00dxk2/agent-ops-patterns">github.com/u00dxk2/agent-ops-patterns</a>.</p>
+
+</main>
+</body>
+</html>
