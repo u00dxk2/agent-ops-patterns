@@ -124,7 +124,7 @@ describe("gallery pages on GitHub Pages", () => {
   // Card format rule, refused rather than parsed: a card opens with
   // `<div class="map">` at column 0, closes with `</div>` at column 0, and every
   // line between is indented. A card that breaks the rule fails the test.
-  it("each map card on the landing and gallery pages names a finding and links the map and its gap report", () => {
+  it("each map card block (as the format rule bounds it) has a finding paragraph and links the map and its gap report", () => {
     for (const [page, prefix] of [["index.html", "./gallery/"], ["gallery/index.html", "./"]]) {
       const cards = mapCards(read(page));
       assert.equal(cards.length, mapFolders().length, `${page}: one card per map folder`);
@@ -133,7 +133,7 @@ describe("gallery pages on GitHub Pages", () => {
         assert.ok(card, `${page}: a card links ${prefix}${m}/`);
         const finding = card.match(/<p class="finding">([\s\S]*?)<\/p>/);
         assert.ok(finding, `${page}: the ${m} card has a finding line`);
-        assert.ok(finding[1].replace(/<[^>]*>/g, "").trim().length >= 40, `${page}: the ${m} finding line has a sentence in it`);
+        assert.ok(finding[1].replace(/<[^>]*>/g, "").trim().length >= 40, `${page}: the ${m} finding paragraph has at least 40 characters of source text outside tags`);
         assert.ok(hrefs(card).includes(`${prefix}${m}/#gaps`), `${page}: the ${m} card links its gap report`);
       }
     }
@@ -143,13 +143,20 @@ describe("gallery pages on GitHub Pages", () => {
     for (const page of pages()) assert.ok(anchorsFlat(read(page)), `${page}: an <a> opens inside another <a>`);
   });
 
-  it("the OpenHands map's gap heading exists and each upstream number links to its own issue or PR", () => {
+  // Rule, not a matcher: every link to an OpenHands issue or PR shows exactly
+  // that number as its text, and the four numbers the gap report cites appear
+  // only inside such links.
+  it("in the OpenHands map, every upstream issue/PR link's text is its own number, and the cited numbers are all links", () => {
     const html = uncommented(read("gallery/openhands/index.html"));
     assert.match(html, /<h2 id="gaps">/);
-    const base = "https://github.com/OpenHands/software-agent-sdk";
-    for (const [kind, n] of [["issues", 5092], ["pull", 5110], ["issues", 5492], ["issues", 5525]]) {
-      assert.ok(html.includes(`<a href="${base}/${kind}/${n}">#${n}</a>`), `#${n} links ${kind}/${n}`);
-    }
+    const links = [...html.matchAll(/<a href="https:\/\/github\.com\/OpenHands\/software-agent-sdk\/(?:issues|pull)\/(\d+)">([\s\S]*?)<\/a>/g)];
+    for (const [, n, text] of links) assert.equal(text, `#${n}`, `the link to ${n} reads "${text}"`);
+    const linked = new Set(links.map((l) => l[1]));
+    for (const n of ["5092", "5110", "5492", "5525"]) assert.ok(linked.has(n), `#${n} is linked`);
+    // Other "#NNNN" text in the map (fix commits, another repo's agent-canvas#1900)
+    // is out of scope; only these four numbers must never appear unlinked.
+    const plain = html.replace(/<a [^>]*>[\s\S]*?<\/a>/g, "").match(/#(5092|5110|5492|5525)\b/g) ?? [];
+    assert.deepEqual(plain, [], "one of the four upstream numbers appears outside a link");
   });
 
   it("the card and link checks go red on the shapes they exist to catch", () => {
@@ -185,6 +192,21 @@ describe("gallery pages on GitHub Pages", () => {
     assert.equal(servable("skills"), false, "skills/ has no index.html (if it gains one, pick another folder)");
     assert.equal(servable("gallery"), true);
     assert.equal(servable("gallery/index.html"), true);
+  });
+
+  it("LIMIT: the card bound is a source-format rule; a card closed early on an indented line still reads as one block", () => {
+    const early = `<div class="map">\n  <a href="./x/">X</a></div><div>\n  <p class="finding">outside the box</p>\n</div>`;
+    assert.equal(mapCards(early).length, 1);
+    assert.match(mapCards(early)[0], /outside the box/);
+  });
+
+  it("LIMIT: the finding check counts source characters, so HTML entities that render as blank still count", () => {
+    const blank = "&#32;".repeat(8);
+    assert.ok(blank.replace(/<[^>]*>/g, "").trim().length >= 40);
+  });
+
+  it("LIMIT: anchorsFlat reads <a and </a> tokens, including ones inside attribute values", () => {
+    assert.equal(anchorsFlat(`<a title="</a>"><a>x</a><i title="<a">y</i></a>`), true);
   });
 
   it("LIMIT: links to other sites (github.com, substack) are not fetched", () => {
