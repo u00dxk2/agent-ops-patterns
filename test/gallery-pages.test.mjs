@@ -51,6 +51,36 @@ function servedFile(pageRel, href) {
   return target;
 }
 
+// CRLF is folded to LF first: a Windows checkout may carry CRLF in .html files.
+const uncommented = (html) => html.replace(/\r\n/g, "\n").replace(/<!--[\s\S]*?-->/g, "");
+
+// Anchors only, not a parser: walk every <a …> and </a> in order and refuse a
+// second opening before the first one closes.
+function anchorsFlat(html) {
+  let depth = 0;
+  for (const m of uncommented(html).matchAll(/<a\b|<\/a>/gi)) {
+    depth += m[0] === "</a>" || m[0] === "</A>" ? -1 : 1;
+    if (depth > 1 || depth < 0) return false;
+  }
+  return depth === 0;
+}
+
+// The card format rule (see the card test). Throws on any card that breaks it,
+// so a card this cannot bound is a failure, never a silent pass.
+function mapCards(html) {
+  const src = uncommented(html);
+  const opens = [...src.matchAll(/<div class="map">/g)];
+  return opens.map((o) => {
+    if (o.index !== 0 && src[o.index - 1] !== "\n") throw new Error("card format rule: <div class=\"map\"> not at column 0");
+    const rest = src.slice(o.index + o[0].length);
+    const close = rest.indexOf("\n</div>");
+    if (!rest.startsWith("\n") || close < 0) throw new Error("card format rule: card does not open on its own line and close with </div> at column 0");
+    const body = rest.slice(1, close);
+    if (body.split("\n").some((line) => !/^\s/.test(line))) throw new Error("card format rule: a line inside the card is not indented");
+    return body;
+  });
+}
+
 describe("gallery pages on GitHub Pages", () => {
   it("the site root and gallery/ each have an index.html", () => {
     assert.ok(fs.existsSync(path.join(root, "index.html")), "index.html at the repo root");
@@ -91,27 +121,45 @@ describe("gallery pages on GitHub Pages", () => {
 
   // A card's finding line holds its own links, so the card cannot itself be an
   // <a> (a link inside a link is invalid HTML and browsers split it apart).
-  it("each map card on the landing and gallery pages names a finding, links the map and its gap report, and nests no link", () => {
+  // Card format rule, refused rather than parsed: a card opens with
+  // `<div class="map">` at column 0, closes with `</div>` at column 0, and every
+  // line between is indented. A card that breaks the rule fails the test.
+  it("each map card on the landing and gallery pages names a finding and links the map and its gap report", () => {
     for (const [page, prefix] of [["index.html", "./gallery/"], ["gallery/index.html", "./"]]) {
-      const html = read(page);
-      const cards = [...html.matchAll(/<div class="map">([\s\S]*?)\n<\/div>/g)].map((m) => m[1]);
+      const cards = mapCards(read(page));
       assert.equal(cards.length, mapFolders().length, `${page}: one card per map folder`);
-      assert.doesNotMatch(html, /<a class="map"/, `${page}: a card is not itself a link`);
       for (const m of mapFolders()) {
         const card = cards.find((c) => hrefs(c).includes(`${prefix}${m}/`));
         assert.ok(card, `${page}: a card links ${prefix}${m}/`);
-        assert.match(card, /<p class="finding">[^<]/, `${page}: the ${m} card has a finding line`);
+        const finding = card.match(/<p class="finding">([\s\S]*?)<\/p>/);
+        assert.ok(finding, `${page}: the ${m} card has a finding line`);
+        assert.ok(finding[1].replace(/<[^>]*>/g, "").trim().length >= 40, `${page}: the ${m} finding line has a sentence in it`);
         assert.ok(hrefs(card).includes(`${prefix}${m}/#gaps`), `${page}: the ${m} card links its gap report`);
       }
     }
   });
 
-  it("the OpenHands map's gap anchor exists and its upstream issue numbers are links", () => {
-    const html = read("gallery/openhands/index.html");
-    assert.match(html, /id="gaps"/);
-    for (const ref of ["issues/5092", "pull/5110", "issues/5492", "issues/5525"]) {
-      assert.ok(hrefs(html).includes(`https://github.com/OpenHands/software-agent-sdk/${ref}`), `links ${ref}`);
+  it("no page nests a link inside a link", () => {
+    for (const page of pages()) assert.ok(anchorsFlat(read(page)), `${page}: an <a> opens inside another <a>`);
+  });
+
+  it("the OpenHands map's gap heading exists and each upstream number links to its own issue or PR", () => {
+    const html = uncommented(read("gallery/openhands/index.html"));
+    assert.match(html, /<h2 id="gaps">/);
+    const base = "https://github.com/OpenHands/software-agent-sdk";
+    for (const [kind, n] of [["issues", 5092], ["pull", 5110], ["issues", 5492], ["issues", 5525]]) {
+      assert.ok(html.includes(`<a href="${base}/${kind}/${n}">#${n}</a>`), `#${n} links ${kind}/${n}`);
     }
+  });
+
+  it("the card and link checks go red on the shapes they exist to catch", () => {
+    assert.equal(anchorsFlat(`<a href="x">a</a> <a href="y">b</a>`), true);
+    assert.equal(anchorsFlat(`<a href="x"><p>a <a href="y">b</a></p></a>`), false);
+    assert.equal(anchorsFlat(`<!-- <a href="x"> --><a href="y">b</a>`), true);
+    const card = `<div class="map">\n  <a class="name" href="./x/">X</a>\n</div>`;
+    assert.equal(mapCards(card).length, 1);
+    assert.throws(() => mapCards(`<div class="map"><a href="./x/">X</a></div>\n<div>\n<p class="finding">outside</p>\n</div>`), /format rule/);
+    assert.throws(() => mapCards(`<div class="map">\n  <a href="./x/">X</a>\n<p class="finding">outside</p>\n</div>`), /format rule/);
   });
 
   it("each page sets a title, a viewport, and an explicit body background", () => {
