@@ -23,8 +23,9 @@ p,li{max-width:68ch}
 code{background:var(--code);padding:1px 4px;border-radius:4px;font-size:.88em;overflow-wrap:anywhere}
 pre{background:var(--code);padding:10px 12px;border-radius:6px;overflow-x:auto;font-size:.85rem}
 .crumbs{font-size:.9rem;color:var(--muted);margin-top:18px}
-.map{display:block;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:14px 16px;margin:12px 0;color:inherit;text-decoration:none}
-.map:hover,.map:focus-visible{border-color:var(--link)}
+.map{display:block;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:14px 16px;margin:12px 0}
+.map:hover,.map:focus-within{border-color:var(--link)}
+.map .finding{margin:6px 0}
 .map .name{font-size:1.15rem;font-weight:700;color:var(--link)}
 .map .sys{margin:4px 0}
 .map .facts{color:var(--muted);font-size:.92rem}
@@ -44,11 +45,12 @@ pre{background:var(--code);padding:10px 12px;border-radius:6px;overflow-x:auto;f
 
 <h2>The maps</h2>
 
-<a class="map" href="./openhands/">
-  <span class="name">OpenHands</span>
+<div class="map">
+  <a class="name" href="./openhands/">OpenHands</a>
   <div class="sys"><code>OpenHands/software-agent-sdk</code>, the agent loop of the OpenHands coding agent</div>
+  <p class="finding">Its goal judge reads <code>"complete": "false"</code> as complete, because in Python <code>bool("false")</code> is <code>True</code>. We reproduced it with a failing test and reported it as <a href="https://github.com/OpenHands/software-agent-sdk/issues/5492">#5492</a>, which the project has labelled ready-for-dev. <a href="./openhands/#gaps">All 14 ranked findings →</a></p>
   <div class="facts">45 seats (31 rule, 12 ruling, 2 human) · 14 ranked findings, 1 withdrawn · checked against commit <code>aae9c437</code>, 2026-10-06</div>
-</a>
+</div>
 
 <h2>Make a map of your own system</h2>
 

@@ -89,6 +89,31 @@ describe("gallery pages on GitHub Pages", () => {
     assert.ok(followed >= 4, `followed ${followed} relative links (if fewer, the href pattern stopped matching)`);
   });
 
+  // A card's finding line holds its own links, so the card cannot itself be an
+  // <a> (a link inside a link is invalid HTML and browsers split it apart).
+  it("each map card on the landing and gallery pages names a finding, links the map and its gap report, and nests no link", () => {
+    for (const [page, prefix] of [["index.html", "./gallery/"], ["gallery/index.html", "./"]]) {
+      const html = read(page);
+      const cards = [...html.matchAll(/<div class="map">([\s\S]*?)\n<\/div>/g)].map((m) => m[1]);
+      assert.equal(cards.length, mapFolders().length, `${page}: one card per map folder`);
+      assert.doesNotMatch(html, /<a class="map"/, `${page}: a card is not itself a link`);
+      for (const m of mapFolders()) {
+        const card = cards.find((c) => hrefs(c).includes(`${prefix}${m}/`));
+        assert.ok(card, `${page}: a card links ${prefix}${m}/`);
+        assert.match(card, /<p class="finding">[^<]/, `${page}: the ${m} card has a finding line`);
+        assert.ok(hrefs(card).includes(`${prefix}${m}/#gaps`), `${page}: the ${m} card links its gap report`);
+      }
+    }
+  });
+
+  it("the OpenHands map's gap anchor exists and its upstream issue numbers are links", () => {
+    const html = read("gallery/openhands/index.html");
+    assert.match(html, /id="gaps"/);
+    for (const ref of ["issues/5092", "pull/5110", "issues/5492", "issues/5525"]) {
+      assert.ok(hrefs(html).includes(`https://github.com/OpenHands/software-agent-sdk/${ref}`), `links ${ref}`);
+    }
+  });
+
   it("each page sets a title, a viewport, and an explicit body background", () => {
     for (const page of pages()) {
       const html = read(page);

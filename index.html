@@ -23,9 +23,10 @@ p,li{max-width:68ch}
 .lede{font-size:1.1rem}
 code{background:var(--code);padding:1px 4px;border-radius:4px;font-size:.88em;overflow-wrap:anywhere}
 pre{background:var(--code);padding:10px 12px;border-radius:6px;overflow-x:auto;font-size:.85rem}
-.map{display:block;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:14px 16px;margin:12px 0;color:inherit;text-decoration:none}
-.map:hover,.map:focus-visible{border-color:var(--link)}
+.map{display:block;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:14px 16px;margin:12px 0}
+.map:hover,.map:focus-within{border-color:var(--link)}
 .map .name{font-size:1.15rem;font-weight:700;color:var(--link)}
+.map .finding{margin:6px 0}
 .map .facts{color:var(--muted);font-size:.92rem;margin-top:4px}
 .meta{color:var(--muted);font-size:.9rem}
 </style>
@@ -41,10 +42,11 @@ pre{background:var(--code);padding:10px 12px;border-radius:6px;overflow-x:auto;f
 
 <p>Each map lists the recurring judgments in one system and who holds each (code, a model, or a person), with how it has failed and what checks it where the mapping found them, prompt excerpts for many of the seats a model holds, and a ranked report of what the mapping exposed.</p>
 
-<a class="map" href="./gallery/openhands/">
-  <span class="name">OpenHands</span>
+<div class="map">
+  <a class="name" href="./gallery/openhands/">OpenHands</a>
+  <p class="finding">Its goal judge reads <code>"complete": "false"</code> as complete, because in Python <code>bool("false")</code> is <code>True</code>. We reproduced it with a failing test and reported it as <a href="https://github.com/OpenHands/software-agent-sdk/issues/5492">#5492</a>, which the project has labelled ready-for-dev. <a href="./gallery/openhands/#gaps">All 14 ranked findings →</a></p>
   <div class="facts">45 seats and 14 ranked findings in its agent SDK, checked against its code on 2026-10-06</div>
-</a>
+</div>
 
 <p><a href="./gallery/">All maps, how to read one, and what a map is not →</a></p>
 
