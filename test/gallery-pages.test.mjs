@@ -132,7 +132,7 @@ describe("gallery pages on GitHub Pages", () => {
   it("there are as many card blocks (by the format rule) as maps, and for each map some block links it and its gap report and has a finding paragraph", () => {
     for (const [page, prefix] of [["index.html", "./gallery/"], ["gallery/index.html", "./"]]) {
       const cards = mapCards(read(page));
-      assert.equal(cards.length, mapFolders().length, `${page}: one card per map folder`);
+      assert.equal(cards.length, mapFolders().length, `${page}: card block count equals map-folder count`);
       for (const m of mapFolders()) {
         const card = cards.find((c) => hrefs(c).includes(`${prefix}${m}/`));
         assert.ok(card, `${page}: a card links ${prefix}${m}/`);
