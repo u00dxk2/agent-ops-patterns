@@ -81,6 +81,11 @@ function mapCards(html) {
   });
 }
 
+const UPSTREAM_LINK = /<a href="https:\/\/github\.com\/OpenHands\/software-agent-sdk\/(?:issues|pull)\/(\d+)">([\s\S]*?)<\/a>/g;
+
+// Source characters outside tags; entities are not decoded (see the LIMIT test).
+const findingSourceLength = (inner) => inner.replace(/<[^>]*>/g, "").trim().length;
+
 describe("gallery pages on GitHub Pages", () => {
   it("the site root and gallery/ each have an index.html", () => {
     assert.ok(fs.existsSync(path.join(root, "index.html")), "index.html at the repo root");
@@ -124,7 +129,7 @@ describe("gallery pages on GitHub Pages", () => {
   // Card format rule, refused rather than parsed: a card opens with
   // `<div class="map">` at column 0, closes with `</div>` at column 0, and every
   // line between is indented. A card that breaks the rule fails the test.
-  it("each map card block (as the format rule bounds it) has a finding paragraph and links the map and its gap report", () => {
+  it("there are as many card blocks (by the format rule) as maps, and for each map some block links it and its gap report and has a finding paragraph", () => {
     for (const [page, prefix] of [["index.html", "./gallery/"], ["gallery/index.html", "./"]]) {
       const cards = mapCards(read(page));
       assert.equal(cards.length, mapFolders().length, `${page}: one card per map folder`);
@@ -133,30 +138,31 @@ describe("gallery pages on GitHub Pages", () => {
         assert.ok(card, `${page}: a card links ${prefix}${m}/`);
         const finding = card.match(/<p class="finding">([\s\S]*?)<\/p>/);
         assert.ok(finding, `${page}: the ${m} card has a finding line`);
-        assert.ok(finding[1].replace(/<[^>]*>/g, "").trim().length >= 40, `${page}: the ${m} finding paragraph has at least 40 characters of source text outside tags`);
+        assert.ok(findingSourceLength(finding[1]) >= 40, `${page}: the ${m} finding paragraph has at least 40 characters of source text outside tags`);
         assert.ok(hrefs(card).includes(`${prefix}${m}/#gaps`), `${page}: the ${m} card links its gap report`);
       }
     }
   });
 
-  it("no page nests a link inside a link", () => {
-    for (const page of pages()) assert.ok(anchorsFlat(read(page)), `${page}: an <a> opens inside another <a>`);
+  it("on every page, <a and </a> tokens balance and never go two deep", () => {
+    for (const page of pages()) assert.ok(anchorsFlat(read(page)), `${page}: <a / </a> tokens nest, close unopened, or stay open`);
   });
 
-  // Rule, not a matcher: every link to an OpenHands issue or PR shows exactly
-  // that number as its text, and the four numbers the gap report cites appear
-  // only inside such links.
-  it("in the OpenHands map, every upstream issue/PR link's text is its own number, and the cited numbers are all links", () => {
+  // One rule, one pattern: UPSTREAM_LINK. Every link it matches shows exactly its
+  // own number as text, and the four numbers the gap report cites appear only as
+  // the text of a link it matches. Spellings it does not match (extra attributes,
+  // single quotes) are outside the rule, and an occurrence in one of them fails.
+  it("in the OpenHands map, every matched upstream issue/PR link's text is its own number, and the four cited numbers appear only as such text", () => {
     const html = uncommented(read("gallery/openhands/index.html"));
     assert.match(html, /<h2 id="gaps">/);
-    const links = [...html.matchAll(/<a href="https:\/\/github\.com\/OpenHands\/software-agent-sdk\/(?:issues|pull)\/(\d+)">([\s\S]*?)<\/a>/g)];
+    const links = [...html.matchAll(UPSTREAM_LINK)];
     for (const [, n, text] of links) assert.equal(text, `#${n}`, `the link to ${n} reads "${text}"`);
     const linked = new Set(links.map((l) => l[1]));
     for (const n of ["5092", "5110", "5492", "5525"]) assert.ok(linked.has(n), `#${n} is linked`);
     // Other "#NNNN" text in the map (fix commits, another repo's agent-canvas#1900)
-    // is out of scope; only these four numbers must never appear unlinked.
-    const plain = html.replace(/<a [^>]*>[\s\S]*?<\/a>/g, "").match(/#(5092|5110|5492|5525)\b/g) ?? [];
-    assert.deepEqual(plain, [], "one of the four upstream numbers appears outside a link");
+    // is out of scope; only these four numbers are held to the rule.
+    const plain = html.replace(UPSTREAM_LINK, "").match(/#(5092|5110|5492|5525)\b/g) ?? [];
+    assert.deepEqual(plain, [], "one of the four upstream numbers appears outside a matched upstream link");
   });
 
   it("the card and link checks go red on the shapes they exist to catch", () => {
@@ -201,8 +207,7 @@ describe("gallery pages on GitHub Pages", () => {
   });
 
   it("LIMIT: the finding check counts source characters, so HTML entities that render as blank still count", () => {
-    const blank = "&#32;".repeat(8);
-    assert.ok(blank.replace(/<[^>]*>/g, "").trim().length >= 40);
+    assert.ok(findingSourceLength("&#32;".repeat(8)) >= 40);
   });
 
   it("LIMIT: anchorsFlat reads <a and </a> tokens, including ones inside attribute values", () => {
