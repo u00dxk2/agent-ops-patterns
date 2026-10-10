@@ -48,7 +48,7 @@ pre{background:var(--code);padding:10px 12px;border-radius:6px;overflow-x:auto;f
 <div class="map">
   <a class="name" href="./openhands/">OpenHands</a>
   <div class="sys"><code>OpenHands/software-agent-sdk</code>, the agent loop of the OpenHands coding agent</div>
-  <p class="finding">Its goal judge reads <code>"complete": "false"</code> as complete, because in Python <code>bool("false")</code> is <code>True</code>. We reproduced it with a failing test and reported it as <a href="https://github.com/OpenHands/software-agent-sdk/issues/5492">#5492</a>, which the project has labelled ready-for-dev. <a href="./openhands/#gaps">All 14 ranked findings →</a></p>
+  <p class="finding">Its goal judge reads <code>"complete": "false"</code> as complete, because in Python <code>bool("false")</code> is <code>True</code>. We reproduced it with a failing test and reported it as <a href="https://github.com/OpenHands/software-agent-sdk/issues/5492">#5492</a>, which the project has labelled ready-for-dev. Two outside contributors have since opened fix PRs, <a href="https://github.com/OpenHands/software-agent-sdk/pull/5493">#5493</a> and <a href="https://github.com/OpenHands/software-agent-sdk/pull/5563">#5563</a> (one a draft); neither is merged yet (checked 2026-10-10). <a href="./openhands/#gaps">All 14 ranked findings →</a></p>
   <div class="facts">45 seats (31 rule, 12 ruling, 2 human) · 14 ranked findings, 1 withdrawn · checked against commit <code>aae9c437</code>, 2026-10-06</div>
 </div>
 
