@@ -49,16 +49,17 @@ shape-matcher cannot recognize a secret it has no shape for):
    distinctive prefix. Key-name-based rules are deliberately absent — they
    false-positive hard on source code. Pair with an ingestion-side scrubber
    if you need that class.
- - **Vendors not in SHAPES** (Slack ``xapp-``, Telegram bot tokens, …). Adding
-   one means an _SHAPES entry here and in the JS file, plus a fixture row. The
-   vendor bodies the commit scanner (scripts/check-staged-secrets.mjs) gained
-   in SY-1 are here with its length bounds. They run last, so they only add
-   redaction, and where a generic rule takes a key's body first the token is
-   the generic one with the prefix visible (see the vendor block in _SHAPES).
+ - **Vendors with no shape** (Slack ``xapp-``, Telegram bot tokens, …). Adding
+   one means an entry here and in the JS file, plus a fixture row. The vendor
+   bodies the commit scanner (scripts/check-staged-secrets.mjs) gained in SY-1
+   are in _VENDOR_SHAPES with its length bounds. They run once, after every
+   other shape has finished, so they only add redaction. Where a generic rule
+   took all or part of a key's body first, the token is the generic one, the
+   prefix shows, and an untaken part of the body can show too, as before SY-3.
    No vendor shape fires on a body shorter than the scanner's floor or longer
-   than its ceiling, on a key right after a word character, ``_`` or ``-``, or
-   on one that runs on into ``+ / = _ -`` or a word character (other rules may
-   still redact those). Two differences from the
+   than its ceiling, on a key right after a word character, ``_`` or ``-``
+   (escape residue aside, as for every prefixed shape), or on one that runs on
+   into ``+ / = _ -`` or a word character. Two differences from the
    scanner: it fires only on a Supabase JWT whose role is service_role (an anon
    key would block a commit for nothing), while the JWT rule here redacts what
    it matches whatever the role; and its JWT header floor is eyJ + 8, this
@@ -204,14 +205,18 @@ _SHAPES: list[tuple[str, re.Pattern[str], Callable[[re.Match[str]], bool] | None
     # padded runs could only be redacted one per pass, which is the entire
     # reason this scan ever needed multiple passes. Mirrors snippet-redact.mjs.
     ("long-base64", re.compile(r"(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{40,}={0,2}(?![A-Za-z0-9+/])", _A), _skip_base64),
-    # Vendor shapes from scripts/check-staged-secrets.mjs (SY-3), with the
-    # scanner's length bounds. They run LAST, after the generic hex/base64 rules
-    # too, so they only see text nothing else redacted: the older shapes see
-    # exactly what they saw before SY-3, which is what makes these additive.
-    # Where a generic rule already took a vendor key's body, the token is the
-    # generic one. Mirrors snippet-redact.mjs (the full reasoning is there);
-    # the regex text is the same apart from JS's escaped "\/". SendGrid and
-    # Doppler first: their dotted bodies can hold another vendor prefix.
+]
+
+
+# Vendor shapes from scripts/check-staged-secrets.mjs (SY-3), with the scanner's
+# length bounds. NOT in _SHAPES: redact_secret_shapes runs _SHAPES to their fixed
+# point exactly as before SY-3, then applies these ONCE to what is left, and
+# nothing runs after them, so the result is the pre-SY-3 result with some raw
+# stretches turned into tokens. Mirrors VENDOR_SHAPES in snippet-redact.mjs (the
+# full reasoning and costs are there); the regex text is the same apart from
+# JS's escaped "\/". SendGrid and Doppler first: their dotted bodies can hold
+# another vendor prefix.
+_VENDOR_SHAPES: list[tuple[str, re.Pattern[str], Callable[[re.Match[str]], bool] | None]] = [
     ("sendgrid-key", _lead("S", r"SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}" + _VENDOR_END, _VENDOR_LEAD), None),
     ("doppler-token", _lead("d", r"dp\.(?:st\.(?:[A-Za-z0-9_-]{1,64}\.)?|(?:ct|pt|sa|said|scim|audit)\.)[A-Za-z0-9]{40,44}" + _VENDOR_END, _VENDOR_LEAD), None),
     ("sentry-token", _lead("s", r"sntry[suai]_[A-Za-z0-9+/=_-]{30,512}" + _VENDOR_END, _VENDOR_LEAD), None),
@@ -229,8 +234,10 @@ _SHAPES: list[tuple[str, re.Pattern[str], Callable[[re.Match[str]], bool] | None
 def redact_secret_shapes(text: str | None, *, max_passes: int | None = None) -> Redaction:
     """Redact secret-shaped runs in a text snippet.
 
-    Idempotent; benign text passes through byte-identical. Returns the
-    redacted text plus one shape name per replacement, in scan order.
+    Benign text passes through byte-identical. Idempotent for the older
+    shapes; a second call can redact more than the first, never less, when a
+    vendor token moved a later run out of the base64 rule's URL look-back.
+    Returns the redacted text plus one shape name per replacement, in scan order.
 
     FAIL-CLOSED on non-convergence: if the scan cannot stabilize within
     ``max_passes``, the ENTIRE snippet is replaced with NONCONVERGENT_TOKEN
@@ -258,9 +265,9 @@ def redact_secret_shapes(text: str | None, *, max_passes: int | None = None) -> 
     out = text
     shapes: list[str] = []
 
-    for _ in range(limit):
-        before = out
-        for shape, pattern, skip in _SHAPES:
+    def _apply(shape_list: list) -> None:
+        nonlocal out
+        for shape, pattern, skip in shape_list:
 
             def _replace(m: re.Match[str], *, _shape: str = shape, _skip=skip) -> str:
                 if _skip is not None and _skip(m):
@@ -269,7 +276,14 @@ def redact_secret_shapes(text: str | None, *, max_passes: int | None = None) -> 
                 return f"[redacted:{_shape}]"
 
             out = pattern.sub(_replace, out)
+
+    for _ in range(limit):
+        before = out
+        _apply(_SHAPES)
         if out == before:
+            # Fixed point of the older shapes, exactly as before SY-3. The vendor
+            # shapes then run once, and nothing runs after them (_VENDOR_SHAPES).
+            _apply(_VENDOR_SHAPES)
             return Redaction(out, shapes)
     # Never stabilized. Assume the worst about what is still in ``out``.
     return Redaction(NONCONVERGENT_TOKEN, [*shapes, "nonconvergent-snippet"])
@@ -494,6 +508,15 @@ def _self_check() -> None:
     assert redact_secret_shapes("k " + "rn" + "d_" + "Fx7k" * 32 + " e").text == "k rnd_[redacted:long-base64] e"
     assert redact_secret_shapes("k " + "d" + "p.st." + "Fx7k" * 11 + " e").text == "k dp.st.[redacted:long-base64] e"
     assert redact_secret_shapes("k " + "rn" + "d_" + "Fx7k" * 8 + " e").text == "k [redacted:render-api-key] e"
+    # LIMIT: a generic rule can take PART of a vendor key's body and leave the
+    # rest showing, exactly as before SY-3.
+    part = redact_secret_shapes("k " + "sntr" + "yu_" + "G7" * 20 + "_" + "H8" * 19 + " e").text
+    assert part == "k sntryu_[redacted:long-base64]_" + "H8" * 19 + " e", part
+    # The vendor shapes run once, after the older shapes' fixed point (Codex
+    # round 4): a chain of over-long Sentry keys, each matchable only once the
+    # next is replaced, no longer runs the loop into NONCONVERGENT_TOKEN.
+    chain = ("sntr" + "yu_" + "A" * 500 + "/") * 7 + "rn" + "d_" + "A" * 24
+    assert redact_secret_shapes(chain).text == chain[: -len("rn" + "d_" + "A" * 24)] + "[redacted:render-api-key]"
 
     # DOCUMENTED LIMITS — asserted so the boundary is a contract, not a surprise.
     legacy_pat = "e72c1b4a9f3d5e6a8b0c2d4f6a8b0c2d4f6a8b0c"  # pragma: allowlist secret

@@ -233,6 +233,42 @@ test("ADDITIVE inside a URL look-back: replacing a key never moves a later run i
   assert.deepEqual(failures.slice(0, 5), [], `${failures.length} of ${checked} URL-context cases redacted LESS than before SY-3`);
 });
 
+// Codex round 4 (2026-10-13), against d89794b, which ran the vendor shapes last but
+// INSIDE the pass loop: a second URL's run was redacted only on pass 2, and the vendor
+// token from pass 1 had pulled it inside the first URL's look-back. And a chain of
+// over-long Sentry keys, each matchable only once the next was replaced, ran the loop
+// into NONCONVERGENT. The vendor shapes now run once, after the loop.
+const ROUND4 = [
+  "https://x/" + "rn" + "d_" + "A".repeat(128) + ".".repeat(1920) + "http://" + "G7".repeat(20) + "." + "Q1w2".repeat(10),
+  ("sntr" + "yu_" + "A".repeat(500) + "/").repeat(7) + "rn" + "d_" + "A".repeat(24),
+];
+
+test("ADDITIVE across passes: a vendor token never changes what a later pass of the older shapes does", () => {
+  for (const text of ROUND4) {
+    const now = redactSecretShapes(text).text;
+    assert.notEqual(now, "[redacted:nonconvergent-snippet]");
+    assert.ok(onlyAddsRedaction(redactBeforeSy3(text).text, now), text.slice(0, 30));
+  }
+  // The same two-URL shape, swept over look-back distances and vendor keys.
+  const failures = [];
+  let checked = 0;
+  for (let dots = 1860; dots <= 2040; dots += 12) {
+    for (const key of [...DIGIT_VENDOR, ...VENDOR.map(([, , v]) => v)]) {
+      const text = "https://x/" + key + ".".repeat(dots) + "http://" + "G7".repeat(20) + "." + "Q1w2".repeat(10);
+      checked++;
+      if (!onlyAddsRedaction(redactBeforeSy3(text).text, redactSecretShapes(text).text)) failures.push(`${dots} ${key.slice(0, 8)}`);
+    }
+  }
+  assert.deepEqual(failures.slice(0, 5), [], `${failures.length} of ${checked} two-URL cases redacted LESS than before SY-3`);
+});
+
+test("LIMIT: a generic rule can take part of a vendor key's body and leave the rest showing, as before SY-3", () => {
+  const key = "sntr" + "yu_" + "G7".repeat(20) + "_" + "H8".repeat(19);
+  const now = redactSecretShapes(line(key)).text;
+  assert.equal(now, line("sntryu_[redacted:long-base64]_" + "H8".repeat(19)));
+  assert.equal(now, redactBeforeSy3(line(key)).text);
+});
+
 test("leg 3: the Python redactor returns the same shapes and text as the JS one, case by case", (t) => {
   const py = findPython();
   if (!py) {
@@ -240,7 +276,7 @@ test("leg 3: the Python redactor returns the same shapes and text as the JS one,
     assert.ok(!process.env.CI, "CI must have Python 3.10+ on PATH for the cross-language leg");
     return t.skip("no Python 3.10+ on PATH (local only; CI fails here instead)");
   }
-  const lines = [...VENDOR.map(([, , v]) => line(v)), ...OVERLAP.map(([v]) => line(v)), ...DIGIT_VENDOR.map(line)];
+  const lines = [...VENDOR.map(([, , v]) => line(v)), ...OVERLAP.map(([v]) => line(v)), ...DIGIT_VENDOR.map(line), ...ROUND4];
   for (const a of PIECES) for (const sep of SEPS) lines.push(`x ${a}${sep}${EDGE[1]} y`, `x ${EDGE[1]}${sep}${a} y`);
   const code =
     "import sys, json; sys.path.insert(0, sys.argv[1]); import secret_redaction as s; " +
