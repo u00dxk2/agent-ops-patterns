@@ -50,12 +50,14 @@ shape-matcher cannot recognize a secret it has no shape for):
    false-positive hard on source code. Pair with an ingestion-side scrubber
    if you need that class.
  - **Vendors not in SHAPES** (Slack ``xapp-``, Telegram bot tokens, …). Adding
-   a shape is a one-line PR. Every vendor shape the commit scanner
-   (scripts/check-staged-secrets.mjs) blocks is here, with the scanner's length
-   bounds, so a key shorter than a vendor's floor passes. One deliberate
-   difference: the scanner fires only on a Supabase JWT whose role is
-   service_role (an anon key would block a commit for nothing); here every JWT
-   is redacted, anon keys included.
+   one means an _SHAPES entry here and in the JS file, plus a fixture row. The
+   eight vendor bodies the commit scanner (scripts/check-staged-secrets.mjs)
+   gained in SY-1 are here with its length bounds: no vendor shape fires on a
+   body shorter than the scanner's floor, longer than its ceiling, or glued
+   onto ``-`` (other rules may still redact those). One deliberate difference:
+   the scanner fires only on a Supabase JWT whose role is service_role (an
+   anon key would block a commit for nothing); here the JWT rule redacts
+   whatever it matches, whatever the role.
  - **Base64 under 40 chars**, and secrets split across a snippet boundary.
  - **Prefixed keys in some encodings.** A prefixed shape matches an intact
    key that starts after a non-word character or right after a ``\\n``,
@@ -154,6 +156,9 @@ def _lead(first: str, body: str, anchor: str = _LEAD) -> re.Pattern[str]:
 # "eyJ-eyJ-…" no longer gives the regex a fresh, end-of-string scan at every
 # repeat (quadratic). Cost: a JWT glued onto "-" is not matched. Mirrors JWT_LEAD.
 _JWT_LEAD = _LEAD.replace("(?<![A-Za-z0-9_])", "(?<![A-Za-z0-9_-])")
+# The vendor shapes' anchor: the same "-" refusal, so they never start inside
+# another key. Mirrors VENDOR_LEAD.
+_VENDOR_LEAD = _JWT_LEAD
 
 
 _SHAPES: list[tuple[str, re.Pattern[str], Callable[[re.Match[str]], bool] | None]] = [
@@ -167,6 +172,21 @@ _SHAPES: list[tuple[str, re.Pattern[str], Callable[[re.Match[str]], bool] | None
     # Credentials in an http(s) URL; only "scheme://user:password@" is replaced.
     # Only "user:password@" is replaced; the scheme and host stay. Stops at / ? #.
     ("url-creds", re.compile(r"(?:(?<=https://)|(?<=http://))[^\s:/@?#]+:[^\s@/?#]+@", _A), None),
+    # Vendor shapes from scripts/check-staged-secrets.mjs (SY-3), with the
+    # scanner's length bounds. They run BEFORE the older prefixed shapes, use
+    # _VENDOR_LEAD (no start after "-", like the scanner), and each body must
+    # END inside its bounds; a longer run is left to the generic rules as it was
+    # before. Every quantifier is {m,n}, so the scan stays linear. Mirrors
+    # snippet-redact.mjs (reasons and order are spelled out there), regex text
+    # identical.
+    ("sentry-token", _lead("s", r"sntry[suai]_[A-Za-z0-9+/=_-]{30,512}(?![A-Za-z0-9+/=_-])", _VENDOR_LEAD), None),
+    ("supabase-secret-key", _lead("s", r"sb_secret_[A-Za-z0-9_-]{20,256}(?![A-Za-z0-9_-])", _VENDOR_LEAD), None),
+    ("sendgrid-key", _lead("S", r"SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])", _VENDOR_LEAD), None),
+    ("doppler-token", _lead("d", r"dp\.(?:st\.(?:[A-Za-z0-9_-]{1,64}\.)?|(?:ct|pt|sa|said|scim|audit)\.)[A-Za-z0-9]{40,44}(?![A-Za-z0-9])", _VENDOR_LEAD), None),
+    ("stripe-webhook-secret", _lead("w", r"whsec_[0-9a-zA-Z+/=]{24,256}(?![0-9a-zA-Z+/=])", _VENDOR_LEAD), None),
+    ("render-api-key", _lead("r", r"rnd_[A-Za-z0-9]{24,128}(?![A-Za-z0-9])", _VENDOR_LEAD), None),
+    ("supabase-access-token", _lead("s", r"sbp_(?:v0_)?[A-Za-z0-9]{32,128}(?![A-Za-z0-9])", _VENDOR_LEAD), None),
+    ("posthog-personal-key", _lead("p", r"phx_[A-Za-z0-9]{30,128}(?![A-Za-z0-9])", _VENDOR_LEAD), None),
     ("aws-key", _lead("A", r"AKIA[0-9A-Z]{16}\b"), None),
     ("stripe-key", _lead("[srp]", r"[srp]k_(?:live|test)_[0-9a-zA-Z]{16,}\b"), None),
     ("github-token", _lead("g", r"(?:gh[pousr]_[0-9A-Za-z]{36,}|github_pat_[0-9A-Za-z_]{40,})\b"), None),
@@ -175,25 +195,12 @@ _SHAPES: list[tuple[str, re.Pattern[str], Callable[[re.Match[str]], bool] | None
     # A Slack incoming-webhook URL IS a credential — its own shape (the generic
     # base64 rule skips URL interiors). GovSlack webhooks live on hooks.slack-gov.com.
     ("slack-webhook", _lead("h", r"https://hooks\.slack(?:-gov)?\.com/services/[A-Za-z0-9/]+"), None),
-    # Vendor shapes from scripts/check-staged-secrets.mjs (SY-3), with the
-    # scanner's bounds: every quantifier is {m,n}, so a run of repeated prefixes
-    # costs at most the ceiling per start and the scan stays linear. Mirrors
-    # snippet-redact.mjs, regex text identical.
-    ("render-api-key", _lead("r", r"rnd_[A-Za-z0-9]{24,128}"), None),
-    ("doppler-token", _lead("d", r"dp\.(?:st\.(?:[A-Za-z0-9_-]{1,64}\.)?|(?:ct|pt|sa|said|scim|audit)\.)[A-Za-z0-9]{40,44}(?![A-Za-z0-9])"), None),
-    ("sendgrid-key", _lead("S", r"SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])"), None),
-    ("supabase-access-token", _lead("s", r"sbp_(?:v0_)?[A-Za-z0-9]{32,128}"), None),
-    ("supabase-secret-key", _lead("s", r"sb_secret_[A-Za-z0-9_-]{20,256}"), None),
-    ("posthog-personal-key", _lead("p", r"phx_[A-Za-z0-9]{30,128}"), None),
-    # Sentry org (s), user (u), user-app (a) and integration (i) tokens.
-    ("sentry-token", _lead("s", r"sntry[suai]_[A-Za-z0-9+/=_-]{30,512}"), None),
-    ("stripe-webhook-secret", _lead("w", r"whsec_[0-9a-zA-Z+/=]{24,256}"), None),
     ("anthropic-key", _lead("s", r"sk-ant-[A-Za-z0-9_-]{10,}"), None),
     # No (?:proj-|admin-|svcacct-)? alternation, deliberately: "-" is in the
     # trailing class, so the generic form already matches every prefixed
     # variant. Spelling them out looked like coverage and was dead regex.
     ("openai-key", _lead("s", r"sk-[A-Za-z0-9_-]{20,}"), None),
-    ("jwt", _lead("e", r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}\b", _JWT_LEAD), None),
+    ("jwt", _lead("e", r"eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}\b", _JWT_LEAD), None),
     # ≥48 hex: sha256-length tokens redact; 40-hex git SHAs deliberately pass.
     ("long-hex", _lead("[0-9a-fA-F]", r"[0-9a-fA-F]{48,}\b"), None),
     # ≥40-char base64 run at a token boundary. NEGATIVE lookbehind (not another
@@ -376,7 +383,8 @@ def _self_check() -> None:
     import json as _json
 
     def jwt_with(payload: dict) -> str:
-        seg = base64.urlsafe_b64encode(_json.dumps(payload).encode()).decode().rstrip("=")
+        compact = _json.dumps(payload, separators=(",", ":"))  # byte-identical to JS JSON.stringify
+        seg = base64.urlsafe_b64encode(compact.encode()).decode().rstrip("=")
         return "eyJhbGciOiJIUzI1NiJ9." + seg + ".FIXTUREsignature"
 
     vendor_cases = [
@@ -404,6 +412,7 @@ def _self_check() -> None:
         ("stripe-key", "r" + "k_live_" + body(24)),
         ("jwt", jwt_with({"role": "service_role"})),
         ("jwt", jwt_with({"role": "anon"})),  # every JWT redacts here; the scanner's role rule is for commits
+        ("jwt", "eyJAAAAAAAA." + jwt_with({"role": "service_role"}).split(".")[1] + ".AAAAAAAA"),  # scanner's shortest header
     ]
     for shape, secret in vendor_cases:
         r = redact_secret_shapes(f"…context before {secret} context after…")
@@ -413,7 +422,25 @@ def _self_check() -> None:
         for residue in ["x\\n", "x\\t", "x\\r", "a%3D", "\\u0022", "\\\\n"]:
             text = redact_secret_shapes(f'{{"text":"line1{residue}{secret}"}}').text
             assert f"line1{residue}[redacted:{shape}]" in text, f"{residue!r} {shape}: {text}"
-    for short in [  # LIMIT: a body under the scanner's floor passes
+    # A vendor shape never redacts a piece out of another key (Codex round 1
+    # reproduced each before the fix). Mirrors OVERLAP in the JS test.
+    for value, expected in [
+        ("sk-ant-" + "rn" + "d_" + "A" * 24, "[redacted:anthropic-key]"),
+        ("sk-short-" + "rn" + "d_" + "A" * 24, "[redacted:openai-key]"),
+        ("eyJabcdefghij-" + "rn" + "d_" + "A" * 24 + ".BBBBBBBBBBBBBBBB.CCCCCCCCCCCCCCCC", "[redacted:jwt]"),
+        ("S" + "G." + "A" * 22 + "." + "B" * 14 + "-" + "rn" + "d_" + "C" * 24, "[redacted:sendgrid-key]"),
+        ("sb" + "_secret_-" + "gh" + "p_" + "A" * 36, "[redacted:supabase-secret-key]"),
+        ("sntr" + "yu_" + "A" * 20 + "-" + "ph" + "x_" + body(30), "[redacted:sentry-token]"),
+        ("rn" + "d_" + "G7" * 70, "rnd_[redacted:long-base64]"),  # past the ceiling: as before SY-3
+    ]:
+        got = redact_secret_shapes(f"x {value} y").text
+        assert got == f"x {expected} y", (value[:12], got)
+    vendor_names = {s for s, _ in vendor_cases} - {"jwt", "stripe-key", "slack-webhook"}
+
+    def vendor_hits(text: str) -> list[str]:
+        return [s for s in redact_secret_shapes(text).shapes if s in vendor_names]
+
+    for short in [  # LIMIT: no vendor shape fires under the scanner's floor (another rule still may)
         "rn" + "d_" + body(23),
         "ph" + "x_" + body(29),
         "sb" + "p_" + body(31),
@@ -422,11 +449,14 @@ def _self_check() -> None:
         "d" + "p.st." + body(39),
         "S" + "G." + body(17) + "." + body(20),  # SendGrid's segments are exactly 22 and 43
     ]:
-        assert redact_secret_shapes(f"x {short} y").shapes == [], short[:8]
-    # LIMIT: a body past the ceiling leaves its tail (bounded for linear time);
-    # the long-base64 rule takes that tail when it carries a digit.
-    over = redact_secret_shapes("x " + "rn" + "d_" + body(200) + " y")
-    assert over.shapes == ["render-api-key", "long-base64"], over.shapes
+        assert vendor_hits(f"x {short} y") == [], short[:8]
+    # LIMIT: a body past the ceiling is not a vendor match; a digit-free one is
+    # skipped by the base64 rule too, as before SY-3.
+    for over in ["rn" + "d_" + "A" * 200, "d" + "p.st." + "A" * 45, "S" + "G." + "A" * 22 + "." + "A" * 44]:
+        assert redact_secret_shapes(f"x {over} y").shapes == [], over[:8]
+    for shape, secret in vendor_cases:  # LIMIT: a vendor key glued onto "-" passes (the scanner's anchor)
+        if shape in vendor_names:
+            assert vendor_hits(f"x-{secret}") == [], shape
 
     # DOCUMENTED LIMITS — asserted so the boundary is a contract, not a surprise.
     legacy_pat = "e72c1b4a9f3d5e6a8b0c2d4f6a8b0c2d4f6a8b0c"  # pragma: allowlist secret

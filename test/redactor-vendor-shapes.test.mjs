@@ -53,6 +53,8 @@ const VENDOR = [
   // narrowing of either shape goes red here.
   ["stripe-restricted-live", "stripe-key", "r" + "k_live_" + body(24)],
   ["supabase-service-role-jwt", "jwt", jwt({ role: "service_role" })],
+  // The scanner's shortest header (eyJ + 8); the redactors' floor was eyJ + 10 until Codex round 1.
+  ["supabase-service-role-jwt", "jwt", "eyJAAAAAAAA." + Buffer.from('{"role":"service_role"}').toString("base64url") + ".AAAAAAAA"],
   // Ruled 2026-10-13 (manager review 8e00c300): the scanner's "service_role only" rule
   // is a COMMIT-BLOCKING rule, where a public anon key would be a false alarm. The
   // redactors keep redacting every JWT; an anon key is redacted too.
@@ -76,6 +78,7 @@ test("leg 1: the scanner names each fixture's pattern (the table is the scanner'
     const file = join(dir, "msg.txt");
     writeFileSync(file, VENDOR.map(([, , v]) => line(v)).join("\n") + "\n");
     const r = spawnSync(process.execPath, [SCANNER, "--message-file", file], { encoding: "utf8" });
+    assert.equal(r.status, 1, `the scanner must REFUSE the message (exit 1), got ${r.status}`);
     const hits = new Map();
     for (const m of r.stderr.matchAll(/\[([a-z0-9-]+)\]\s+message line (\d+)/g)) hits.set(Number(m[2]), m[1]);
     VENDOR.forEach(([scanner], i) => {
@@ -113,10 +116,35 @@ function findPython() {
   return null;
 }
 
+// Codex round 1 (2026-10-13) reproduced each of these: with the vendor shapes first
+// in the list and free to start after "-", a vendor shape redacted a piece out of
+// another key and left the rest of it showing. Each value must come out exactly as
+// it did BEFORE the vendor shapes existed, or as a whole vendor key.
+const OVERLAP = [
+  ["sk-ant-" + "rn" + "d_" + "A".repeat(24), "[redacted:anthropic-key]"],
+  ["sk-short-" + "rn" + "d_" + "A".repeat(24), "[redacted:openai-key]"],
+  ["eyJabcdefghij-" + "rn" + "d_" + "A".repeat(24) + ".BBBBBBBBBBBBBBBB.CCCCCCCCCCCCCCCC", "[redacted:jwt]"],
+  ["S" + "G." + "A".repeat(22) + "." + "B".repeat(14) + "-" + "rn" + "d_" + "C".repeat(24), "[redacted:sendgrid-key]"],
+  ["sb" + "_secret_-" + "gh" + "p_" + "A".repeat(36), "[redacted:supabase-secret-key]"],
+  ["sntr" + "yu_" + "A".repeat(20) + "-" + "ph" + "x_" + body(30), "[redacted:sentry-token]"],
+  // Past Render's 128 ceiling: no vendor match, so the base64 rule takes the body as it did before.
+  ["rn" + "d_" + "G7".repeat(70), "rnd_[redacted:long-base64]"],
+];
+
+for (const [value, expected] of OVERLAP) {
+  test(`a vendor shape never redacts a piece out of another key: ${value.slice(0, 12)}…`, () => {
+    assert.equal(redactSecretShapes(line(value)).text, line(expected));
+  });
+}
+
 test("leg 3: the Python redactor returns the same shapes and text as the JS one, case by case", (t) => {
   const py = findPython();
-  if (!py) return t.skip("no Python 3.10+ on PATH; CI's python job runs the same table in the self-check");
-  const lines = VENDOR.map(([, , v]) => line(v));
+  if (!py) {
+    // A skip in CI would let the parity this file exists for go unchecked; fail instead.
+    assert.ok(!process.env.CI, "CI must have Python 3.10+ on PATH for the cross-language leg");
+    return t.skip("no Python 3.10+ on PATH (local only; CI fails here instead)");
+  }
+  const lines = [...VENDOR.map(([, , v]) => line(v)), ...OVERLAP.map(([v]) => line(v))];
   const code =
     "import sys, json; sys.path.insert(0, sys.argv[1]); import secret_redaction as s; " +
     "print(json.dumps([list(s.redact_secret_shapes(x)) for x in json.load(sys.stdin)]))";
@@ -126,11 +154,14 @@ test("leg 3: the Python redactor returns the same shapes and text as the JS one,
   const got = JSON.parse(r.stdout);
   lines.forEach((l, i) => {
     const js = redactSecretShapes(l);
-    assert.deepEqual(got[i], [js.text, js.shapes], `fixture ${i + 1} (${VENDOR[i][1]}) differs between JS and Python`);
+    assert.deepEqual(got[i], [js.text, js.shapes], `line ${i + 1} differs between JS and Python: ${l.slice(16, 40)}`);
   });
 });
 
-test("LIMIT: a body shorter than the scanner's floor passes (the redactors claim the scanner's shapes, no more)", () => {
+const VENDOR_SHAPES = new Set(VENDOR.map(([, s]) => s).filter((s) => s !== "jwt" && s !== "stripe-key" && s !== "slack-webhook"));
+const vendorHits = (text) => redactSecretShapes(text).shapes.filter((s) => VENDOR_SHAPES.has(s));
+
+test("LIMIT: a vendor shape does not fire on a body shorter than the scanner's floor (another rule still may)", () => {
   for (const v of [
     "rn" + "d_" + body(23),
     "ph" + "x_" + body(29),
@@ -140,16 +171,23 @@ test("LIMIT: a body shorter than the scanner's floor passes (the redactors claim
     "d" + "p.st." + body(39),
     "S" + "G." + body(17) + "." + body(20), // SendGrid's segments are exactly 22 and 43
   ]) {
+    assert.deepEqual(vendorHits(line(v)), [], v.slice(0, 8));
+  }
+});
+
+test("LIMIT: a body past the scanner's ceiling is not a vendor match; only the generic rules can take it", () => {
+  // The body must END inside its bounds (linear time, and no short tail left showing).
+  // A digit-free run is then skipped by the base64 rule too, as it was before SY-3.
+  for (const v of ["rn" + "d_" + "A".repeat(200), "d" + "p.st." + "A".repeat(45), "S" + "G." + "A".repeat(22) + "." + "A".repeat(44)]) {
     assert.deepEqual(redactSecretShapes(line(v)).shapes, [], v.slice(0, 8));
   }
 });
 
-test("LIMIT: a body past the scanner's ceiling redacts only the first ceiling-length run", () => {
-  // Bounded on purpose (linear time). A Render key has a 128-character ceiling; a longer
-  // run leaves its tail, which the long-base64 rule then takes when it carries a digit.
-  const { text, shapes } = redactSecretShapes(line("rn" + "d_" + body(200)));
-  assert.deepEqual(shapes, ["render-api-key", "long-base64"]);
-  assert.ok(!text.includes(body(40)));
+test("LIMIT: a vendor key glued onto `-` passes (the scanner's anchor; it stops a start inside another key)", () => {
+  for (const [, shape, value] of VENDOR) {
+    if (!VENDOR_SHAPES.has(shape)) continue;
+    assert.deepEqual(vendorHits(`x-${value}`), [], `${shape} after "-"`);
+  }
 });
 
 test("vendor shapes stay linear on adversarial input (many starts, long runs)", () => {
