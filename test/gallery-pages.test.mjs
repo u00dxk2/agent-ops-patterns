@@ -83,9 +83,10 @@ function mapCards(html) {
 
 const UPSTREAM_LINK = /<a href="https:\/\/github\.com\/OpenHands\/software-agent-sdk\/(?:issues|pull)\/(\d+)">([\s\S]*?)<\/a>/g;
 
-// Each excerpt's label paragraph (the one immediately before it). Any <pre> opening tag that carries an
-// "excerpt" class token in another shape (extra attributes, other classes) comes back as a failing entry
-// rather than being skipped, and so does an excerpt with no label paragraph directly before it.
+// Each excerpt's label paragraph (the one immediately before it). A <pre> opening tag whose class attribute
+// this pattern reads as holding "excerpt", but in another shape than the builder writes (extra attributes,
+// other classes), comes back as a failing entry, and so does an excerpt with no label directly before it.
+// This is a pattern over generated source, not an HTML parser: see the LIMIT test for what it cannot see.
 const EXCERPT_OPEN = '<pre class="excerpt">';
 const excerpts = (html) => {
   const opens = [...html.matchAll(/<pre\b[^>]*>/gi)].map((m) => m[0]).filter((t) => /\bclass\s*=\s*["']?[^"'>]*\bexcerpt\b/i.test(t));
@@ -142,7 +143,12 @@ describe("gallery pages on GitHub Pages", () => {
     assert.ok(!excerptLabelled(excerpts(fake.replace("a".repeat(40), "a".repeat(8)))[0]), "a short commit in the link fails it");
   });
 
-  it("an excerpt in another tag shape, or with no label before it, is reported rather than skipped", () => {
+  it("LIMIT: excerpt discovery is a pattern, so a quoted '>' before the class, or an entity-encoded class name, hides a <pre> from it", () => {
+    assert.deepEqual(excerpts('<pre title=">" class="excerpt"><code>y</code></pre>'), []);
+    assert.deepEqual(excerpts('<pre class="ex&#99;erpt"><code>y</code></pre>'), []);
+  });
+
+  it("an excerpt in these other tag shapes, or with no label before it, is reported rather than skipped", () => {
     const good = '<p class="meta">Source as written (Python), from <a href="https://github.com/o/r/blob/' + "b".repeat(40) + '/x.py#L1-L2">x</a>.</p><pre class="excerpt"><code>x</code></pre>';
     for (const bad of ['<pre class="excerpt" id="extra"><code>y</code></pre>', '<pre id="z" class="note excerpt"><code>y</code></pre>', '<p>no label</p><pre class="excerpt"><code>y</code></pre>']) {
       const found = excerpts(good + bad);
