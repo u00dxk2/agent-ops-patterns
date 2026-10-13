@@ -35,7 +35,8 @@ Design rules:
  - Deliberate carve-out: 40-hex git SHAs are NOT redacted (development text
    cites them constantly); the hex floor is 48 so sha256-length tokens still
    redact.
- - Pure, stdlib-only, idempotent. Benign text passes byte-identical.
+ - Pure, stdlib-only, idempotent for the older shapes (see
+   redact_secret_shapes). Text that matches no shape passes byte-identical.
 
 WHAT THIS DOES NOT CATCH (defense-in-depth, NOT a DLP guarantee — a
 shape-matcher cannot recognize a secret it has no shape for):
@@ -54,10 +55,13 @@ shape-matcher cannot recognize a secret it has no shape for):
    bodies the commit scanner (scripts/check-staged-secrets.mjs) gained in SY-1
    are in _VENDOR_SHAPES with its length bounds. They run once, after every
    other shape has finished, so they only add redaction. Where a generic rule
-   took all or part of a key's body first, the token is the generic one, the
-   prefix shows, and an untaken part of the body can show too, as before SY-3.
-   No vendor shape fires on a body shorter than the scanner's floor or longer
-   than its ceiling, on a key right after a word character, ``_`` or ``-``
+   took all or part of a key's body first, the token there is the generic one,
+   and the prefix and any untaken part of the body can still show, as before
+   SY-3 (or a vendor shape may still take them). Measured on the text as it is
+   when the vendor shapes run (an earlier replacement can shorten an over-long
+   body into range), no vendor shape fires on a body shorter than the
+   scanner's floor or longer than its ceiling, on a key right after an ASCII
+   letter or digit, ``_`` or ``-``
    (escape residue aside, as for every prefixed shape), or on one that runs on
    into ``+ / = _ -`` or a word character. Two differences from the
    scanner: it fires only on a Supabase JWT whose role is service_role (an anon
@@ -103,11 +107,12 @@ class Redaction(NamedTuple):
     shapes: list[str]
 
 
-# Pass cap for the stability scan. Not load-bearing in normal operation: since
-# the base64 boundary stopped vetoing on "=", every input we know of reaches a
-# fixed point on the FIRST pass and the second only confirms it. The cap exists
-# so an unknown future shape interaction cannot spin forever - and because it
-# should never be hit, hitting it is a fault, not a partial result.
+# Pass cap for the stability scan. Since the base64 boundary stopped vetoing on
+# "=", most input reaches a fixed point on the FIRST pass and the second only
+# confirms it. Not all: each redacted run can bring the next run out of the
+# base64 rule's URL look-back, so eight URL-skipped runs in a row reach the cap
+# (Codex, 2026-10-13; the same before SY-3). The cap exists so a shape
+# interaction cannot spin forever, and hitting it is a fault, not a partial result.
 # Mirrors MAX_REDACTION_PASSES in snippet-redact.mjs.
 MAX_REDACTION_PASSES = 8
 
@@ -234,7 +239,8 @@ _VENDOR_SHAPES: list[tuple[str, re.Pattern[str], Callable[[re.Match[str]], bool]
 def redact_secret_shapes(text: str | None, *, max_passes: int | None = None) -> Redaction:
     """Redact secret-shaped runs in a text snippet.
 
-    Benign text passes through byte-identical. Idempotent for the older
+    Text that matches no shape passes through byte-identical (an identifier
+    shaped like a key, such as rnd_ plus 24 letters, does not). Idempotent for the older
     shapes; a second call can redact more than the first, never less, when a
     vendor token moved a later run out of the base64 rule's URL look-back.
     Returns the redacted text plus one shape name per replacement, in scan order.
@@ -246,9 +252,10 @@ def redact_secret_shapes(text: str | None, *, max_passes: int | None = None) -> 
     it, and at a security output boundary the ones who don't are exactly the
     ones who leak. Losing a snippet is recoverable; displaying a secret is not.
 
-    ``max_passes`` is a test seam: no real input is known to reach the
-    fail-closed branch, so it exists to let that branch be driven red on
-    demand. A guard nobody can make fire is a guard nobody has checked.
+    ``max_passes`` is a test seam: it lets the fail-closed branch be driven red
+    on demand with any input. A guard nobody can make fire is a guard nobody
+    has checked. Some real input reaches it at the default cap too (see
+    MAX_REDACTION_PASSES).
     """
     if not isinstance(text, str) or not text:
         return Redaction(text or "", [])
