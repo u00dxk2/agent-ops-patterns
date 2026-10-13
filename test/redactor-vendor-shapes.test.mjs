@@ -53,8 +53,6 @@ const VENDOR = [
   // narrowing of either shape goes red here.
   ["stripe-restricted-live", "stripe-key", "r" + "k_live_" + body(24)],
   ["supabase-service-role-jwt", "jwt", jwt({ role: "service_role" })],
-  // The scanner's shortest header (eyJ + 8); the redactors' floor was eyJ + 10 until Codex round 1.
-  ["supabase-service-role-jwt", "jwt", "eyJAAAAAAAA." + Buffer.from('{"role":"service_role"}').toString("base64url") + ".AAAAAAAA"],
   // Ruled 2026-10-13 (manager review 8e00c300): the scanner's "service_role only" rule
   // is a COMMIT-BLOCKING rule, where a public anon key would be a false alarm. The
   // redactors keep redacting every JWT; an anon key is redacted too.
@@ -116,16 +114,21 @@ function findPython() {
   return null;
 }
 
-// Codex round 1 (2026-10-13) reproduced each of these: with the vendor shapes first
-// in the list and free to start after "-", a vendor shape redacted a piece out of
-// another key and left the rest of it showing. Each value must come out exactly as
-// it did BEFORE the vendor shapes existed, or as a whole vendor key.
+// Two Codex rounds (2026-10-13) reproduced each of these against earlier versions of
+// this change: a vendor shape redacted a piece out of another key, or an older shape
+// cut a vendor key, and the rest of it showed. The pairwise test below checks the
+// whole class against the pre-SY-3 oracle; these are the named cases.
 const OVERLAP = [
   ["sk-ant-" + "rn" + "d_" + "A".repeat(24), "[redacted:anthropic-key]"],
   ["sk-short-" + "rn" + "d_" + "A".repeat(24), "[redacted:openai-key]"],
   ["eyJabcdefghij-" + "rn" + "d_" + "A".repeat(24) + ".BBBBBBBBBBBBBBBB.CCCCCCCCCCCCCCCC", "[redacted:jwt]"],
+  ["eyJabcdefghij." + "rn" + "d_" + "A".repeat(24) + "." + "A".repeat(16), "[redacted:jwt]"],
   ["S" + "G." + "A".repeat(22) + "." + "B".repeat(14) + "-" + "rn" + "d_" + "C".repeat(24), "[redacted:sendgrid-key]"],
-  ["sb" + "_secret_-" + "gh" + "p_" + "A".repeat(36), "[redacted:supabase-secret-key]"],
+  ["S" + "G." + "A".repeat(22) + "." + "sntr" + "yu_" + "A".repeat(36), "[redacted:sendgrid-key]"],
+  ["d" + "p.st." + "sb" + "_secret_" + "A".repeat(20) + "." + "A".repeat(40), "[redacted:doppler-token]"],
+  ["wh" + "sec_" + "A".repeat(24) + "/" + "gh" + "p_" + "A".repeat(36), "[redacted:stripe-webhook-secret][redacted:github-token]"],
+  // An older shape runs first and takes its key; nothing secret is left showing.
+  ["sb" + "_secret_-" + "gh" + "p_" + "A".repeat(36), "sb_secret_-[redacted:github-token]"],
   ["sntr" + "yu_" + "A".repeat(20) + "-" + "ph" + "x_" + body(30), "[redacted:sentry-token]"],
   // Past Render's 128 ceiling: no vendor match, so the base64 rule takes the body as it did before.
   ["rn" + "d_" + "G7".repeat(70), "rnd_[redacted:long-base64]"],
@@ -136,6 +139,48 @@ for (const [value, expected] of OVERLAP) {
     assert.equal(redactSecretShapes(line(value)).text, line(expected));
   });
 }
+
+/**
+ * True when `now` can be made from `before` by replacing substrings of it with
+ * redaction tokens: every raw stretch of `now` appears in `before`, in order. So
+ * nothing `before` had redacted shows in `now`.
+ */
+function onlyAddsRedaction(before, now) {
+  let at = 0;
+  for (const raw of now.split(/\[redacted:[a-z0-9-]+\]/)) {
+    const found = before.indexOf(raw, at);
+    if (found === -1) return false;
+    at = found + raw.length;
+  }
+  return true;
+}
+
+test("the vendor shapes are ADDITIVE: on every pair of fixtures, nothing the pre-SY-3 redactor hid shows now", async () => {
+  const { redactSecretShapes: before } = await import("./fixtures/snippet-redact-before-sy3.mjs");
+  const OLD = [
+    "sk-" + "ant-admin01-abc123def456", "sk-" + "proj-abcdefghijklmnopqrstuvwxyz123456",
+    "gh" + "p_abcdefghijklmnopqrstuvwxyz0123456789", "AKIA" + "IOSFODNN7EXAMPLE",
+    "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9P",
+    "a".repeat(24) + "0123456789abcdef0123456789abcdef", "QWxhZGRpbjpvcGVuIHNlc2FtZUFsYWRkaW46b3BlbiBzZXNhbWU",
+    "xox" + "b-123456789012-abcdefghijklmnop", "sk_" + "live_FAKEfakeFAKEfake0123456789",
+  ];
+  // Base64 runs of 36-38 characters: just under the generic rule's 40 on their own,
+  // over it once a separator and a vendor prefix ("rnd", "phx", "SG") join them. They
+  // are what makes a vendor shape that cuts a run show up here; without them a
+  // mutation loosening VENDOR_LEAD to LEAD passed this test.
+  const EDGE = ["Q1w2".repeat(9), "Q1w2".repeat(9) + "Z", "Q1w2".repeat(9) + "Zz"];
+  const pieces = [...OLD, ...EDGE, ...VENDOR.map(([, , v]) => v), ...OVERLAP.map(([v]) => v)];
+  const seps = ["", "-", "_", ".", "/", "+", "=", ":", " ", "\\n", "%3D"];
+  let checked = 0;
+  const failures = [];
+  for (const a of pieces) for (const b of pieces) for (const sep of seps) {
+    const text = `x ${a}${sep}${b} y`;
+    checked++;
+    if (!onlyAddsRedaction(before(text).text, redactSecretShapes(text).text)) failures.push(text.slice(0, 60));
+  }
+  assert.deepEqual(failures.slice(0, 5), [], `${failures.length} of ${checked} pairs redacted LESS than before SY-3`);
+  assert.ok(checked > 10_000, `the pair sweep must actually run (checked ${checked})`);
+});
 
 test("leg 3: the Python redactor returns the same shapes and text as the JS one, case by case", (t) => {
   const py = findPython();
@@ -183,10 +228,28 @@ test("LIMIT: a body past the scanner's ceiling is not a vendor match; only the g
   }
 });
 
-test("LIMIT: a vendor key glued onto `-` passes (the scanner's anchor; it stops a start inside another key)", () => {
+test("LIMIT: no vendor shape starts right after `+ / = _ -` or a word character (other rules still may)", () => {
+  // The price of the additive rule: a vendor match never shares an edge with a base64 run.
   for (const [, shape, value] of VENDOR) {
     if (!VENDOR_SHAPES.has(shape)) continue;
-    assert.deepEqual(vendorHits(`x-${value}`), [], `${shape} after "-"`);
+    for (const c of ["x", "+", "/", "=", "_", "-"]) {
+      assert.deepEqual(vendorHits(`a ${c}${value} b`), [], `${shape} after ${JSON.stringify(c)}`);
+    }
+  }
+});
+
+test("LIMIT: a JWT whose header has 8 or 9 characters after eyJ passes the redactors (the scanner takes it)", () => {
+  // The redactors' JWT floor stays eyJ + 10. Lowering it to the scanner's eyJ + 8 let a
+  // short JWT right after a base64 run cut that run below 40 characters and expose it,
+  // which the additive test above caught.
+  const shortJwt = "eyJAAAAAAAA." + Buffer.from('{"role":"service_role"}').toString("base64url") + ".AAAAAAAA";
+  assert.ok(!redactSecretShapes(line(shortJwt)).shapes.includes("jwt"));
+});
+
+test("LIMIT: no vendor shape ends right before `+ / = _ -` when that character is outside its body", () => {
+  const render = "rn" + "d_" + body(32);
+  for (const c of ["+", "/", "=", "_", "-"]) {
+    assert.deepEqual(vendorHits(`a ${render}${c} b`), [], `render-api-key before ${JSON.stringify(c)}`);
   }
 });
 
