@@ -83,9 +83,17 @@ function mapCards(html) {
 
 const UPSTREAM_LINK = /<a href="https:\/\/github\.com\/OpenHands\/software-agent-sdk\/(?:issues|pull)\/(\d+)">([\s\S]*?)<\/a>/g;
 
-// Each excerpt with the label paragraph immediately before it.
-const excerpts = (html) => [...html.matchAll(/<p class="meta">((?:(?!<p[ >]).)*?)<\/p><pre class="excerpt">/gs)].map((x) => x[1]).concat(
-  [...html.matchAll(/<pre class="excerpt">/g)].length > [...html.matchAll(/<p class="meta">(?:(?!<p[ >]).)*?<\/p><pre class="excerpt">/gs)].length ? ["(an excerpt with no label paragraph directly before it)"] : []);
+// Each excerpt's label paragraph (the one immediately before it). Any <pre> opening tag that carries an
+// "excerpt" class token in another shape (extra attributes, other classes) comes back as a failing entry
+// rather than being skipped, and so does an excerpt with no label paragraph directly before it.
+const EXCERPT_OPEN = '<pre class="excerpt">';
+const excerpts = (html) => {
+  const opens = [...html.matchAll(/<pre\b[^>]*>/gi)].map((m) => m[0]).filter((t) => /\bclass\s*=\s*["']?[^"'>]*\bexcerpt\b/i.test(t));
+  const labelled = [...html.matchAll(/<p class="meta">((?:(?!<p[ >]).)*?)<\/p><pre class="excerpt">/gs)].map((x) => x[1]);
+  const odd = opens.filter((t) => t !== EXCERPT_OPEN).map((t) => `(an excerpt opened as ${t}, not ${EXCERPT_OPEN})`);
+  const unlabelled = opens.length - odd.length > labelled.length ? ["(an excerpt with no label paragraph directly before it)"] : [];
+  return [...labelled, ...odd, ...unlabelled];
+};
 const excerptLabelled = (label) => /^Source as written \((?:Python|Jinja template)\), from <a href="https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/blob\/[0-9a-f]{40}\/[^"#]+#L\d+-L\d+">/.test(label);
 
 // Source characters outside tags; entities are not decoded (see the LIMIT test).
@@ -127,11 +135,20 @@ describe("gallery pages on GitHub Pages", () => {
     assert.ok(seen > 0, "found at least one excerpt (if none, the pattern stopped matching or the quotes were removed)");
   });
 
-  it("LIMIT: the excerpt check reads the label and the link, not the quoted text (fetch-excerpts.mjs --check compares that against upstream, outside npm test)", () => {
+  it("LIMIT: the excerpt check reads the label and the link, not the quoted text (comparing quotes with upstream needs the network, so it runs outside npm test)", () => {
     const fake = '<p class="meta">Source as written (Python), from <a href="https://github.com/OpenHands/software-agent-sdk/blob/' + "a".repeat(40) + '/x.py#L1-L2"><code>x.py</code> lines 1–2 at commit aaaaaaaa</a>.</p><pre class="excerpt"><code>not what x.py says</code></pre>';
     assert.equal(excerpts(fake).length, 1);
     assert.ok(excerptLabelled(excerpts(fake)[0]), "a wrong quote with a well-formed label passes this test");
     assert.ok(!excerptLabelled(excerpts(fake.replace("a".repeat(40), "a".repeat(8)))[0]), "a short commit in the link fails it");
+  });
+
+  it("an excerpt in another tag shape, or with no label before it, is reported rather than skipped", () => {
+    const good = '<p class="meta">Source as written (Python), from <a href="https://github.com/o/r/blob/' + "b".repeat(40) + '/x.py#L1-L2">x</a>.</p><pre class="excerpt"><code>x</code></pre>';
+    for (const bad of ['<pre class="excerpt" id="extra"><code>y</code></pre>', '<pre id="z" class="note excerpt"><code>y</code></pre>', '<p>no label</p><pre class="excerpt"><code>y</code></pre>']) {
+      const found = excerpts(good + bad);
+      assert.equal(found.length, 2, `two entries for: ${bad}`);
+      assert.ok(!excerptLabelled(found[1]), `the second entry fails the label check: ${bad}`);
+    }
   });
 
   it("every relative link on these pages lands on a file that exists and is not Markdown", () => {
