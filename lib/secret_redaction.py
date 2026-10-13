@@ -627,6 +627,10 @@ def _self_check() -> None:
         "rn" + "d_" + "a" * 200_000,
         ("wh" + "sec_") * 30_000,
         ("https://hooks.slack" + "-gov.com/services/") * 5_000,
+        ("sb" + "p_") * 50_000,
+        "sb" + "p_" + "a" * 200_000,
+        ("ph" + "x_") * 50_000,
+        ("x ph" + "x_" + "a" * 29) * 3_000,
     ]:
         redact_secret_shapes(probe)
     assert time.monotonic() - started < 2.0, "redaction should stay linear on 200k-char input"

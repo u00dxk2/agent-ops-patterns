@@ -350,21 +350,27 @@ test("LIMIT: a JWT whose header has 8 or 9 characters after eyJ passes the redac
   assert.ok(!redactSecretShapes(line(shortJwt)).shapes.includes("jwt"));
 });
 
-test("vendor shapes stay linear on adversarial input (many starts, long runs)", () => {
-  const started = Date.now();
-  for (const probe of [
-    ("sb" + "_secret_").repeat(20_000),
-    ("sntr" + "yu_").repeat(25_000),
-    ("sntr" + "yu_/").repeat(25_000),
-    ("d" + "p.st.").repeat(30_000),
-    "d" + "p.st." + "a-".repeat(100_000),
-    ("S" + "G.").repeat(60_000),
-    "S" + "G." + "a".repeat(22) + "." + "-".repeat(200_000),
-    "rn" + "d_" + "a".repeat(200_000),
-    ("wh" + "sec_").repeat(30_000),
-    ("https://hooks.slack" + "-gov.com/services/").repeat(5_000),
-  ]) {
-    redactSecretShapes(probe);
-  }
-  assert.ok(Date.now() - started < 2000, "redaction should stay linear on ~200k-char vendor-shaped input");
-});
+// Per shape: at least 100 KB of adversarial input (many starts, and one long run),
+// each shape under its own budget. The budget is ~10x what this machine measured
+// (2026-10-13), so it trips on super-linear growth, not on a slow CI runner.
+const LINEAR_PROBES = {
+  "sendgrid-key": [("S" + "G.").repeat(60_000), "S" + "G." + "a".repeat(22) + "." + "-".repeat(200_000)],
+  "doppler-token": [("d" + "p.st.").repeat(30_000), "d" + "p.st." + "a-".repeat(100_000)],
+  "sentry-token": [("sntr" + "yu_").repeat(25_000), ("sntr" + "yu_/").repeat(25_000)],
+  "supabase-secret-key": [("sb" + "_secret_").repeat(20_000), "sb" + "_secret_" + "a-".repeat(100_000)],
+  "stripe-webhook-secret": [("wh" + "sec_").repeat(30_000), "wh" + "sec_" + "a+".repeat(100_000)],
+  "render-api-key": [("rn" + "d_").repeat(50_000), "rn" + "d_" + "a".repeat(200_000)],
+  "supabase-access-token": [("sb" + "p_").repeat(50_000), ("sb" + "p_v0_").repeat(30_000), "sb" + "p_" + "a".repeat(200_000)],
+  "posthog-personal-key": [("ph" + "x_").repeat(50_000), ("x ph" + "x_" + "a".repeat(29)).repeat(3_000), "ph" + "x_" + "a".repeat(200_000)],
+  "slack-webhook (GovSlack)": [("https://hooks.slack" + "-gov.com/services/").repeat(5_000), "https://hooks.slack" + "-gov.com/services/" + "a/".repeat(100_000)],
+};
+
+for (const [shape, probes] of Object.entries(LINEAR_PROBES)) {
+  test(`${shape} stays linear on >=100 KB of adversarial input (own 750 ms budget)`, () => {
+    for (const p of probes) assert.ok(p.length >= 100_000, `${shape}: probe only ${p.length} chars`);
+    const started = Date.now();
+    for (const p of probes) redactSecretShapes(p);
+    const ms = Date.now() - started;
+    assert.ok(ms < 750, `${shape}: ${ms} ms on ${probes.length} probe(s)`);
+  });
+}
