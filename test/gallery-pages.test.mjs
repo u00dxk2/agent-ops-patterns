@@ -97,6 +97,12 @@ const excerpts = (html) => {
 };
 const excerptLabelled = (label) => /^Source as written \((?:Python|Jinja template)\), from <a href="https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/blob\/[0-9a-f]{40}\/[^"#]+#L\d+-L\d+">/.test(label);
 
+// Each <table> not opened directly after <div class="tablewrap"> (the shape the map builder writes),
+// returned with a little of what precedes it.
+const bareTables = (html) => [...html.matchAll(/<table\b/g)]
+  .filter((m) => !html.slice(0, m.index).endsWith('<div class="tablewrap">'))
+  .map((m) => html.slice(Math.max(0, m.index - 60), m.index + 40).replace(/\s+/g, " "));
+
 // Source characters outside tags; entities are not decoded (see the LIMIT test).
 const findingSourceLength = (inner) => inner.replace(/<[^>]*>/g, "").trim().length;
 
@@ -155,6 +161,24 @@ describe("gallery pages on GitHub Pages", () => {
       assert.equal(found.length, 2, `two entries for: ${bad}`);
       assert.ok(!excerptLabelled(found[1]), `the second entry fails the label check: ${bad}`);
     }
+  });
+
+  // A bare <table> wider than the screen makes the whole page scroll sideways on a phone; inside
+  // .tablewrap it scrolls in its own box. Measured 2026-10-13: the OpenHands map was 679px wide at 390.
+  it("every table on a map page sits directly inside a .tablewrap box", () => {
+    let seen = 0;
+    for (const m of mapFolders()) {
+      const html = read(`gallery/${m}/index.html`);
+      for (const t of bareTables(html)) assert.fail(`gallery/${m}: a <table> not directly inside <div class="tablewrap">: ${t}`);
+      seen += [...html.matchAll(/<table\b/g)].length;
+    }
+    assert.ok(seen > 0, "found at least one table (if none, the pattern stopped matching)");
+  });
+
+  it("LIMIT: the table check reads the tag directly before each <table>, so a wrapper with other classes or attributes reads as bare", () => {
+    assert.deepEqual(bareTables('<div class="tablewrap"><table></table></div>'), []);
+    assert.equal(bareTables('<h3>x</h3><table></table>').length, 1);
+    assert.equal(bareTables('<div class="tablewrap wide"><table></table></div>').length, 1);
   });
 
   it("every relative link on these pages lands on a file that exists and is not Markdown", () => {
