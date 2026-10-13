@@ -326,8 +326,10 @@ test("LIMIT: opaque unprefixed credentials pass (no key-name rules by design)", 
   assert.equal(redactSecretShapes("MY_SERVICE_TOKEN=hunter2hunter2").shapes.length, 0);
 });
 
+// SendGrid left this list in SY-3: a real-length SG. key now redacts, and the short-segment
+// value that used to sit here is the LIMIT in test/redactor-vendor-shapes.test.mjs.
 test("LIMIT: vendors absent from SHAPES pass (adding one is a one-line PR)", () => {
-  for (const s of ["SG.abcdefghijklmnopq.abcdefghij1234567890", "xapp-1-A012-3456-abcdef"]) {
+  for (const s of ["xapp-1-A012-3456-abcdef"]) {
     assert.equal(redactSecretShapes(s).shapes.length, 0); // pragma: allowlist secret
   }
 });

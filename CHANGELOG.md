@@ -2,6 +2,14 @@
 
 Changes that matter to anyone who vendors a file from this repo. Each entry names the files to re-pull.
 
+## 2026-10-13
+
+### Redactors: the scanner's vendor keys could pass through
+
+**Re-pull:** `lib/snippet-redact.mjs`, `lib/secret_redaction.py`.
+
+The 2026-10-06 entry below added eleven vendor shapes to the scanner and said the two redactors did not have them yet. Both redactors now redact Render API keys, Doppler tokens (every prefix the scanner takes: `dp.st.` with or without its segment, `ct`, `pt`, `sa`, `said`, `scim`, `audit`), SendGrid keys, Supabase access tokens (`sbp_`, `sbp_v0_`) and secret keys, PostHog personal keys, Sentry tokens (`sntrys_`, `sntryu_`, `sntrya_`, `sntryi_`), Stripe webhook secrets, and Slack webhooks on `hooks.slack-gov.com`. Each is replaced by its own token, such as `[redacted:sendgrid-key]`. Before this change, a key of these shapes whose body was shorter than 40 characters came back unredacted, and a longer one was redacted only when the generic base64 rule happened to match it. Stripe restricted keys and Supabase service-role JWTs were already redacted by the existing Stripe and JWT shapes. One difference from the scanner is deliberate: the scanner fires only on a Supabase JWT whose role is `service_role`, so that a public anon key does not block a commit, while the redactors redact every JWT, anon keys included. The patterns use the scanner's length bounds, so a body shorter than a vendor's minimum still passes, and a body longer than its maximum leaves a tail that only the base64 rule can catch (both are `LIMIT` tests). `test/redactor-vendor-shapes.test.mjs` drives one fixture table through the scanner, the JavaScript redactor and the Python redactor, and fails if either redactor disagrees with the other or the scanner stops recognising a fixture. The Python self-check carries the same table.
+
 ## 2026-10-06
 
 ### Scanner: eleven common vendor keys were not recognised
