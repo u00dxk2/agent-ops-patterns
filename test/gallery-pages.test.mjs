@@ -99,8 +99,8 @@ const excerptLabelled = (label) => /^Source as written \((?:Python|Jinja templat
 
 // Each <table> not opened directly after <div class="tablewrap"> (the shape the map builder writes),
 // returned with a little of what precedes it.
-const bareTables = (html) => [...html.matchAll(/<table\b/g)]
-  .filter((m) => !html.slice(0, m.index).endsWith('<div class="tablewrap">'))
+const bareTables = (html) => [...html.matchAll(/<table\b/gi)]
+  .filter((m) => !html.slice(Math.max(0, m.index - 23), m.index).toLowerCase().endsWith('<div class="tablewrap">'))
   .map((m) => html.slice(Math.max(0, m.index - 60), m.index + 40).replace(/\s+/g, " "));
 
 // Source characters outside tags; entities are not decoded (see the LIMIT test).
@@ -170,7 +170,7 @@ describe("gallery pages on GitHub Pages", () => {
     for (const m of mapFolders()) {
       const html = read(`gallery/${m}/index.html`);
       for (const t of bareTables(html)) assert.fail(`gallery/${m}: a <table> not directly inside <div class="tablewrap">: ${t}`);
-      seen += [...html.matchAll(/<table\b/g)].length;
+      seen += [...html.matchAll(/<table\b/gi)].length;
     }
     assert.ok(seen > 0, "found at least one table (if none, the pattern stopped matching)");
   });
@@ -179,6 +179,11 @@ describe("gallery pages on GitHub Pages", () => {
     assert.deepEqual(bareTables('<div class="tablewrap"><table></table></div>'), []);
     assert.equal(bareTables('<h3>x</h3><table></table>').length, 1);
     assert.equal(bareTables('<div class="tablewrap wide"><table></table></div>').length, 1);
+  });
+
+  it("a bare table is found whatever the tag's case", () => {
+    assert.equal(bareTables('<h3>x</h3><TABLE></TABLE>').length, 1);
+    assert.deepEqual(bareTables('<DIV CLASS="tablewrap"><Table></Table></DIV>'), []);
   });
 
   it("every relative link on these pages lands on a file that exists and is not Markdown", () => {
