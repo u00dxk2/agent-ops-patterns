@@ -1,6 +1,6 @@
 # Gallery: cognitive operations maps of open-source agent systems
 
-Each map takes one open-source agent system and lists the recurring judgments it found there, each as a *seat*: the question the judgment answers and who holds it (code, a model, or a person), with how it has failed and what checks it where the mapping found them. Seats are sorted rule vs ruling and human vs machine. Seats a model holds identify the prompt pieces and assembly paths found in the mapped source. Each map has a report of the gaps the mapping exposed.
+Each map takes one open-source agent system and lists the recurring judgments it found there, each as a *seat*: the question the judgment answers and who holds it (code, a model, or a person), with how it has failed and what checks it where the mapping found them. Seats are sorted rule vs ruling and human vs machine. Seats a model holds identify the prompt pieces and assembly paths found in the mapped source. The OpenHands map also quotes prompt source text on 14 of its cards, each quote linked to the lines it came from. Each map has a report of the gaps the mapping exposed.
 
 The method is ["Cognitive Operations Maps"](https://uncagedminds.substack.com/p/cognitive-operations-maps). The skill that builds one for your own system is [`skills/cog-ops-map/`](../skills/cog-ops-map/SKILL.md).
 

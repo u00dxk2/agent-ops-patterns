@@ -83,6 +83,11 @@ function mapCards(html) {
 
 const UPSTREAM_LINK = /<a href="https:\/\/github\.com\/OpenHands\/software-agent-sdk\/(?:issues|pull)\/(\d+)">([\s\S]*?)<\/a>/g;
 
+// Each excerpt with the label paragraph immediately before it.
+const excerpts = (html) => [...html.matchAll(/<p class="meta">((?:(?!<p[ >]).)*?)<\/p><pre class="excerpt">/gs)].map((x) => x[1]).concat(
+  [...html.matchAll(/<pre class="excerpt">/g)].length > [...html.matchAll(/<p class="meta">(?:(?!<p[ >]).)*?<\/p><pre class="excerpt">/gs)].length ? ["(an excerpt with no label paragraph directly before it)"] : []);
+const excerptLabelled = (label) => /^Source as written \((?:Python|Jinja template)\), from <a href="https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/blob\/[0-9a-f]{40}\/[^"#]+#L\d+-L\d+">/.test(label);
+
 // Source characters outside tags; entities are not decoded (see the LIMIT test).
 const findingSourceLength = (inner) => inner.replace(/<[^>]*>/g, "").trim().length;
 
@@ -107,6 +112,26 @@ describe("gallery pages on GitHub Pages", () => {
     for (const m of mapFolders()) {
       assert.ok(hrefs(read(`gallery/${m}/index.html`)).includes("../"), `gallery/${m}/index.html links ../`);
     }
+  });
+
+  // A quoted prompt on a map is the source as written, never a rendered prompt: the line before each
+  // <pre class="excerpt"> names that and links the quoted lines at a full commit, so the quote can be checked.
+  it("every prompt excerpt on a map is labelled source-as-written and links its lines at a full commit", () => {
+    let seen = 0;
+    for (const m of mapFolders()) {
+      for (const block of excerpts(read(`gallery/${m}/index.html`))) {
+        seen++;
+        assert.ok(excerptLabelled(block), `gallery/${m}: excerpt without a source-as-written label and pinned line link: ${block.slice(0, 160)}`);
+      }
+    }
+    assert.ok(seen > 0, "found at least one excerpt (if none, the pattern stopped matching or the quotes were removed)");
+  });
+
+  it("LIMIT: the excerpt check reads the label and the link, not the quoted text (fetch-excerpts.mjs --check compares that against upstream, outside npm test)", () => {
+    const fake = '<p class="meta">Source as written (Python), from <a href="https://github.com/OpenHands/software-agent-sdk/blob/' + "a".repeat(40) + '/x.py#L1-L2"><code>x.py</code> lines 1–2 at commit aaaaaaaa</a>.</p><pre class="excerpt"><code>not what x.py says</code></pre>';
+    assert.equal(excerpts(fake).length, 1);
+    assert.ok(excerptLabelled(excerpts(fake)[0]), "a wrong quote with a well-formed label passes this test");
+    assert.ok(!excerptLabelled(excerpts(fake.replace("a".repeat(40), "a".repeat(8)))[0]), "a short commit in the link fails it");
   });
 
   it("every relative link on these pages lands on a file that exists and is not Markdown", () => {
