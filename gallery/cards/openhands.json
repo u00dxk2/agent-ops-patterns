@@ -8,7 +8,7 @@
     "mappedAt": "2026-10-06"
   },
   "fullMapUrl": "https://u00dxk2.github.io/agent-ops-patterns/gallery/openhands/",
-  "summary": "On its default settings, the software that runs the OpenHands agent never stops to ask for your approval; an app built on it can turn approvals on, but deciding when the work is done and what to remember stays with plain code and AI models.",
+  "summary": "On its default settings, the software that runs the OpenHands agent never stops to ask for your approval. An app built on it can turn approvals on, but deciding when the work is done and what to remember stays with plain code and AI models.",
   "judgments": [
     {
       "id": "D16",
@@ -29,9 +29,9 @@
     {
       "id": "D41",
       "stage": "gatekeeping",
-      "question": "When a helper agent it starts pauses for approval, who answers?",
+      "question": "When a helper agent it starts pauses for approval, and the app gave it no approval check of its own, who answers?",
       "holder": "nobody",
-      "answer": "Unless the app gave it an approval check of its own, nobody: the helper is run again and attempts its waiting actions without asking anyone.",
+      "answer": "Nobody: the helper is run again and attempts its waiting actions without asking anyone.",
       "evidence": "openhands-tools/openhands/tools/task/manager.py:468-471"
     },
     {
@@ -93,7 +93,7 @@
       ],
       "verified": {
         "how": "re-read at pinned commit",
-        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) in three rounds on 2026-10-18"
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) in four rounds on 2026-10-18"
       },
       "upstream": {
         "status": "fix-proposed",
@@ -109,7 +109,7 @@
       ],
       "verified": {
         "how": "re-read at pinned commit",
-        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) in three rounds on 2026-10-18"
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) in four rounds on 2026-10-18"
       },
       "upstream": {
         "status": "fix-proposed",
@@ -126,7 +126,7 @@
       ],
       "verified": {
         "how": "re-read at pinned commit",
-        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) in three rounds on 2026-10-18"
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) in four rounds on 2026-10-18"
       },
       "upstream": {
         "status": "reported",

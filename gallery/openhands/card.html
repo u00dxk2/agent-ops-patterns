@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>How OpenHands decides</title>
-<meta name="description" content="On its default settings, the software that runs the OpenHands agent never stops to ask for your approval; an app built on it can turn approvals on, but deciding when the work is done and what to remember stays with plain code and AI models.">
+<meta name="description" content="On its default settings, the software that runs the OpenHands agent never stops to ask for your approval. An app built on it can turn approvals on, but deciding when the work is done and what to remember stays with plain code and AI models.">
 <style>
 :root{--bg:#fbfaf7;--fg:#1d1d1b;--muted:#5d5b55;--line:#dedad0;--card:#ffffff;--code:#f2efe8;--link:#2f6f8f;
   --model:#6b4fa0;--code-h:#2f6f8f;--human:#2e7d4f;--nobody:#a3452f}
@@ -42,7 +42,7 @@ ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
 
 <h1>How OpenHands decides</h1>
 
-<p class="summary">On its default settings, the software that runs the OpenHands agent never stops to ask for your approval; an app built on it can turn approvals on, but deciding when the work is done and what to remember stays with plain code and AI models.</p>
+<p class="summary">On its default settings, the software that runs the OpenHands agent never stops to ask for your approval. An app built on it can turn approvals on, but deciding when the work is done and what to remember stays with plain code and AI models.</p>
 
 <p class="meta">From <a href="https://github.com/OpenHands/software-agent-sdk"><code>OpenHands/software-agent-sdk</code></a> at source version <a href="https://github.com/OpenHands/software-agent-sdk/tree/aae9c437f029d45d7a64924285015d3da87ade94"><code>aae9c437</code></a>, mapped 2026-10-06. Each answer links the code where that decision is made.</p>
 
@@ -59,8 +59,8 @@ ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
   <p class="ev"><a href="https://github.com/OpenHands/software-agent-sdk/blob/aae9c437f029d45d7a64924285015d3da87ade94/openhands-sdk/openhands/sdk/agent/agent.py#L713-L722" title="openhands-sdk/openhands/sdk/agent/agent.py:713-722"><code>agent.py:713-722</code></a> · decision D18 in the full map</p>
 </li>
 <li class="j">
-  <p class="q">When a helper agent it starts pauses for approval, who answers?</p>
-  <p class="a"><span class="holder holder-nobody">Decided by nobody</span> Unless the app gave it an approval check of its own, nobody: the helper is run again and attempts its waiting actions without asking anyone.</p>
+  <p class="q">When a helper agent it starts pauses for approval, and the app gave it no approval check of its own, who answers?</p>
+  <p class="a"><span class="holder holder-nobody">Decided by nobody</span> Nobody: the helper is run again and attempts its waiting actions without asking anyone.</p>
   <p class="ev"><a href="https://github.com/OpenHands/software-agent-sdk/blob/aae9c437f029d45d7a64924285015d3da87ade94/openhands-tools/openhands/tools/task/manager.py#L468-L471" title="openhands-tools/openhands/tools/task/manager.py:468-471"><code>manager.py:468-471</code></a> · decision D41 in the full map</p>
 </li>
 </ul>
@@ -109,19 +109,19 @@ ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
   <h3>1. A new message can count as approval</h3>
   <p>When the approval policy calls for it, the agent pauses before an action until the app approves or rejects it. If you send a new message instead, and the app then runs the conversation again without rejecting, the waiting action is attempted as if you had approved it. A message saying &quot;wait, not that&quot; does not by itself cancel the action.</p>
   <p class="status">Reported; a fix is proposed, not merged (<a href="https://github.com/OpenHands/software-agent-sdk/issues/5092">#5092</a>), checked 2026-10-18.</p>
-  <p class="ev">Where: <a href="https://github.com/OpenHands/software-agent-sdk/blob/aae9c437f029d45d7a64924285015d3da87ade94/openhands-sdk/openhands/sdk/conversation/impl/local_conversation.py#L1981-L1988" title="openhands-sdk/openhands/sdk/conversation/impl/local_conversation.py:1981-1988"><code>local_conversation.py:1981-1988</code></a>, <a href="https://github.com/OpenHands/software-agent-sdk/blob/aae9c437f029d45d7a64924285015d3da87ade94/openhands-sdk/openhands/sdk/agent/agent.py#L713-L722" title="openhands-sdk/openhands/sdk/agent/agent.py:713-722"><code>agent.py:713-722</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) in three rounds on 2026-10-18.</p>
+  <p class="ev">Where: <a href="https://github.com/OpenHands/software-agent-sdk/blob/aae9c437f029d45d7a64924285015d3da87ade94/openhands-sdk/openhands/sdk/conversation/impl/local_conversation.py#L1981-L1988" title="openhands-sdk/openhands/sdk/conversation/impl/local_conversation.py:1981-1988"><code>local_conversation.py:1981-1988</code></a>, <a href="https://github.com/OpenHands/software-agent-sdk/blob/aae9c437f029d45d7a64924285015d3da87ade94/openhands-sdk/openhands/sdk/agent/agent.py#L713-L722" title="openhands-sdk/openhands/sdk/agent/agent.py:713-722"><code>agent.py:713-722</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) in four rounds on 2026-10-18.</p>
 </li>
 <li class="p">
   <h3>2. The goal judge can read &quot;false&quot; as done</h3>
   <p>With the goal feature, a judge model is asked for a short structured reply that includes a &quot;complete&quot; field. The code turns that field into yes or no with a Python conversion (bool) that counts any non-empty text as yes, including the word &quot;false&quot;. So if the judge writes &quot;false&quot; as text in that field, the goal is marked complete.</p>
   <p class="status">Reported; a fix is proposed, not merged (<a href="https://github.com/OpenHands/software-agent-sdk/issues/5492">#5492</a>), checked 2026-10-18.</p>
-  <p class="ev">Where: <a href="https://github.com/OpenHands/software-agent-sdk/blob/aae9c437f029d45d7a64924285015d3da87ade94/openhands-sdk/openhands/sdk/conversation/goal/judge.py#L128" title="openhands-sdk/openhands/sdk/conversation/goal/judge.py:128"><code>judge.py:128</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) in three rounds on 2026-10-18.</p>
+  <p class="ev">Where: <a href="https://github.com/OpenHands/software-agent-sdk/blob/aae9c437f029d45d7a64924285015d3da87ade94/openhands-sdk/openhands/sdk/conversation/goal/judge.py#L128" title="openhands-sdk/openhands/sdk/conversation/goal/judge.py:128"><code>judge.py:128</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) in four rounds on 2026-10-18.</p>
 </li>
 <li class="p">
   <h3>3. A secret inside a tool request is recorded unmasked</h3>
   <p>You can register secrets, such as service access keys, so they are masked in text replies that contain no request to use a tool. When the model puts a registered secret into a request to use a tool, such as a shell command, the details of that request are written to the conversation record without masking, and when the model gives no summary of the request, the automatic summary repeats them. Anyone who can read that record can read the key.</p>
   <p class="status">Reported; no linked fix found (<a href="https://github.com/OpenHands/software-agent-sdk/issues/5525">#5525</a>), checked 2026-10-18.</p>
-  <p class="ev">Where: <a href="https://github.com/OpenHands/software-agent-sdk/blob/aae9c437f029d45d7a64924285015d3da87ade94/openhands-sdk/openhands/sdk/agent/agent.py#L1374-L1379" title="openhands-sdk/openhands/sdk/agent/agent.py:1374-1379"><code>agent.py:1374-1379</code></a>, <a href="https://github.com/OpenHands/software-agent-sdk/blob/aae9c437f029d45d7a64924285015d3da87ade94/openhands-sdk/openhands/sdk/agent/agent.py#L1243-L1245" title="openhands-sdk/openhands/sdk/agent/agent.py:1243-1245"><code>agent.py:1243-1245</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) in three rounds on 2026-10-18.</p>
+  <p class="ev">Where: <a href="https://github.com/OpenHands/software-agent-sdk/blob/aae9c437f029d45d7a64924285015d3da87ade94/openhands-sdk/openhands/sdk/agent/agent.py#L1374-L1379" title="openhands-sdk/openhands/sdk/agent/agent.py:1374-1379"><code>agent.py:1374-1379</code></a>, <a href="https://github.com/OpenHands/software-agent-sdk/blob/aae9c437f029d45d7a64924285015d3da87ade94/openhands-sdk/openhands/sdk/agent/agent.py#L1243-L1245" title="openhands-sdk/openhands/sdk/agent/agent.py:1243-1245"><code>agent.py:1243-1245</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) in four rounds on 2026-10-18.</p>
 </li>
 </ol>
 
