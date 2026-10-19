@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How OpenHands decides</title>
+<meta name="description" content="On its default settings, the software that runs the OpenHands agent never stops to ask for your approval; an app built on it can turn approvals on, but deciding when the work is done and what to remember stays with plain code and AI models.">
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1d1b;--muted:#5d5b55;--line:#dedad0;--card:#ffffff;--code:#f2efe8;--link:#2f6f8f;
+  --model:#6b4fa0;--code-h:#2f6f8f;--human:#2e7d4f;--nobody:#a3452f}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--card:#1d1c19;--code:#262520;--link:#6fb3d4;
+  --model:#b9a2e6;--code-h:#6fb3d4;--human:#7fcf9f;--nobody:#f09a83}}
+:root[data-theme="dark"]{--bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--card:#1d1c19;--code:#262520;--link:#6fb3d4;
+  --model:#b9a2e6;--code-h:#6fb3d4;--human:#7fcf9f;--nobody:#f09a83}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:680px;margin:0 auto;padding:0 16px 56px}
+a{color:var(--link)}
+code{background:var(--code);padding:1px 4px;border-radius:4px;font-size:.86em;overflow-wrap:anywhere}
+.crumbs{font-size:.9rem;color:var(--muted);margin-top:18px}
+h1{font-size:1.6rem;line-height:1.2;margin:20px 0 10px}
+.summary{font-size:1.08rem}
+.meta{color:var(--muted);font-size:.88rem}
+h2{font-size:1.15rem;margin:32px 0 8px;padding-top:8px;border-top:1px solid var(--line)}
+ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
+.j,.p{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:10px 0}
+.j p,.p p{margin:4px 0}
+.q{font-weight:650}
+.holder{display:inline-block;font-size:.8rem;font-weight:650;border:1px solid currentColor;border-radius:999px;padding:0 8px;margin-right:4px}
+.holder-model{color:var(--model)}.holder-code{color:var(--code-h)}.holder-human{color:var(--human)}.holder-nobody{color:var(--nobody)}
+.ev{color:var(--muted);font-size:.85rem}
+.p h3{font-size:1.05rem;margin:2px 0 6px}
+.status{font-weight:600}
+.full{display:block;text-align:center;font-weight:650;border:1px solid var(--link);border-radius:8px;padding:12px;margin:28px 0 8px;text-decoration:none}
+</style>
+</head>
+<body>
+<main>
+
+<p class="crumbs"><a href="../../">agent-ops-patterns</a> / <a href="../">gallery</a> / <a href="./">OpenHands map</a> / how it decides</p>
+
+<h1>How OpenHands decides</h1>
+
+<p class="summary">On its default settings, the software that runs the OpenHands agent never stops to ask for your approval; an app built on it can turn approvals on, but deciding when the work is done and what to remember stays with plain code and AI models.</p>
+
+<p class="meta">From <a href="https://github.com/OpenHands/software-agent-sdk"><code>OpenHands/software-agent-sdk</code></a> at source version <a href="https://github.com/OpenHands/software-agent-sdk/tree/aae9c437f029d45d7a64924285015d3da87ade94"><code>aae9c437</code></a>, mapped 2026-10-06. Each answer links the code where that decision is made.</p>
+
+<h2>What it does without asking you</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">Does it ask you before it runs a command or edits a file?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Only if the app turns on an approval policy; the default policy never asks.</p>
+  <p class="ev"><a href="https://github.com/OpenHands/software-agent-sdk/blob/aae9c437f029d45d7a64924285015d3da87ade94/openhands-sdk/openhands/sdk/agent/agent.py#L1164-L1169" title="openhands-sdk/openhands/sdk/agent/agent.py:1164-1169"><code>agent.py:1164-1169</code></a> · decision D16 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">If you send a new message instead of answering, does that count as a yes?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> It can: when the conversation runs again, it attempts the waiting actions before it looks at your new message, without asking again.</p>
+  <p class="ev"><a href="https://github.com/OpenHands/software-agent-sdk/blob/aae9c437f029d45d7a64924285015d3da87ade94/openhands-sdk/openhands/sdk/agent/agent.py#L713-L722" title="openhands-sdk/openhands/sdk/agent/agent.py:713-722"><code>agent.py:713-722</code></a> · decision D18 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">When a helper agent it starts pauses for approval, who answers?</p>
+  <p class="a"><span class="holder holder-nobody">Decided by nobody</span> Unless the app gave it an approval check of its own, nobody: the helper is run again and attempts its waiting actions without asking anyone.</p>
+  <p class="ev"><a href="https://github.com/OpenHands/software-agent-sdk/blob/aae9c437f029d45d7a64924285015d3da87ade94/openhands-tools/openhands/tools/task/manager.py#L468-L471" title="openhands-tools/openhands/tools/task/manager.py:468-471"><code>manager.py:468-471</code></a> · decision D41 in the full map</p>
+</li>
+</ul>
+
+<h2>How it decides it is done</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">How does it decide it has finished?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> A reply with visible text and no request to use a tool marks the run finished.</p>
+  <p class="ev"><a href="https://github.com/OpenHands/software-agent-sdk/blob/aae9c437f029d45d7a64924285015d3da87ade94/openhands-sdk/openhands/sdk/agent/response_dispatch.py#L270" title="openhands-sdk/openhands/sdk/agent/response_dispatch.py:270"><code>response_dispatch.py:270</code></a> · decision G1 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">When you use its goal feature, who decides the goal is met?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> A judge model reads the conversation and gives the verdict.</p>
+  <p class="ev"><a href="https://github.com/OpenHands/software-agent-sdk/blob/aae9c437f029d45d7a64924285015d3da87ade94/openhands-sdk/openhands/sdk/conversation/goal/judge.py#L59-L79" title="openhands-sdk/openhands/sdk/conversation/goal/judge.py:59-79"><code>judge.py:59-79</code></a> · decision G13 in the full map</p>
+</li>
+</ul>
+
+<h2>Limits and memory</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">How long can it keep going before it is stopped?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Each run is capped at 500 steps unless the app changes the cap.</p>
+  <p class="ev"><a href="https://github.com/OpenHands/software-agent-sdk/blob/aae9c437f029d45d7a64924285015d3da87ade94/openhands-sdk/openhands/sdk/conversation/impl/local_conversation.py#L2024-L2046" title="openhands-sdk/openhands/sdk/conversation/impl/local_conversation.py:2024-2046"><code>local_conversation.py:2024-2046</code></a> · decision F1 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Is there a spending limit?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Only if the app sets one; it is off by default.</p>
+  <p class="ev"><a href="https://github.com/OpenHands/software-agent-sdk/blob/aae9c437f029d45d7a64924285015d3da87ade94/openhands-sdk/openhands/sdk/conversation/impl/local_conversation.py#L726-L727" title="openhands-sdk/openhands/sdk/conversation/impl/local_conversation.py:726-727"><code>local_conversation.py:726-727</code></a> · decision F2 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">When the history gets too long, who decides what to remember?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> A summarizing model writes a summary of the part being dropped from view; nothing checks whether the summary is accurate or complete, and if the model returns no text the part is dropped with no summary.</p>
+  <p class="ev"><a href="https://github.com/OpenHands/software-agent-sdk/blob/aae9c437f029d45d7a64924285015d3da87ade94/openhands-sdk/openhands/sdk/context/condenser/llm_summarizing_condenser.py#L264-L276" title="openhands-sdk/openhands/sdk/context/condenser/llm_summarizing_condenser.py:264-276"><code>llm_summarizing_condenser.py:264-276</code></a> · decision F9 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">What does it save for next time, and does anything check it?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> The model writes its own memory notes; in its two-part memory mode (one part for the project, one for you) its instructions say not to save secrets, and the code that loads the notes back does not scan them for secrets.</p>
+  <p class="ev"><a href="https://github.com/OpenHands/software-agent-sdk/blob/aae9c437f029d45d7a64924285015d3da87ade94/openhands-sdk/openhands/sdk/context/prompts/sections/static.py#L149" title="openhands-sdk/openhands/sdk/context/prompts/sections/static.py:149"><code>static.py:149</code></a> · decision I2 in the full map</p>
+</li>
+</ul>
+
+<h2>Three problems in the code</h2>
+<ol class="problems">
+<li class="p">
+  <h3>1. A new message can count as approval</h3>
+  <p>When the approval policy calls for it, the agent pauses before an action until the app approves or rejects it. If you send a new message instead, and the app then runs the conversation again without rejecting, the waiting action is attempted as if you had approved it. A message saying &quot;wait, not that&quot; does not by itself cancel the action.</p>
+  <p class="status">Reported; a fix is proposed, not merged (<a href="https://github.com/OpenHands/software-agent-sdk/issues/5092">#5092</a>), checked 2026-10-18.</p>
+  <p class="ev">Where: <a href="https://github.com/OpenHands/software-agent-sdk/blob/aae9c437f029d45d7a64924285015d3da87ade94/openhands-sdk/openhands/sdk/conversation/impl/local_conversation.py#L1981-L1988" title="openhands-sdk/openhands/sdk/conversation/impl/local_conversation.py:1981-1988"><code>local_conversation.py:1981-1988</code></a>, <a href="https://github.com/OpenHands/software-agent-sdk/blob/aae9c437f029d45d7a64924285015d3da87ade94/openhands-sdk/openhands/sdk/agent/agent.py#L713-L722" title="openhands-sdk/openhands/sdk/agent/agent.py:713-722"><code>agent.py:713-722</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) in three rounds on 2026-10-18.</p>
+</li>
+<li class="p">
+  <h3>2. The goal judge can read &quot;false&quot; as done</h3>
+  <p>With the goal feature, a judge model is asked for a short structured reply that includes a &quot;complete&quot; field. The code turns that field into yes or no with a Python conversion (bool) that counts any non-empty text as yes, including the word &quot;false&quot;. So if the judge writes &quot;false&quot; as text in that field, the goal is marked complete.</p>
+  <p class="status">Reported; a fix is proposed, not merged (<a href="https://github.com/OpenHands/software-agent-sdk/issues/5492">#5492</a>), checked 2026-10-18.</p>
+  <p class="ev">Where: <a href="https://github.com/OpenHands/software-agent-sdk/blob/aae9c437f029d45d7a64924285015d3da87ade94/openhands-sdk/openhands/sdk/conversation/goal/judge.py#L128" title="openhands-sdk/openhands/sdk/conversation/goal/judge.py:128"><code>judge.py:128</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) in three rounds on 2026-10-18.</p>
+</li>
+<li class="p">
+  <h3>3. A secret inside a tool request is recorded unmasked</h3>
+  <p>You can register secrets, such as service access keys, so they are masked in text replies that contain no request to use a tool. When the model puts a registered secret into a request to use a tool, such as a shell command, the details of that request are written to the conversation record without masking, and when the model gives no summary of the request, the automatic summary repeats them. Anyone who can read that record can read the key.</p>
+  <p class="status">Reported; no linked fix found (<a href="https://github.com/OpenHands/software-agent-sdk/issues/5525">#5525</a>), checked 2026-10-18.</p>
+  <p class="ev">Where: <a href="https://github.com/OpenHands/software-agent-sdk/blob/aae9c437f029d45d7a64924285015d3da87ade94/openhands-sdk/openhands/sdk/agent/agent.py#L1374-L1379" title="openhands-sdk/openhands/sdk/agent/agent.py:1374-1379"><code>agent.py:1374-1379</code></a>, <a href="https://github.com/OpenHands/software-agent-sdk/blob/aae9c437f029d45d7a64924285015d3da87ade94/openhands-sdk/openhands/sdk/agent/agent.py#L1243-L1245" title="openhands-sdk/openhands/sdk/agent/agent.py:1243-1245"><code>agent.py:1243-1245</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) in three rounds on 2026-10-18.</p>
+</li>
+</ol>
+
+<a class="full" href="https://u00dxk2.github.io/agent-ops-patterns/gallery/openhands/">See the full map →</a>
+
+<p class="meta">This card was taken from the published map of the OpenHands agent SDK at one commit; it did not look at the OpenHands app or its screens, at the hosted services the SDK can call, or at code outside the map's folders, and no OpenHands code was run to make it.</p>
+<p class="meta">Map edition 2 · taken from the full map · card data: <a href="https://github.com/u00dxk2/agent-ops-patterns/blob/main/gallery/cards/openhands.json"><code>gallery/cards/openhands.json</code></a>. Corrections are welcome as an <a href="https://github.com/u00dxk2/agent-ops-patterns/issues">issue</a>.</p>
+
+</main>
+</body>
+</html>

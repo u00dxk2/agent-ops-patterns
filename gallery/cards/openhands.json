@@ -1,0 +1,144 @@
+{
+  "schema": "aop-decides-card/v1",
+  "agent": {
+    "name": "OpenHands",
+    "slug": "openhands",
+    "repo": "https://github.com/OpenHands/software-agent-sdk",
+    "commit": "aae9c437f029d45d7a64924285015d3da87ade94",
+    "mappedAt": "2026-10-06"
+  },
+  "fullMapUrl": "https://u00dxk2.github.io/agent-ops-patterns/gallery/openhands/",
+  "summary": "On its default settings, the software that runs the OpenHands agent never stops to ask for your approval; an app built on it can turn approvals on, but deciding when the work is done and what to remember stays with plain code and AI models.",
+  "judgments": [
+    {
+      "id": "D16",
+      "stage": "gatekeeping",
+      "question": "Does it ask you before it runs a command or edits a file?",
+      "holder": "code",
+      "answer": "Only if the app turns on an approval policy; the default policy never asks.",
+      "evidence": "openhands-sdk/openhands/sdk/agent/agent.py:1164-1169"
+    },
+    {
+      "id": "D18",
+      "stage": "gatekeeping",
+      "question": "If you send a new message instead of answering, does that count as a yes?",
+      "holder": "code",
+      "answer": "It can: when the conversation runs again, it attempts the waiting actions before it looks at your new message, without asking again.",
+      "evidence": "openhands-sdk/openhands/sdk/agent/agent.py:713-722"
+    },
+    {
+      "id": "D41",
+      "stage": "gatekeeping",
+      "question": "When a helper agent it starts pauses for approval, who answers?",
+      "holder": "nobody",
+      "answer": "Unless the app gave it an approval check of its own, nobody: the helper is run again and attempts its waiting actions without asking anyone.",
+      "evidence": "openhands-tools/openhands/tools/task/manager.py:468-471"
+    },
+    {
+      "id": "G1",
+      "stage": "done",
+      "question": "How does it decide it has finished?",
+      "holder": "code",
+      "answer": "A reply with visible text and no request to use a tool marks the run finished.",
+      "evidence": "openhands-sdk/openhands/sdk/agent/response_dispatch.py:270"
+    },
+    {
+      "id": "G13",
+      "stage": "done",
+      "question": "When you use its goal feature, who decides the goal is met?",
+      "holder": "model",
+      "answer": "A judge model reads the conversation and gives the verdict.",
+      "evidence": "openhands-sdk/openhands/sdk/conversation/goal/judge.py:59-79"
+    },
+    {
+      "id": "F1",
+      "stage": "limits-memory",
+      "question": "How long can it keep going before it is stopped?",
+      "holder": "code",
+      "answer": "Each run is capped at 500 steps unless the app changes the cap.",
+      "evidence": "openhands-sdk/openhands/sdk/conversation/impl/local_conversation.py:2024-2046"
+    },
+    {
+      "id": "F2",
+      "stage": "limits-memory",
+      "question": "Is there a spending limit?",
+      "holder": "code",
+      "answer": "Only if the app sets one; it is off by default.",
+      "evidence": "openhands-sdk/openhands/sdk/conversation/impl/local_conversation.py:726-727"
+    },
+    {
+      "id": "F9",
+      "stage": "limits-memory",
+      "question": "When the history gets too long, who decides what to remember?",
+      "holder": "model",
+      "answer": "A summarizing model writes a summary of the part being dropped from view; nothing checks whether the summary is accurate or complete, and if the model returns no text the part is dropped with no summary.",
+      "evidence": "openhands-sdk/openhands/sdk/context/condenser/llm_summarizing_condenser.py:264-276"
+    },
+    {
+      "id": "I2",
+      "stage": "limits-memory",
+      "question": "What does it save for next time, and does anything check it?",
+      "holder": "model",
+      "answer": "The model writes its own memory notes; in its two-part memory mode (one part for the project, one for you) its instructions say not to save secrets, and the code that loads the notes back does not scan them for secrets.",
+      "evidence": "openhands-sdk/openhands/sdk/context/prompts/sections/static.py:149"
+    }
+  ],
+  "problems": [
+    {
+      "title": "A new message can count as approval",
+      "plain": "When the approval policy calls for it, the agent pauses before an action until the app approves or rejects it. If you send a new message instead, and the app then runs the conversation again without rejecting, the waiting action is attempted as if you had approved it. A message saying \"wait, not that\" does not by itself cancel the action.",
+      "evidence": [
+        "openhands-sdk/openhands/sdk/conversation/impl/local_conversation.py:1981-1988",
+        "openhands-sdk/openhands/sdk/agent/agent.py:713-722"
+      ],
+      "verified": {
+        "how": "re-read at pinned commit",
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) in three rounds on 2026-10-18"
+      },
+      "upstream": {
+        "status": "fix-proposed",
+        "url": "https://github.com/OpenHands/software-agent-sdk/issues/5092",
+        "checkedAt": "2026-10-18"
+      }
+    },
+    {
+      "title": "The goal judge can read \"false\" as done",
+      "plain": "With the goal feature, a judge model is asked for a short structured reply that includes a \"complete\" field. The code turns that field into yes or no with a Python conversion (bool) that counts any non-empty text as yes, including the word \"false\". So if the judge writes \"false\" as text in that field, the goal is marked complete.",
+      "evidence": [
+        "openhands-sdk/openhands/sdk/conversation/goal/judge.py:128"
+      ],
+      "verified": {
+        "how": "re-read at pinned commit",
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) in three rounds on 2026-10-18"
+      },
+      "upstream": {
+        "status": "fix-proposed",
+        "url": "https://github.com/OpenHands/software-agent-sdk/issues/5492",
+        "checkedAt": "2026-10-18"
+      }
+    },
+    {
+      "title": "A secret inside a tool request is recorded unmasked",
+      "plain": "You can register secrets, such as service access keys, so they are masked in text replies that contain no request to use a tool. When the model puts a registered secret into a request to use a tool, such as a shell command, the details of that request are written to the conversation record without masking, and when the model gives no summary of the request, the automatic summary repeats them. Anyone who can read that record can read the key.",
+      "evidence": [
+        "openhands-sdk/openhands/sdk/agent/agent.py:1374-1379",
+        "openhands-sdk/openhands/sdk/agent/agent.py:1243-1245"
+      ],
+      "verified": {
+        "how": "re-read at pinned commit",
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) in three rounds on 2026-10-18"
+      },
+      "upstream": {
+        "status": "reported",
+        "url": "https://github.com/OpenHands/software-agent-sdk/issues/5525",
+        "checkedAt": "2026-10-18"
+      }
+    }
+  ],
+  "notChecked": "This card was taken from the published map of the OpenHands agent SDK at one commit; it did not look at the OpenHands app or its screens, at the hosted services the SDK can call, or at code outside the map's folders, and no OpenHands code was run to make it.",
+  "provenance": {
+    "mapEdition": "2",
+    "cardCommit": "pending",
+    "method": "derived-from-full-map"
+  }
+}
