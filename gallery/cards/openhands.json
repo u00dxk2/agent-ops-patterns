@@ -138,7 +138,7 @@
   "notChecked": "This card was taken from the published map of the OpenHands agent SDK at one commit; it did not look at the OpenHands app or its screens, at the hosted services the SDK can call, or at code outside the map's folders, and no OpenHands code was run to make it.",
   "provenance": {
     "mapEdition": "2",
-    "cardCommit": "63dd33c7c7bcd488587fc15a7ae22ee8d524c9fd",
+    "cardCommit": "857d789f39d8777b3b1b46a7296f70ff686a4971",
     "method": "derived-from-full-map"
   }
 }
