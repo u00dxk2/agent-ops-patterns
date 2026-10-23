@@ -40,12 +40,18 @@ pre{background:var(--code);padding:10px 12px;border-radius:6px;overflow-x:auto;f
 
 <h2>The gallery</h2>
 
-<p>Each map lists the recurring judgments in one system and who holds each (code, a model, or a person), with how it has failed and what checks it where the mapping found them, the prompt pieces and assembly paths identified in the mapped source for the seats a model holds, and a report of what the mapping exposed. The OpenHands map also quotes prompt source text on 14 of its cards, each quote linked to the lines it came from.</p>
+<p>Each map lists the recurring judgments in one system and who holds each (code, a model, or a person). The OpenHands map also records how each has failed and what checks it where the mapping found them, the prompt pieces and assembly paths identified in the mapped source for the seats a model holds, and a report of what the mapping exposed, and it quotes prompt source text on 14 of its cards, each quote linked to the lines it came from. The Cline map is a shorter edition with no gap report.</p>
 
 <div class="map">
   <a class="name" href="./gallery/openhands/">OpenHands</a>
   <p class="finding">Its goal judge reads <code>"complete": "false"</code> as complete, because in Python <code>bool("false")</code> is <code>True</code>. We reproduced it with a failing test and reported it as <a href="https://github.com/OpenHands/software-agent-sdk/issues/5492">#5492</a>, which the project has labelled ready-for-dev. Two outside contributors have since opened fix PRs, <a href="https://github.com/OpenHands/software-agent-sdk/pull/5493">#5493</a> and <a href="https://github.com/OpenHands/software-agent-sdk/pull/5563">#5563</a> (one a draft); neither is merged yet (checked 2026-10-12). <a href="./gallery/openhands/#gaps">All the gaps →</a></p>
   <div class="facts">171 seats and 70 gap entries (12 flagged as stated design) in its agent SDK, read at one commit from 2026-10-06</div>
+</div>
+
+<div class="map">
+  <a class="name" href="./gallery/cline/">Cline</a>
+  <p class="finding">83 of its recurring judgments, each with its question, how it is answered and where in the code it is held. This edition shows less than the OpenHands map: 31 decisions are left out, and there is no list of gaps. <a href="./gallery/cline/#edition">What this edition leaves out →</a></p>
+  <div class="facts">83 seats in its SDK, CLI, hub and VS Code extension, read at one commit from 2026-10-19</div>
 </div>
 
 <p><a href="./gallery/">All maps, how to read one, and what a map is not →</a></p>

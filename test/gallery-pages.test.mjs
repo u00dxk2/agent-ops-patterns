@@ -103,6 +103,16 @@ const bareTables = (html) => [...html.matchAll(/<table\b/gi)]
   .filter((m) => !html.slice(Math.max(0, m.index - 23), m.index).toLowerCase().endsWith('<div class="tablewrap">'))
   .map((m) => html.slice(Math.max(0, m.index - 60), m.index + 40).replace(/\s+/g, " "));
 
+// Where a gallery card's gap link points. A map with a gap report (<h2 id="gaps">) is linked there; an edition
+// published without one (the Cline map, 2026-10-23) must say so inside its <h2 id="edition"> section, and the card
+// links that section instead. Anything else returns null, which fails the card test.
+function gapLinkTarget(html) {
+  const src = uncommented(html);
+  if (/<h2 id="gaps">/.test(src)) return "gaps";
+  const m = src.match(/<h2 id="edition">([\s\S]*?)(?=<h2\b|$)/);
+  return m && /There is no list of gaps/.test(m[1]) ? "edition" : null;
+}
+
 // Source characters outside tags; entities are not decoded (see the LIMIT test).
 const findingSourceLength = (inner) => inner.replace(/<[^>]*>/g, "").trim().length;
 
@@ -216,9 +226,18 @@ describe("gallery pages on GitHub Pages", () => {
         const finding = card.match(/<p class="finding">([\s\S]*?)<\/p>/);
         assert.ok(finding, `${page}: the ${m} card has a finding line`);
         assert.ok(findingSourceLength(finding[1]) >= 40, `${page}: the ${m} finding paragraph has at least 40 characters of source text outside tags`);
-        assert.ok(hrefs(card).includes(`${prefix}${m}/#gaps`), `${page}: the ${m} card links its gap report`);
+        const target = gapLinkTarget(read(`gallery/${m}/index.html`));
+        assert.ok(target, `gallery/${m}/index.html has neither <h2 id="gaps"> nor an <h2 id="edition"> section saying "There is no list of gaps"`);
+        assert.ok(hrefs(card).includes(`${prefix}${m}/#${target}`), `${page}: the ${m} card links its gap report (or, with none, its edition note) at #${target}`);
       }
     }
+  });
+
+  it("gapLinkTarget: a gap report wins; a map with none must say so in its edition section, else no target", () => {
+    assert.equal(gapLinkTarget('<h2 id="gaps">Gaps</h2>'), "gaps");
+    assert.equal(gapLinkTarget('<h2 id="edition">Left out</h2>\n<p>x.</p>\n<p>There is no list of gaps here.</p>\n<h2 id="a">A</h2>'), "edition");
+    assert.equal(gapLinkTarget('<h2 id="edition">Left out</h2>\n<p>x.</p>\n<h2 id="a">A</h2><p>There is no list of gaps.</p>'), null, "the sentence outside the edition section does not count");
+    assert.equal(gapLinkTarget('<h2 id="a">A</h2>'), null);
   });
 
   it("on every page, <a and </a> tokens balance and never go two deep", () => {
