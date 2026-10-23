@@ -109,6 +109,8 @@ const bareTables = (html) => [...html.matchAll(/<table\b/gi)]
 function gapLinkTarget(html) {
   const src = uncommented(html);
   if (/<h2 id="gaps">/.test(src)) return "gaps";
+  // A gap report under any other heading or id refuses the #edition fallback (Codex review 2026-10-23, F1).
+  if (/\bid=["'][^"']*\bgaps?\b/i.test(src) || /<h[1-6]\b[^>]*>[^<]*\bgaps?\b/i.test(src)) return null;
   const m = src.match(/<h2 id="edition">([\s\S]*?)(?=<h2\b|$)/);
   return m && /There is no list of gaps/.test(m[1]) ? "edition" : null;
 }
@@ -238,6 +240,9 @@ describe("gallery pages on GitHub Pages", () => {
     assert.equal(gapLinkTarget('<h2 id="edition">Left out</h2>\n<p>x.</p>\n<p>There is no list of gaps here.</p>\n<h2 id="a">A</h2>'), "edition");
     assert.equal(gapLinkTarget('<h2 id="edition">Left out</h2>\n<p>x.</p>\n<h2 id="a">A</h2><p>There is no list of gaps.</p>'), null, "the sentence outside the edition section does not count");
     assert.equal(gapLinkTarget('<h2 id="a">A</h2>'), null);
+    const stale = '<h2 id="edition">Left out</h2>\n<p>There is no list of gaps.</p>\n';
+    assert.equal(gapLinkTarget(stale + '<h2 id="known-gaps">Known gaps</h2>'), null, "a gap report under another id refuses the fallback");
+    assert.equal(gapLinkTarget(stale + '<h3>Gaps found</h3>'), null, "a gap heading of another level refuses the fallback");
   });
 
   it("on every page, <a and </a> tokens balance and never go two deep", () => {
