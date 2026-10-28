@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How Cline decides</title>
+<meta name="description" content="In an ordinary Cline session, plain code runs the work and sets its limits, and the AI model decides when the task is done. By default the model also writes the summary that replaces older history, and in command-line plan mode it decides when to start acting on the plan.">
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1d1b;--muted:#5d5b55;--line:#dedad0;--card:#ffffff;--code:#f2efe8;--link:#2f6f8f;
+  --model:#6b4fa0;--code-h:#2f6f8f;--human:#2e7d4f;--nobody:#a3452f}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--card:#1d1c19;--code:#262520;--link:#6fb3d4;
+  --model:#b9a2e6;--code-h:#6fb3d4;--human:#7fcf9f;--nobody:#f09a83}}
+:root[data-theme="dark"]{--bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--card:#1d1c19;--code:#262520;--link:#6fb3d4;
+  --model:#b9a2e6;--code-h:#6fb3d4;--human:#7fcf9f;--nobody:#f09a83}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:680px;margin:0 auto;padding:0 16px 56px}
+a{color:var(--link)}
+code{background:var(--code);padding:1px 4px;border-radius:4px;font-size:.86em;overflow-wrap:anywhere}
+.crumbs{font-size:.9rem;color:var(--muted);margin-top:18px}
+h1{font-size:1.6rem;line-height:1.2;margin:20px 0 10px}
+.summary{font-size:1.08rem}
+.meta{color:var(--muted);font-size:.88rem}
+h2{font-size:1.15rem;margin:32px 0 8px;padding-top:8px;border-top:1px solid var(--line)}
+ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
+.j,.p{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:10px 0}
+.j p,.p p{margin:4px 0}
+.q{font-weight:650}
+.holder{display:inline-block;font-size:.8rem;font-weight:650;border:1px solid currentColor;border-radius:999px;padding:0 8px;margin-right:4px}
+.holder-model{color:var(--model)}.holder-code{color:var(--code-h)}.holder-human{color:var(--human)}.holder-nobody{color:var(--nobody)}
+.ev{color:var(--muted);font-size:.85rem}
+.p h3{font-size:1.05rem;margin:2px 0 6px}
+.status{font-weight:600}
+.full{display:block;text-align:center;font-weight:650;border:1px solid var(--link);border-radius:8px;padding:12px;margin:28px 0 8px;text-decoration:none}
+</style>
+</head>
+<body>
+<main>
+
+<p class="crumbs"><a href="../../">agent-ops-patterns</a> / <a href="../">gallery</a> / <a href="./">Cline map</a> / how it decides</p>
+
+<h1>How Cline decides</h1>
+
+<p class="summary">In an ordinary Cline session, plain code runs the work and sets its limits, and the AI model decides when the task is done. By default the model also writes the summary that replaces older history, and in command-line plan mode it decides when to start acting on the plan.</p>
+
+<p class="meta">From <a href="https://github.com/cline/cline"><code>cline/cline</code></a> at source version <a href="https://github.com/cline/cline/tree/d800bf8271a63fb930ca10e3f2e1664c709d9eae"><code>d800bf82</code></a>, mapped 2026-10-19. Each answer links the code where that decision is made.</p>
+
+<h2>How it decides it is done</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">How does it decide the task is finished?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> In an ordinary session, the model replies without asking to use a tool and code ends the run as completed; nothing checks that the work was done.</p>
+  <p class="ev"><a href="https://github.com/cline/cline/blob/d800bf8271a63fb930ca10e3f2e1664c709d9eae/sdk/packages/agents/src/agent-runtime.ts#L949-L971" title="sdk/packages/agents/src/agent-runtime.ts:949-971"><code>agent-runtime.ts:949-971</code></a> · decision G1 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">When its yolo mode ends a run as &quot;verified&quot;, does anything check?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> No. The model ends the run by submitting a summary with a verified yes or no, and both the command-line tool and scheduled runs accept the submission either way.</p>
+  <p class="ev"><a href="https://github.com/cline/cline/blob/d800bf8271a63fb930ca10e3f2e1664c709d9eae/sdk/packages/core/src/hub/daemon/runtime-handlers.ts#L76-L85" title="sdk/packages/core/src/hub/daemon/runtime-handlers.ts:76-85"><code>runtime-handlers.ts:76-85</code></a> · decision G2 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Did a scheduled run succeed?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Unless the run was cancelled, timed out or lost its place, any turn that does not end with an error, including one that ended as stopped, is recorded as done and counted as a success.</p>
+  <p class="ev"><a href="https://github.com/cline/cline/blob/d800bf8271a63fb930ca10e3f2e1664c709d9eae/sdk/packages/core/src/cron/runner/cron-runner.ts#L445-L485" title="sdk/packages/core/src/cron/runner/cron-runner.ts:445-485"><code>cron-runner.ts:445-485</code></a> · decision G5 in the full map</p>
+</li>
+</ul>
+
+<h2>Limits and memory</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">How long can it keep going before it is stopped?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Ordinary VS Code and command-line sessions set no limit on steps. A limit applies only where a caller sets one: the --timeout flag, a schedule, or a task queued through the hub.</p>
+  <p class="ev"><a href="https://github.com/cline/cline/blob/d800bf8271a63fb930ca10e3f2e1664c709d9eae/sdk/packages/agents/src/agent-runtime.ts#L836-L839" title="sdk/packages/agents/src/agent-runtime.ts:836-839"><code>agent-runtime.ts:836-839</code></a> · decision F5 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">When the history gets too long, who decides what to keep?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> With the default strategy, a model writes a summary of the older part while about the last 20,000 tokens stay word for word, and code puts in place any summary that is not empty.</p>
+  <p class="ev"><a href="https://github.com/cline/cline/blob/d800bf8271a63fb930ca10e3f2e1664c709d9eae/sdk/packages/core/src/extensions/context/agentic-compaction.ts#L255-L278" title="sdk/packages/core/src/extensions/context/agentic-compaction.ts:255-278"><code>agentic-compaction.ts:255-278</code></a> · decision F7 in the full map</p>
+</li>
+</ul>
+
+<h2>Other judgments</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">In plan mode on the command line, who decides you have approved the plan and the work can start?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> The model, by calling a switch-to-act tool; the tool does not look at what you wrote. When that turn completes, the command-line tool rebuilds the session in act mode and starts on the plan.</p>
+  <p class="ev"><a href="https://github.com/cline/cline/blob/d800bf8271a63fb930ca10e3f2e1664c709d9eae/apps/cli/src/runtime/interactive/mode.ts#L31-L68" title="apps/cli/src/runtime/interactive/mode.ts:31-68"><code>mode.ts:31-68</code></a> · decision A3 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">On the command line, when is a running shell command stopped?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> After 30 seconds by default, when code tries to kill the command and the processes it started. The command-line tool does not change that default.</p>
+  <p class="ev"><a href="https://github.com/cline/cline/blob/d800bf8271a63fb930ca10e3f2e1664c709d9eae/sdk/packages/core/src/extensions/tools/executors/bash.ts#L837-L843" title="sdk/packages/core/src/extensions/tools/executors/bash.ts:837-843"><code>bash.ts:837-843</code></a> · decision E3 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">When another tool runs past its time limit, is it stopped?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Usually not. The model is told the tool timed out, but the work itself is not cancelled and may still finish, so a file edit that timed out can still be written.</p>
+  <p class="ev"><a href="https://github.com/cline/cline/blob/d800bf8271a63fb930ca10e3f2e1664c709d9eae/sdk/packages/core/src/extensions/tools/helpers.ts#L48-L59" title="sdk/packages/core/src/extensions/tools/helpers.ts:48-59"><code>helpers.ts:48-59</code></a> · decision E9 in the full map</p>
+</li>
+</ul>
+
+<h2>Three problems in the code</h2>
+<ol class="problems">
+<li class="p">
+  <h3>1. Shell commands are cut off at 30 seconds</h3>
+  <p>On the command line, a shell command the agent runs is stopped after 30 seconds by default and the agent is told it timed out, so a long build, test run or install can be stopped partway. Cline's tracker has two open reports about this limit.</p>
+  <p class="status">Already tracked upstream (<a href="https://github.com/cline/cline/issues/10549">#10549</a>), checked 2026-10-28.</p>
+  <p class="ev">Where: <a href="https://github.com/cline/cline/blob/d800bf8271a63fb930ca10e3f2e1664c709d9eae/sdk/packages/core/src/extensions/tools/executors/bash.ts#L1138" title="sdk/packages/core/src/extensions/tools/executors/bash.ts:1138"><code>bash.ts:1138</code></a>, <a href="https://github.com/cline/cline/blob/d800bf8271a63fb930ca10e3f2e1664c709d9eae/sdk/packages/core/src/extensions/tools/definitions.ts#L515" title="sdk/packages/core/src/extensions/tools/definitions.ts:515"><code>definitions.ts:515</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) in two rounds on 2026-10-28.</p>
+</li>
+<li class="p">
+  <h3>2. A file edit that timed out can still be written</h3>
+  <p>File edits are given a time limit, but reaching it only tells the model the edit failed; the edit itself is not stopped. So the model can be told an edit timed out while the change still lands in the file.</p>
+  <p class="status">Not reported upstream, checked 2026-10-28.</p>
+  <p class="ev">Where: <a href="https://github.com/cline/cline/blob/d800bf8271a63fb930ca10e3f2e1664c709d9eae/sdk/packages/core/src/extensions/tools/definitions.ts#L745-L749" title="sdk/packages/core/src/extensions/tools/definitions.ts:745-749"><code>definitions.ts:745-749</code></a>, <a href="https://github.com/cline/cline/blob/d800bf8271a63fb930ca10e3f2e1664c709d9eae/sdk/packages/core/src/extensions/tools/executors/editor.ts#L230-L267" title="sdk/packages/core/src/extensions/tools/executors/editor.ts:230-267"><code>editor.ts:230-267</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) in two rounds on 2026-10-28.</p>
+</li>
+<li class="p">
+  <h3>3. A cut-off summary is used as if it were complete</h3>
+  <p>When the history is shortened, the model's summary replaces the older messages. If the summary was cut off before the model finished it, code still puts it in place; only an empty summary is skipped.</p>
+  <p class="status">Already tracked upstream (<a href="https://github.com/cline/cline/issues/14732">#14732</a>), checked 2026-10-28.</p>
+  <p class="ev">Where: <a href="https://github.com/cline/cline/blob/d800bf8271a63fb930ca10e3f2e1664c709d9eae/sdk/packages/core/src/extensions/context/agentic-compaction.ts#L258-L278" title="sdk/packages/core/src/extensions/context/agentic-compaction.ts:258-278"><code>agentic-compaction.ts:258-278</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) in two rounds on 2026-10-28.</p>
+</li>
+</ol>
+
+<a class="full" href="https://u00dxk2.github.io/agent-ops-patterns/gallery/cline/">See the full map →</a>
+
+<p class="meta">This card was taken from the published cut-down map of Cline at one commit and covers only decisions shown there; it did not look at Cline's hosted services or at code outside the map's folders, and no Cline code was run to make it.</p>
+<p class="meta">Map edition cut-down edition (2026-10-23) · taken from the full map · card data: <a href="https://github.com/u00dxk2/agent-ops-patterns/blob/main/gallery/cards/cline.json"><code>gallery/cards/cline.json</code></a>. Corrections are welcome as an <a href="https://github.com/u00dxk2/agent-ops-patterns/issues">issue</a>.</p>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,136 @@
+{
+  "schema": "aop-decides-card/v1",
+  "agent": {
+    "name": "Cline",
+    "slug": "cline",
+    "repo": "https://github.com/cline/cline",
+    "commit": "d800bf8271a63fb930ca10e3f2e1664c709d9eae",
+    "mappedAt": "2026-10-19"
+  },
+  "fullMapUrl": "https://u00dxk2.github.io/agent-ops-patterns/gallery/cline/",
+  "summary": "In an ordinary Cline session, plain code runs the work and sets its limits, and the AI model decides when the task is done. By default the model also writes the summary that replaces older history, and in command-line plan mode it decides when to start acting on the plan.",
+  "judgments": [
+    {
+      "id": "A3",
+      "stage": "other",
+      "question": "In plan mode on the command line, who decides you have approved the plan and the work can start?",
+      "holder": "model",
+      "answer": "The model, by calling a switch-to-act tool; the tool does not look at what you wrote. When that turn completes, the command-line tool rebuilds the session in act mode and starts on the plan.",
+      "evidence": "apps/cli/src/runtime/interactive/mode.ts:31-68"
+    },
+    {
+      "id": "E3",
+      "stage": "other",
+      "question": "On the command line, when is a running shell command stopped?",
+      "holder": "code",
+      "answer": "After 30 seconds by default, when code tries to kill the command and the processes it started. The command-line tool does not change that default.",
+      "evidence": "sdk/packages/core/src/extensions/tools/executors/bash.ts:837-843"
+    },
+    {
+      "id": "E9",
+      "stage": "other",
+      "question": "When another tool runs past its time limit, is it stopped?",
+      "holder": "code",
+      "answer": "Usually not. The model is told the tool timed out, but the work itself is not cancelled and may still finish, so a file edit that timed out can still be written.",
+      "evidence": "sdk/packages/core/src/extensions/tools/helpers.ts:48-59"
+    },
+    {
+      "id": "G1",
+      "stage": "done",
+      "question": "How does it decide the task is finished?",
+      "holder": "model",
+      "answer": "In an ordinary session, the model replies without asking to use a tool and code ends the run as completed; nothing checks that the work was done.",
+      "evidence": "sdk/packages/agents/src/agent-runtime.ts:949-971"
+    },
+    {
+      "id": "G2",
+      "stage": "done",
+      "question": "When its yolo mode ends a run as \"verified\", does anything check?",
+      "holder": "model",
+      "answer": "No. The model ends the run by submitting a summary with a verified yes or no, and both the command-line tool and scheduled runs accept the submission either way.",
+      "evidence": "sdk/packages/core/src/hub/daemon/runtime-handlers.ts:76-85"
+    },
+    {
+      "id": "G5",
+      "stage": "done",
+      "question": "Did a scheduled run succeed?",
+      "holder": "code",
+      "answer": "Unless the run was cancelled, timed out or lost its place, any turn that does not end with an error, including one that ended as stopped, is recorded as done and counted as a success.",
+      "evidence": "sdk/packages/core/src/cron/runner/cron-runner.ts:445-485"
+    },
+    {
+      "id": "F5",
+      "stage": "limits-memory",
+      "question": "How long can it keep going before it is stopped?",
+      "holder": "code",
+      "answer": "Ordinary VS Code and command-line sessions set no limit on steps. A limit applies only where a caller sets one: the --timeout flag, a schedule, or a task queued through the hub.",
+      "evidence": "sdk/packages/agents/src/agent-runtime.ts:836-839"
+    },
+    {
+      "id": "F7",
+      "stage": "limits-memory",
+      "question": "When the history gets too long, who decides what to keep?",
+      "holder": "model",
+      "answer": "With the default strategy, a model writes a summary of the older part while about the last 20,000 tokens stay word for word, and code puts in place any summary that is not empty.",
+      "evidence": "sdk/packages/core/src/extensions/context/agentic-compaction.ts:255-278"
+    }
+  ],
+  "problems": [
+    {
+      "title": "Shell commands are cut off at 30 seconds",
+      "plain": "On the command line, a shell command the agent runs is stopped after 30 seconds by default and the agent is told it timed out, so a long build, test run or install can be stopped partway. Cline's tracker has two open reports about this limit.",
+      "evidence": [
+        "sdk/packages/core/src/extensions/tools/executors/bash.ts:1138",
+        "sdk/packages/core/src/extensions/tools/definitions.ts:515"
+      ],
+      "verified": {
+        "how": "re-read at pinned commit",
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) in two rounds on 2026-10-28"
+      },
+      "upstream": {
+        "status": "already-tracked",
+        "url": "https://github.com/cline/cline/issues/10549",
+        "checkedAt": "2026-10-28"
+      }
+    },
+    {
+      "title": "A file edit that timed out can still be written",
+      "plain": "File edits are given a time limit, but reaching it only tells the model the edit failed; the edit itself is not stopped. So the model can be told an edit timed out while the change still lands in the file.",
+      "evidence": [
+        "sdk/packages/core/src/extensions/tools/definitions.ts:745-749",
+        "sdk/packages/core/src/extensions/tools/executors/editor.ts:230-267"
+      ],
+      "verified": {
+        "how": "re-read at pinned commit",
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) in two rounds on 2026-10-28"
+      },
+      "upstream": {
+        "status": "not-filed",
+        "url": null,
+        "checkedAt": "2026-10-28"
+      }
+    },
+    {
+      "title": "A cut-off summary is used as if it were complete",
+      "plain": "When the history is shortened, the model's summary replaces the older messages. If the summary was cut off before the model finished it, code still puts it in place; only an empty summary is skipped.",
+      "evidence": [
+        "sdk/packages/core/src/extensions/context/agentic-compaction.ts:258-278"
+      ],
+      "verified": {
+        "how": "re-read at pinned commit",
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) in two rounds on 2026-10-28"
+      },
+      "upstream": {
+        "status": "already-tracked",
+        "url": "https://github.com/cline/cline/issues/14732",
+        "checkedAt": "2026-10-28"
+      }
+    }
+  ],
+  "notChecked": "This card was taken from the published cut-down map of Cline at one commit and covers only decisions shown there; it did not look at Cline's hosted services or at code outside the map's folders, and no Cline code was run to make it.",
+  "provenance": {
+    "mapEdition": "cut-down edition (2026-10-23)",
+    "cardCommit": "9ba5dbfdf85c2cd2e64e264b968ff86961ce6dc2",
+    "method": "derived-from-full-map"
+  }
+}
