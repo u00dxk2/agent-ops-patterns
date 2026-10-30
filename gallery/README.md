@@ -10,6 +10,7 @@ The method is ["Cognitive Operations Maps"](https://uncagedminds.substack.com/p/
 | [Cline](https://u00dxk2.github.io/agent-ops-patterns/gallery/cline/) | [`cline/cline`](https://github.com/cline/cline), the Cline agent: its SDK, CLI, hub and VS Code extension | 83 (43 rule, 40 ruling; 6 held by a person); 31 decisions left out of this edition; no gap report | commit `d800bf82`, 2026-10-19 |
 | [opencode](https://u00dxk2.github.io/agent-ops-patterns/gallery/opencode/) | [`anomalyco/opencode`](https://github.com/anomalyco/opencode), the opencode coding agent: its core, CLI, server and terminal interface | 123 (65 rule, 58 ruling; 11 held by a person); no gap report | commit `0093fe57`, 2026-10-24 |
 | [pi](https://u00dxk2.github.io/agent-ops-patterns/gallery/pi/) | [`earendil-works/pi`](https://github.com/earendil-works/pi), the pi coding agent: its command-line agent, agent loop, model layer, code mode and MCP client | 111 shown (45 rule, 66 ruling; 9 held by a person); 1 decision left out of this edition; no gap report | commit `1ce44bed`, 2026-10-28 |
+| [agno](https://u00dxk2.github.io/agent-ops-patterns/gallery/agno/) | [`agno-agi/agno`](https://github.com/agno-agi/agno), the agno framework's Agent: its run loop, tools, model layer, hooks and guardrails, memory, knowledge and learning, plus teams and workflows | 115 shown (33 rule, 82 ruling; 4 held by a person); 3 decisions left out of this edition; no gap report | commit `9153aacd`, 2026-10-29 |
 
 ## How to read one
 
