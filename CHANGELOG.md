@@ -2,6 +2,14 @@
 
 Changes that matter to anyone who vendors a file from this repo. Each entry names the files to re-pull.
 
+## 2026-10-31
+
+### Gallery: six more maps, and the README now opens with them
+
+**Re-pull:** nothing required. Only `lib/secret_redaction.py` changed under `lib/`, and its `redact_secret_shapes` function did not change: its self-check gained four timing probes built from `sbp_` and `phx_` (two repeated-prefix probes, one long-body probe and one repeated-chunk probe). Re-pull it only if you run that self-check. No skill changed.
+
+Since the last entry the gallery has added maps of Cline, opencode, pi, agno, AnythingLLM and browser-use, joining OpenHands. Each is a shorter edition than the OpenHands map, with no gap report, and says what it leaves out. Cline and OpenHands also have a one-page "How it decides" card: the data is under `gallery/cards/`, and `scripts/render-decides-card.mjs` (new) renders it as `gallery/<slug>/card.html`. The README now opens with a table of the seven maps and the skill to make your own; the self-audit moved to an "Also here" line.
+
 ## 2026-10-13
 
 ### Redactors: the scanner's vendor keys could pass through

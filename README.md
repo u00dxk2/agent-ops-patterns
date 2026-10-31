@@ -2,33 +2,46 @@
 
 [![tests](https://github.com/u00dxk2/agent-ops-patterns/actions/workflows/tests.yml/badge.svg)](https://github.com/u00dxk2/agent-ops-patterns/actions/workflows/tests.yml)
 
-Operational patterns for running LLM agents in production.
+Maps of who decides what inside open-source agent systems, and the skill to make one of your own.
 
-**New here? Paste this to your own agent.** Five questions about your own setup, read-only, scored out of five:
+## The maps
+
+Each map takes one open-source agent system and lists the recurring judgments it found there, each as a *seat*: the question it answers and who holds it (code, a model, or a person). Each map is one self-contained HTML page that makes no external requests, read at one named commit. How to read one, and what a map is not: [`gallery/`](./gallery/README.md).
+
+| Map | One thing it shows | Seats shown | Read at |
+|---|---|---|---|
+| [OpenHands](https://u00dxk2.github.io/agent-ops-patterns/gallery/openhands/) | Its goal judge reads `"complete": "false"` as complete, because in Python `bool("false")` is `True`. Reproduced with a failing test and reported as [#5492](https://github.com/OpenHands/software-agent-sdk/issues/5492). | 171, plus 70 gap entries | `aae9c437`, 2026-10-06 |
+| [Cline](https://u00dxk2.github.io/agent-ops-patterns/gallery/cline/) | 83 of its recurring judgments, each with its question, how it is answered and where in the code it is held; 31 decisions are left out of this edition. | 83 | `d800bf82`, 2026-10-19 |
+| [opencode](https://u00dxk2.github.io/agent-ops-patterns/gallery/opencode/) | Its Plan agent is described in code as a "Read-only agent", but the one rule it adds blocks only file edits outside its plan folder. | 123 | `0093fe57`, 2026-10-24 |
+| [pi](https://u00dxk2.github.io/agent-ops-patterns/gallery/pi/) | pi ships no approval prompt for tool calls: out of the box, no one is asked before a tool runs. | 111 | `1ce44bed`, 2026-10-28 |
+| [agno](https://u00dxk2.github.io/agent-ops-patterns/gallery/agno/) | agno runs every tool call the model makes without asking anyone, unless the developer sets that tool to pause the run or adds agno's ask-the-person tools. | 115 | `9153aacd`, 2026-10-29 |
+| [AnythingLLM](https://u00dxk2.github.io/agent-ops-patterns/gallery/anythingllm/) | In the web chat, the person sees an approval card for an agent tool only if neither an operator's pre-approved list nor their own "always allow" list covers the skill. | 106 | `d7d68e75`, 2026-10-15 |
+| [browser-use](https://u00dxk2.github.io/agent-ops-patterns/gallery/browser-use/) | browser-use runs the actions the model picks as soon as they are parsed: nobody approves a form submit, a purchase or a page script unless the developer adds a check in their own code. | 85 | `b49a68e4`, 2026-10-29 |
+
+The OpenHands map also has a gap report; the other six are shorter editions without one, and each says what it leaves out. A wrong sentence about someone else's code is the worst bug a map can have: corrections are welcome as an [issue](https://github.com/u00dxk2/agent-ops-patterns/issues).
+
+## Make your own
+
+The [cog-ops-map skill](./skills/cog-ops-map/SKILL.md) has your agent map a system you work on: every recurring judgment as a seat, sorted rule vs ruling and human vs machine, with a report of the gaps the mapping exposed. In Claude Code:
 
 ```
-Get the exact text of https://raw.githubusercontent.com/u00dxk2/agent-ops-patterns/main/SELF-AUDIT.md
-with a plain download such as curl, not a web tool that summarizes, then run
-the audit in its section "The prompt" on this system. Read-only. If you cannot
-get the exact text, ask me to paste that section - don't run it from a summary.
+claude plugin marketplace add u00dxk2/agent-ops-patterns
+claude plugin install agent-ops-skills@agent-ops-patterns
 ```
 
-It answers each question with a verdict and the file path behind it, then names the smallest fix that would move one failure to a pass. About thirty seconds of your attention.
+Then say "build a cognitive operations map of <system>". Or copy the folder into any harness that reads the Agent Skills format. The method is ["Cognitive Operations Maps"](https://uncagedminds.substack.com/p/cognitive-operations-maps). The maps above were built with a later, fuller version of the method than the skill describes yet.
 
-What it found on ten popular agent repos: [*I ran my agent audit on ten popular agent repos. All ten scored zero.*](https://uncagedminds.substack.com/p/i-ran-my-agent-audit-on-ten-popular)
+## Also here
 
-That prompt points your agent at a file on this repo's `main`, so read [SELF-AUDIT.md](./SELF-AUDIT.md) first if you'd rather see what you're handing it — it's one page, it changes, and it asks your agent to read your history, logs, memory and config. Read-only means it won't write anything; it doesn't mean it reads nothing.
+- **[A five-question self-audit](./SELF-AUDIT.md)** to paste to your own agent: read-only, scored out of five. Read the file first; it asks your agent to read your history, logs, memory and config. [Got a score? Tell me](https://github.com/u00dxk2/agent-ops-patterns/issues/new?template=ran-the-audit.yml), verdicts only. The paste:
 
-Before I published this repo, an adversarial review found a real hole in the permission
-library - the artifact whose whole job is question four. It was fixed before this audit
-was added to the repo, and [the fix commit](https://github.com/u00dxk2/agent-ops-patterns/commit/792c788)
-says how it was found.
-
-**Got a score? [Tell me](https://github.com/u00dxk2/agent-ops-patterns/issues/new?template=ran-the-audit.yml)** — your number and which questions failed. Verdicts only: don't paste your agent's output.
-
-## Gallery: who decides what inside open-source agents
-
-[`gallery/`](./gallery/README.md) holds cognitive operations maps of open-source agent systems. Each one lists the recurring judgments it found in a system and who holds each (code, a model, or a person), with how it has failed and what checks it where the mapping found them, the prompt pieces and assembly paths identified in the mapped source for the seats a model holds, and a report of what the mapping exposed. The first is **[OpenHands](https://u00dxk2.github.io/agent-ops-patterns/gallery/openhands/)**: 171 seats and 70 gap entries (12 of them flagged as stated design) in its agent SDK, all read at one commit from 2026-10-06. Where a card quotes prompt text, the quote is the source as written, linked to the lines it came from (14 cards). Three of the gaps were reproduced with tests and reported to the project in public: two new issues and a comment on an existing one. The link opens it in your browser; it's one self-contained HTML file, also in [`gallery/openhands/`](./gallery/openhands/index.html) if you'd rather download it.
+  ```
+  Get the exact text of https://raw.githubusercontent.com/u00dxk2/agent-ops-patterns/main/SELF-AUDIT.md
+  with a plain download such as curl, not a web tool that summarizes, then run
+  the audit in its section "The prompt" on this system. Read-only. If you cannot
+  get the exact text, ask me to paste that section - don't run it from a summary.
+  ```
+- Small zero-dependency libraries and written patterns for running LLM agents in production, in the table below.
 
 ## What's here
 
@@ -55,7 +68,7 @@ says how it was found.
 | [`patterns/durability-tiered-write-governance.md`](./patterns/durability-tiered-write-governance.md) | Gate agent actions by how hard they are to undo, on a three-rung ladder: effect-free authorized reads never sent for approval, schema-bounded reversible writes machine-approved, substrate/irreversible writes human-direct via minted grants. Replaces case-law permission accretion with an admission test per rule. | **Read and apply** — `capability-grant` is the rung-3 mechanism |
 | [`skills/cs329a-self-improving-agents/`](./skills/cs329a-self-improving-agents/SKILL.md) | An Agent Skill: your agent reads Stanford CS329A's ten load-bearing ideas (verifier filtering before ensembling, meta-verification, signal-needs-spread, reliability horizon, the deep-research ceiling…) against YOUR repo and writes a disposition record — one verdict per idea, a quoted `file:line` or a scoped command with its exit code and output per verdict, bars pre-committed before any deciding number. Offers; never assigns. | **Install** — `claude plugin marketplace add u00dxk2/agent-ops-patterns` then `claude plugin install agent-ops-skills@agent-ops-patterns`; or copy the folder (Agent Skills format). Citations link the papers, never the lectures; CI checks every link resolves |
 | [`skills/cog-ops-map/`](./skills/cog-ops-map/SKILL.md) | An Agent Skill: your agent maps every recurring judgment in a system as a seat (question, holder, real failure, validator), sorts seats rule vs ruling × human vs machine, and builds a map a teammate without repo access can read, with each model-call seat's prompt template or assembly source inline, plus a gap report. | **Install** — same plugin as above; or copy the folder (Agent Skills format) |
-| [`gallery/`](./gallery/README.md) | Cognitive operations maps of open-source agent systems, built with the skill above. First: [OpenHands](https://u00dxk2.github.io/agent-ops-patterns/gallery/openhands/) (171 seats, 70 gap entries). | **Read** — open a map in your browser from the gallery table |
+| [`gallery/`](./gallery/README.md) | Cognitive operations maps of seven open-source agent systems (the table at the top), built with the method behind the skill above. | **Read** — open a map in your browser from the gallery table |
 
 I run a software portfolio by myself, through a lot of concurrent Claude Code agent sessions coordinated over a Postgres message bus and watched by a layer of small detectors that make no model calls. These patterns came out of that. The origin story is still my word - but [OPS-SNAPSHOT.md](./OPS-SNAPSHOT.md) is the part I can measure, with the command next to each number and an honest list of what I can't produce. Judge the code on the code: the libraries are all here and all tested, the written protocols are practices rather than executable specifications, and every library says where it stops working.
 
@@ -117,7 +130,7 @@ person), how it has failed, and what checks it. Seats are sorted rule vs ruling 
 machine. The map is built for a teammate without repo access: an authenticated page, a
 self-contained HTML file, or a Markdown fallback, showing the prompt template or assembly source
 for every seat that calls a model and the working context of seats held by an agent. The mapping
-also writes a gap report. Dated notes in the skill mark the incident that motivated a rule. Say "build a cognitive operations map of <system>" once the plugin is installed. For a finished one, see the [OpenHands map](https://u00dxk2.github.io/agent-ops-patterns/gallery/openhands/) in the [gallery](./gallery/README.md).
+also writes a gap report. Dated notes in the skill mark the incident that motivated a rule. Say "build a cognitive operations map of <system>" once the plugin is installed. For finished ones, see the seven maps at the top of this page and in the [gallery](./gallery/README.md).
 
 ## Quickstart
 
@@ -220,7 +233,8 @@ The cog-ops-map skill states its limits in the same-named section of its `SKILL.
 version: it maps what the code says at the moment it reads it, and reading code does not prove
 runtime behavior; a map drifts when the code changes unless its cards are maintained in the same
 commit (live slicing keeps only the prompt text current); a "nothing checks this" stays provisional
-until re-derived by a different route; and it ships no worked example yet.
+until re-derived by a different route; and it ships no worked example of its own yet. The gallery's
+maps were built with a later, fuller version of the method than the skill describes.
 
 ### snippet-redact (and its Python port)
 
