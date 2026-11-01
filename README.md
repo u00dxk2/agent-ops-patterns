@@ -233,8 +233,8 @@ The cog-ops-map skill states its limits in the same-named section of its `SKILL.
 version: it maps what the code says at the moment it reads it, and reading code does not prove
 runtime behavior; a map drifts when the code changes unless its cards are maintained in the same
 commit (live slicing keeps only the prompt text current); a "nothing checks this" stays provisional
-until re-derived by a different route; and it ships no worked example of its own yet. The gallery's
-maps were built with a later, fuller version of the method than the skill describes.
+until re-derived by a different route; and a map is only comparable with another one if both
+follow the shared schema the skill now includes. Its worked example is the gallery's pi map.
 
 ### snippet-redact (and its Python port)
 

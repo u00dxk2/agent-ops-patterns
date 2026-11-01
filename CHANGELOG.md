@@ -2,6 +2,14 @@
 
 Changes that matter to anyone who vendors a file from this repo. Each entry names the files to re-pull.
 
+## 2026-11-01
+
+### cog-ops-map skill v2: the method developed for the gallery
+
+**Re-pull:** `skills/cog-ops-map/` (the whole folder: `SKILL.md` changed and `references/` has three new files). The plugin version is now 0.2.0. Nothing under `lib/` or `scripts/` changed.
+
+The skill now carries a general version of the method developed while building the gallery's maps. `references/shared-schema.md` holds the rules that make two maps comparable: what counts as a seat, nine fixed stages, quadrant from the question and holder kind from the code, fixed card fields, gap evidence tags and severities, one citation commit, the seats as data beside the page, one brief for every census, and a record of seats whose holder changes with a setting. `references/census-brief-template.md` is that census brief, and `references/seats-json.md` describes the seats file and the checker that keeps the page and the data in agreement. `SKILL.md` gains a read-only mode for mapping someone else's system, a step to search the project's issues before calling a gap new, a claims pass on every sentence a stranger will read, and a worked example: the gallery's pi map. Before release, four fresh agents rebuilt the census of one gallery map (browser-use, at the commit that map cites) without opening the published map or its data. They worked from an earlier draft of this version (later edits narrowed some of its sentences after a fact-check), the map's boundary and the source at that commit. Their sessions also carried the author's working notes, which give the map's seat count and some of its build history, so the test was not fully blind. They were scored against the map by thresholds written before the run: they matched 81 of its 90 seats, every holder line cited by the matching seats exists at that commit, and the shares of seats held by a model, by code and by a person were each within five points of the map's. That is one run: it shows this version can reproduce a gallery census, not how much a second run would differ.
+
 ## 2026-10-31
 
 ### Gallery: six more maps, and the README now opens with them
