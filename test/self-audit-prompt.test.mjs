@@ -80,13 +80,18 @@ describe("SELF-AUDIT prompt block", () => {
   // but Questions 2-5 ask for quoted lines from logs and config, so the no-print rule must
   // sit in the general rules, inside the block, where it binds every question.
   const GLOBAL_SECRET_RULE = "- Never print a secret, in any question.";
+  // Redact-then-quote still pulls a raw record line through the agent, so records are cited, never quoted.
+  const RECORD_RULE = "Never quote a line from a\n  log, transcript, memory store or other record";
   const globalRuleProblems = (text) => {
     const start = text.indexOf(HEADING);
     const body = start < 0 ? "" : text.slice(start);
     const rules = body.indexOf("Rules for you, the auditing agent:");
     const q1 = body.indexOf("**Question 1");
-    const at = body.indexOf(GLOBAL_SECRET_RULE);
-    return rules >= 0 && at > rules && (q1 < 0 || at < q1) ? [] : ["no global never-print-a-secret rule before Question 1"];
+    const before = (s) => { const at = body.indexOf(s); return rules >= 0 && at > rules && (q1 < 0 || at < q1); };
+    return [
+      ...(before(GLOBAL_SECRET_RULE) ? [] : ["no global never-print-a-secret rule before Question 1"]),
+      ...(before(RECORD_RULE) ? [] : ["no never-quote-a-record rule before Question 1"]),
+    ];
   };
 
   it("carries a never-print-a-secret rule that binds every question, not only Question 1", () => {
@@ -97,6 +102,12 @@ describe("SELF-AUDIT prompt block", () => {
     const without = audit.replace(GLOBAL_SECRET_RULE, "- Be careful with secrets.");
     assert.notEqual(without, audit);
     assert.deepEqual(globalRuleProblems(without), ["no global never-print-a-secret rule before Question 1"]);
+  });
+
+  it("refuses a prompt that lets records be quoted after redaction", () => {
+    const quoting = audit.replace(RECORD_RULE, "Redact, then quote any line from a\n  log, transcript, memory store or other record");
+    assert.notEqual(quoting, audit);
+    assert.deepEqual(globalRuleProblems(quoting), ["no never-quote-a-record rule before Question 1"]);
   });
 
   it("LIMIT: does not pin the prompt's wording — a reworded sentence still passes", () => {

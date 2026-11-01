@@ -7,7 +7,7 @@ const KNOWN = ["project", "verify-by", "list", "dry-run"];
 test("an unknown flag is refused with a suggestion; known flags and values pass", () => {
   const msgs = findUnknownFlags(["--projct", "x", "--list", "--verify-by=2026-09-01"], KNOWN);
   assert.equal(msgs.length, 1);
-  assert.match(msgs[0], /unknown flag --projct/);
+  assert.match(msgs[0], /unknown flag at argument #1/);
   assert.match(msgs[0], /did you mean --project\?/);
 });
 
@@ -48,7 +48,7 @@ test("assertKnownFlags: refusal logs every offender plus the summary, then exits
   });
   assert.equal(ok, false);
   assert.equal(exited, 2);
-  assert.equal(lines.filter((l) => l.includes("unknown flag --")).length, 2);
+  assert.equal(lines.filter((l) => l.includes("unknown flag at argument #")).length, 2);
   assert.ok(lines.at(-1).includes("nothing was written"));
   assert.ok(lines.every((l) => l.startsWith("myscript: ")));
 });
@@ -95,9 +95,11 @@ const SECRET_TOKENS = [
   `--${SENTINEL}+a/b=c`, // base64 punctuation (the value after = is never printed anyway)
   `--${SENTINEL}${"x".repeat(60)}`, // longer than any flag name
   `--${["gh", "p"].join("")}_${SENTINEL}`, // GitHub token prefix
+  `--${SENTINEL.toLowerCase()}`, // short, letters only: shaped exactly like a flag name
+  `--correcthorse${SENTINEL}`, // a passphrase, no digits
 ];
 
-test("a secret-shaped --token is never echoed; it is counted and reported by position", () => {
+test("no unknown token is ever echoed, whatever its shape; each is reported by position", () => {
   const lines = [];
   let exited = null;
   const ok = assertKnownFlags(["--list", ...SECRET_TOKENS], KNOWN, "t", {
@@ -107,30 +109,23 @@ test("a secret-shaped --token is never echoed; it is counted and reported by pos
   assert.equal(ok, false);
   assert.equal(exited, 2);
   const out = lines.join("\n");
-  assert.ok(!out.includes(SENTINEL), `secret echoed:\n${out}`);
-  assert.equal(lines.filter((l) => l.includes("withheld (not printed")).length, SECRET_TOKENS.length);
-  assert.match(out, /unknown argument #2 withheld/);
+  assert.ok(!out.toLowerCase().includes(SENTINEL.toLowerCase()), `token echoed:\n${out}`);
+  assert.equal(lines.filter((l) => /unknown flag at argument #\d+/.test(l)).length, SECRET_TOKENS.length);
+  assert.match(out, /unknown flag at argument #2\b/);
   assert.ok(lines.at(-1).includes(`${SECRET_TOKENS.length} unknown flag(s)`), lines.at(-1));
 });
 
-test("an ordinary typo is still named, with its suggestion, next to a withheld one", () => {
+test("a typo still gets its known-flag suggestion, without the typo echoed", () => {
   const msgs = findUnknownFlags(["--projct", SECRET_TOKENS[0]], KNOWN);
   assert.equal(msgs.length, 2);
-  assert.match(msgs[0], /unknown flag --projct \(did you mean --project\?\)/);
-  assert.match(msgs[1], /unknown argument #2 withheld/);
-  assert.ok(!msgs[1].includes("did you mean"), msgs[1]);
+  assert.equal(msgs[0], "unknown flag at argument #1 (did you mean --project?)");
+  assert.equal(msgs[1], "unknown flag at argument #2");
 });
 
-test("LIMIT: a short secret shaped like a flag name is still printed", () => {
-  // Nothing in `hunter2`'s shape tells it from a typo; the rule withholds
-  // shapes, it cannot know intent.
-  assert.deepEqual(findUnknownFlags(["--hunter2"], KNOWN), ["unknown flag --hunter2"]);
-});
-
-test("LIMIT: the rule over-withholds — a real flag name with a token prefix is not printed", () => {
-  const [msg] = findUnknownFlags(["--sk-mode"], KNOWN);
-  assert.match(msg, /withheld/);
-  assert.ok(!msg.includes("sk-mode"), msg);
+test("LIMIT: the offender is found by position and suggestion, not by seeing it echoed", () => {
+  // The cost of never echoing: an unrelated typo with no close known flag is
+  // reported by position only, so the reader looks it up in their own command.
+  assert.deepEqual(findUnknownFlags(["--list", "--frobnicate"], KNOWN), ["unknown flag at argument #2"]);
 });
 
 // LIMIT pinned: a KNOWN flag that is unimplemented passes — this guard checks
