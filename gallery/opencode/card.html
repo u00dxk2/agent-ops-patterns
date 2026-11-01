@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How opencode decides</title>
+<meta name="description" content="In opencode, the AI model chooses each next step, and a step normally ends the turn when it calls no local tool; plain code checks its tool calls, decides when older history is summarised, and decides from the agent's and session's rules whether an action runs, waits for you, or is refused. Nothing reads the final answer to check the work, and unless an agent sets a step limit, nothing caps how many steps a run takes.">
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1d1b;--muted:#5d5b55;--line:#dedad0;--card:#ffffff;--code:#f2efe8;--link:#2f6f8f;
+  --model:#6b4fa0;--code-h:#2f6f8f;--human:#2e7d4f;--nobody:#a3452f}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--card:#1d1c19;--code:#262520;--link:#6fb3d4;
+  --model:#b9a2e6;--code-h:#6fb3d4;--human:#7fcf9f;--nobody:#f09a83}}
+:root[data-theme="dark"]{--bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--card:#1d1c19;--code:#262520;--link:#6fb3d4;
+  --model:#b9a2e6;--code-h:#6fb3d4;--human:#7fcf9f;--nobody:#f09a83}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:680px;margin:0 auto;padding:0 16px 56px}
+a{color:var(--link)}
+code{background:var(--code);padding:1px 4px;border-radius:4px;font-size:.86em;overflow-wrap:anywhere}
+.crumbs{font-size:.9rem;color:var(--muted);margin-top:18px}
+h1{font-size:1.6rem;line-height:1.2;margin:20px 0 10px}
+.summary{font-size:1.08rem}
+.meta{color:var(--muted);font-size:.88rem}
+h2{font-size:1.15rem;margin:32px 0 8px;padding-top:8px;border-top:1px solid var(--line)}
+ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
+.j,.p{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:10px 0}
+.j p,.p p{margin:4px 0}
+.q{font-weight:650}
+.holder{display:inline-block;font-size:.8rem;font-weight:650;border:1px solid currentColor;border-radius:999px;padding:0 8px;margin-right:4px}
+.holder-model{color:var(--model)}.holder-code{color:var(--code-h)}.holder-human{color:var(--human)}.holder-nobody{color:var(--nobody)}
+.ev{color:var(--muted);font-size:.85rem}
+.p h3{font-size:1.05rem;margin:2px 0 6px}
+.status{font-weight:600}
+.full{display:block;text-align:center;font-weight:650;border:1px solid var(--link);border-radius:8px;padding:12px;margin:28px 0 8px;text-decoration:none}
+</style>
+</head>
+<body>
+<main>
+
+<p class="crumbs"><a href="../../">agent-ops-patterns</a> / <a href="../">gallery</a> / <a href="./">opencode map</a> / how it decides</p>
+
+<h1>How opencode decides</h1>
+
+<p class="summary">In opencode, the AI model chooses each next step, and a step normally ends the turn when it calls no local tool; plain code checks its tool calls, decides when older history is summarised, and decides from the agent's and session's rules whether an action runs, waits for you, or is refused. Nothing reads the final answer to check the work, and unless an agent sets a step limit, nothing caps how many steps a run takes.</p>
+
+<p class="meta">From <a href="https://github.com/anomalyco/opencode"><code>anomalyco/opencode</code></a> at source version <a href="https://github.com/anomalyco/opencode/tree/0093fe5782766f180167efab86fb8fdb3c5b6a4a"><code>0093fe57</code></a>, mapped 2026-10-24. Each answer links the code where that decision is made.</p>
+
+<h2>What it does without asking you</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">Does an action run, wait for a person, or get refused?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Code merges the agent's rules with the session's rules; if the last matching rule for any resource is a deny, the action is refused. Otherwise the project's saved approvals are added, anything no rule matches waits for a person, and plugin hooks may still change the result.</p>
+  <p class="ev"><a href="https://github.com/anomalyco/opencode/blob/0093fe5782766f180167efab86fb8fdb3c5b6a4a/packages/core/src/permission.ts#L160-L176" title="packages/core/src/permission.ts:160-176"><code>permission.ts:160-176</code></a> · decision D1 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">In the terminal interface, who answers a request that waits for a person?</p>
+  <p class="a"><span class="holder holder-human">Decided by a person</span> You do: Allow once, Always allow (when the request offers it) or Reject. If the interface was started with --auto, --yolo or --dangerously-skip-permissions, or set to auto-accept, code answers &quot;once&quot; for you and no prompt is shown.</p>
+  <p class="ev"><a href="https://github.com/anomalyco/opencode/blob/0093fe5782766f180167efab86fb8fdb3c5b6a4a/packages/tui/src/routes/session/permission.tsx#L113-L266" title="packages/tui/src/routes/session/permission.tsx:113-266"><code>permission.tsx:113-266</code></a> · decision D12 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">In a headless opencode run, what happens to a request that would ask a person?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Code answers every such request in the run's own sessions. Without --auto it refuses with a message telling the model nobody can approve, and the model carries on (in the older compatibility mode the run stops instead); with --auto it allows each one once.</p>
+  <p class="ev"><a href="https://github.com/anomalyco/opencode/blob/0093fe5782766f180167efab86fb8fdb3c5b6a4a/packages/cli/src/run/noninteractive.ts#L158-L186" title="packages/cli/src/run/noninteractive.ts:158-186"><code>noninteractive.ts:158-186</code></a> · decision D16 in the full map</p>
+</li>
+</ul>
+
+<h2>How it decides it is done</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">How does it decide the turn is finished?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> Normally, a step that calls no local tool ends the turn, and code then ends the run when no further input is waiting. Nothing reads the final text.</p>
+  <p class="ev"><a href="https://github.com/anomalyco/opencode/blob/0093fe5782766f180167efab86fb8fdb3c5b6a4a/packages/core/src/session/runner/publish-llm-event.ts#L649-L652" title="packages/core/src/session/runner/publish-llm-event.ts:649-652"><code>publish-llm-event.ts:649-652</code></a> · decision G1 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">When older history is summarised, is the summary good enough to use?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Code accepts it if any one of its lines matches a heading from the summary template; otherwise it asks once more and checks again, then fails the compaction.</p>
+  <p class="ev"><a href="https://github.com/anomalyco/opencode/blob/0093fe5782766f180167efab86fb8fdb3c5b6a4a/packages/core/src/session/compaction.ts#L468-L483" title="packages/core/src/session/compaction.ts:468-483"><code>compaction.ts:468-483</code></a> · decision G2 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">What does a subagent hand back as its result?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Normally, the text of the newest completed, error-free reply among the child session's 20 newest messages (after a restart, its whole recovered history is searched); with none, a fixed note that the subagent completed without a text response.</p>
+  <p class="ev"><a href="https://github.com/anomalyco/opencode/blob/0093fe5782766f180167efab86fb8fdb3c5b6a4a/packages/core/src/session/subagent-job.ts#L53-L61" title="packages/core/src/session/subagent-job.ts:53-61"><code>subagent-job.ts:53-61</code></a> · decision H6 in the full map</p>
+</li>
+</ul>
+
+<h2>Limits and memory</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">When is the conversation summarised to make room?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Before each step, code compares an estimate of the context size with the model's window minus a reserve (by default at least 15% of the window) and compacts when it is reached. It skips this when automatic compaction is off, right after a compaction, or when the model's window is unknown.</p>
+  <p class="ev"><a href="https://github.com/anomalyco/opencode/blob/0093fe5782766f180167efab86fb8fdb3c5b6a4a/packages/core/src/session/compaction.ts#L409-L418" title="packages/core/src/session/compaction.ts:409-418"><code>compaction.ts:409-418</code></a> · decision F1 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Who writes the summary that replaces older history?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> A model: the compaction agent's model when one is configured, otherwise the session's own model, given the conversation and a summary prompt. A plugin can supply the summary instead.</p>
+  <p class="ev"><a href="https://github.com/anomalyco/opencode/blob/0093fe5782766f180167efab86fb8fdb3c5b6a4a/packages/core/src/session/compaction.ts#L264-L282" title="packages/core/src/session/compaction.ts:264-282"><code>compaction.ts:264-282</code></a> · decision F2 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">How many steps can a run take?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> No limit unless the agent sets one. On the step where an agent's limit is reached, code tells the model to answer in text and turns its tools off.</p>
+  <p class="ev"><a href="https://github.com/anomalyco/opencode/blob/0093fe5782766f180167efab86fb8fdb3c5b6a4a/packages/core/src/session/runner/llm.ts#L224" title="packages/core/src/session/runner/llm.ts:224"><code>llm.ts:224</code></a> · decision F10 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">How much of a tool's output does the model see?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Unless the tool already cut it, the start of it: up to 2,000 lines and 50 KiB by default. The full text is saved to a file for 7 days and the model is told where.</p>
+  <p class="ev"><a href="https://github.com/anomalyco/opencode/blob/0093fe5782766f180167efab86fb8fdb3c5b6a4a/packages/core/src/tool-output.ts#L69-L120" title="packages/core/src/tool-output.ts:69-120"><code>tool-output.ts:69-120</code></a> · decision E5 in the full map</p>
+</li>
+</ul>
+
+<h2>Other judgments</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">What does the agent do next?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> The session's model decides in one call per step: answer in text, or call tools with arguments it chooses. Code then checks each call against the tool's schema.</p>
+  <p class="ev"><a href="https://github.com/anomalyco/opencode/blob/0093fe5782766f180167efab86fb8fdb3c5b6a4a/packages/core/src/session/runner/step.ts#L107" title="packages/core/src/session/runner/step.ts:107"><code>step.ts:107</code></a> · decision C1 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Which model runs the next step?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> The session's stored model if it is still available, else the step fails. With no stored model, the agent's configured model if available, otherwise the default model, without a warning.</p>
+  <p class="ev"><a href="https://github.com/anomalyco/opencode/blob/0093fe5782766f180167efab86fb8fdb3c5b6a4a/packages/core/src/session/runner/model.ts#L77-L99" title="packages/core/src/session/runner/model.ts:77-99"><code>model.ts:77-99</code></a> · decision A4 in the full map</p>
+</li>
+</ul>
+
+<h2>Three problems in the code</h2>
+<ol class="problems">
+<li class="p">
+  <h3>1. An agent's chosen model can be swapped for the default without a warning</h3>
+  <p>When a session has no model of its own and the model its agent is set up with is not among the available models, code uses the default model instead. Nothing tells you the agent is running on a different model from the one it was configured with.</p>
+  <p class="status">Not reported upstream, checked 2026-11-01.</p>
+  <p class="ev">Where: <a href="https://github.com/anomalyco/opencode/blob/0093fe5782766f180167efab86fb8fdb3c5b6a4a/packages/core/src/session/runner/model.ts#L79-L87" title="packages/core/src/session/runner/model.ts:79-87"><code>model.ts:79-87</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again.</p>
+</li>
+<li class="p">
+  <h3>2. A patch change goes to the first lines that match</h3>
+  <p>For the models that edit files through patches (some GPT models), each change is placed at the first spot, searching from the end of the previous change, where its lines match, trying looser matches (ignoring spaces at the ends of lines, then at both ends) when there is no exact match. If the same lines appear more than once, the change goes to the first of them; the edit tool that other models use returns that case to the model as a failure unless it was asked to replace every match.</p>
+  <p class="status">Not reported upstream, checked 2026-11-01.</p>
+  <p class="ev">Where: <a href="https://github.com/anomalyco/opencode/blob/0093fe5782766f180167efab86fb8fdb3c5b6a4a/packages/util/src/patch.ts#L344-L360" title="packages/util/src/patch.ts:344-360"><code>patch.ts:344-360</code></a>, <a href="https://github.com/anomalyco/opencode/blob/0093fe5782766f180167efab86fb8fdb3c5b6a4a/packages/util/src/patch.ts#L311-L342" title="packages/util/src/patch.ts:311-342"><code>patch.ts:311-342</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again.</p>
+</li>
+<li class="p">
+  <h3>3. No default limit on a run that keeps repeating itself</h3>
+  <p>By default an agent has no step limit, and the map found no check in the current core for a model that keeps making the same tool calls, so a run whose repeated calls keep succeeding has no built-in limit and can go on until you stop it. opencode's tracker has an open discussion of this (#59339) and an open pull request that proposes loop detection.</p>
+  <p class="status">Reported; a fix is proposed, not merged (<a href="https://github.com/anomalyco/opencode/pull/53032">#53032</a>), checked 2026-11-01.</p>
+  <p class="ev">Where: <a href="https://github.com/anomalyco/opencode/blob/0093fe5782766f180167efab86fb8fdb3c5b6a4a/packages/core/src/session/runner/llm.ts#L224" title="packages/core/src/session/runner/llm.ts:224"><code>llm.ts:224</code></a>, <a href="https://github.com/anomalyco/opencode/blob/0093fe5782766f180167efab86fb8fdb3c5b6a4a/packages/schema/src/agent.ts#L39-L52" title="packages/schema/src/agent.ts:39-52"><code>agent.ts:39-52</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again.</p>
+</li>
+</ol>
+
+<a class="full" href="https://u00dxk2.github.io/agent-ops-patterns/gallery/opencode/">See the full map →</a>
+
+<p class="meta">This card was taken from the published map of opencode at one commit and covers only decisions shown there; it did not look at opencode's hosted services or at code outside the parts the map covers (its core, command line, server and terminal interface), and no opencode code was run to make it.</p>
+<p class="meta">Map edition edition without a gap list or coverage figure, all 123 cards shown (issue states checked 2026-10-29) · taken from the full map · card data: <a href="https://github.com/u00dxk2/agent-ops-patterns/blob/main/gallery/cards/opencode.json"><code>gallery/cards/opencode.json</code></a>. Corrections are welcome as an <a href="https://github.com/u00dxk2/agent-ops-patterns/issues">issue</a>.</p>
+
+</main>
+</body>
+</html>

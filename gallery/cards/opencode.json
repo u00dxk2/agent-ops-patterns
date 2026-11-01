@@ -1,0 +1,168 @@
+{
+  "schema": "aop-decides-card/v1",
+  "agent": {
+    "name": "opencode",
+    "slug": "opencode",
+    "repo": "https://github.com/anomalyco/opencode",
+    "commit": "0093fe5782766f180167efab86fb8fdb3c5b6a4a",
+    "mappedAt": "2026-10-24"
+  },
+  "fullMapUrl": "https://u00dxk2.github.io/agent-ops-patterns/gallery/opencode/",
+  "summary": "In opencode, the AI model chooses each next step, and a step normally ends the turn when it calls no local tool; plain code checks its tool calls, decides when older history is summarised, and decides from the agent's and session's rules whether an action runs, waits for you, or is refused. Nothing reads the final answer to check the work, and unless an agent sets a step limit, nothing caps how many steps a run takes.",
+  "judgments": [
+    {
+      "id": "D1",
+      "stage": "gatekeeping",
+      "question": "Does an action run, wait for a person, or get refused?",
+      "holder": "code",
+      "answer": "Code merges the agent's rules with the session's rules; if the last matching rule for any resource is a deny, the action is refused. Otherwise the project's saved approvals are added, anything no rule matches waits for a person, and plugin hooks may still change the result.",
+      "evidence": "packages/core/src/permission.ts:160-176"
+    },
+    {
+      "id": "D12",
+      "stage": "gatekeeping",
+      "question": "In the terminal interface, who answers a request that waits for a person?",
+      "holder": "human",
+      "answer": "You do: Allow once, Always allow (when the request offers it) or Reject. If the interface was started with --auto, --yolo or --dangerously-skip-permissions, or set to auto-accept, code answers \"once\" for you and no prompt is shown.",
+      "evidence": "packages/tui/src/routes/session/permission.tsx:113-266"
+    },
+    {
+      "id": "D16",
+      "stage": "gatekeeping",
+      "question": "In a headless opencode run, what happens to a request that would ask a person?",
+      "holder": "code",
+      "answer": "Code answers every such request in the run's own sessions. Without --auto it refuses with a message telling the model nobody can approve, and the model carries on (in the older compatibility mode the run stops instead); with --auto it allows each one once.",
+      "evidence": "packages/cli/src/run/noninteractive.ts:158-186"
+    },
+    {
+      "id": "G1",
+      "stage": "done",
+      "question": "How does it decide the turn is finished?",
+      "holder": "model",
+      "answer": "Normally, a step that calls no local tool ends the turn, and code then ends the run when no further input is waiting. Nothing reads the final text.",
+      "evidence": "packages/core/src/session/runner/publish-llm-event.ts:649-652"
+    },
+    {
+      "id": "G2",
+      "stage": "done",
+      "question": "When older history is summarised, is the summary good enough to use?",
+      "holder": "code",
+      "answer": "Code accepts it if any one of its lines matches a heading from the summary template; otherwise it asks once more and checks again, then fails the compaction.",
+      "evidence": "packages/core/src/session/compaction.ts:468-483"
+    },
+    {
+      "id": "H6",
+      "stage": "done",
+      "question": "What does a subagent hand back as its result?",
+      "holder": "code",
+      "answer": "Normally, the text of the newest completed, error-free reply among the child session's 20 newest messages (after a restart, its whole recovered history is searched); with none, a fixed note that the subagent completed without a text response.",
+      "evidence": "packages/core/src/session/subagent-job.ts:53-61"
+    },
+    {
+      "id": "F1",
+      "stage": "limits-memory",
+      "question": "When is the conversation summarised to make room?",
+      "holder": "code",
+      "answer": "Before each step, code compares an estimate of the context size with the model's window minus a reserve (by default at least 15% of the window) and compacts when it is reached. It skips this when automatic compaction is off, right after a compaction, or when the model's window is unknown.",
+      "evidence": "packages/core/src/session/compaction.ts:409-418"
+    },
+    {
+      "id": "F2",
+      "stage": "limits-memory",
+      "question": "Who writes the summary that replaces older history?",
+      "holder": "model",
+      "answer": "A model: the compaction agent's model when one is configured, otherwise the session's own model, given the conversation and a summary prompt. A plugin can supply the summary instead.",
+      "evidence": "packages/core/src/session/compaction.ts:264-282"
+    },
+    {
+      "id": "F10",
+      "stage": "limits-memory",
+      "question": "How many steps can a run take?",
+      "holder": "code",
+      "answer": "No limit unless the agent sets one. On the step where an agent's limit is reached, code tells the model to answer in text and turns its tools off.",
+      "evidence": "packages/core/src/session/runner/llm.ts:224"
+    },
+    {
+      "id": "E5",
+      "stage": "limits-memory",
+      "question": "How much of a tool's output does the model see?",
+      "holder": "code",
+      "answer": "Unless the tool already cut it, the start of it: up to 2,000 lines and 50 KiB by default. The full text is saved to a file for 7 days and the model is told where.",
+      "evidence": "packages/core/src/tool-output.ts:69-120"
+    },
+    {
+      "id": "C1",
+      "stage": "other",
+      "question": "What does the agent do next?",
+      "holder": "model",
+      "answer": "The session's model decides in one call per step: answer in text, or call tools with arguments it chooses. Code then checks each call against the tool's schema.",
+      "evidence": "packages/core/src/session/runner/step.ts:107"
+    },
+    {
+      "id": "A4",
+      "stage": "other",
+      "question": "Which model runs the next step?",
+      "holder": "code",
+      "answer": "The session's stored model if it is still available, else the step fails. With no stored model, the agent's configured model if available, otherwise the default model, without a warning.",
+      "evidence": "packages/core/src/session/runner/model.ts:77-99"
+    }
+  ],
+  "problems": [
+    {
+      "title": "An agent's chosen model can be swapped for the default without a warning",
+      "plain": "When a session has no model of its own and the model its agent is set up with is not among the available models, code uses the default model instead. Nothing tells you the agent is running on a different model from the one it was configured with.",
+      "evidence": [
+        "packages/core/src/session/runner/model.ts:79-87"
+      ],
+      "verified": {
+        "how": "re-read at pinned commit",
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again"
+      },
+      "upstream": {
+        "status": "not-filed",
+        "url": null,
+        "checkedAt": "2026-11-01"
+      }
+    },
+    {
+      "title": "A patch change goes to the first lines that match",
+      "plain": "For the models that edit files through patches (some GPT models), each change is placed at the first spot, searching from the end of the previous change, where its lines match, trying looser matches (ignoring spaces at the ends of lines, then at both ends) when there is no exact match. If the same lines appear more than once, the change goes to the first of them; the edit tool that other models use returns that case to the model as a failure unless it was asked to replace every match.",
+      "evidence": [
+        "packages/util/src/patch.ts:344-360",
+        "packages/util/src/patch.ts:311-342"
+      ],
+      "verified": {
+        "how": "re-read at pinned commit",
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again"
+      },
+      "upstream": {
+        "status": "not-filed",
+        "url": null,
+        "checkedAt": "2026-11-01"
+      }
+    },
+    {
+      "title": "No default limit on a run that keeps repeating itself",
+      "plain": "By default an agent has no step limit, and the map found no check in the current core for a model that keeps making the same tool calls, so a run whose repeated calls keep succeeding has no built-in limit and can go on until you stop it. opencode's tracker has an open discussion of this (#59339) and an open pull request that proposes loop detection.",
+      "evidence": [
+        "packages/core/src/session/runner/llm.ts:224",
+        "packages/schema/src/agent.ts:39-52"
+      ],
+      "verified": {
+        "how": "re-read at pinned commit",
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again"
+      },
+      "upstream": {
+        "status": "fix-proposed",
+        "url": "https://github.com/anomalyco/opencode/pull/53032",
+        "checkedAt": "2026-11-01"
+      }
+    }
+  ],
+  "notChecked": "This card was taken from the published map of opencode at one commit and covers only decisions shown there; it did not look at opencode's hosted services or at code outside the parts the map covers (its core, command line, server and terminal interface), and no opencode code was run to make it.",
+  "provenance": {
+    "mapEdition": "edition without a gap list or coverage figure, all 123 cards shown (issue states checked 2026-10-29)",
+    "cardCommit": "b5e87a627a1635ebfcce06d598d2011a068f21eb",
+    "method": "derived-from-full-map"
+  }
+}

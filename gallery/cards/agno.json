@@ -1,0 +1,168 @@
+{
+  "schema": "aop-decides-card/v1",
+  "agent": {
+    "name": "agno",
+    "slug": "agno",
+    "repo": "https://github.com/agno-agi/agno",
+    "commit": "9153aacd83edf116a32ccd104bdcbd7358defaf2",
+    "mappedAt": "2026-10-29"
+  },
+  "fullMapUrl": "https://u00dxk2.github.io/agent-ops-patterns/gallery/agno/",
+  "summary": "In an ordinary agno agent, the AI model decides at every turn whether to call tools or answer, and plain code runs every tool call it asks for without asking a person unless the developer marked that tool. The run ends when the model replies without asking for a tool, and by default nothing checks that answer, so even a reply cut off by the token limit is reported as completed.",
+  "judgments": [
+    {
+      "id": "A1",
+      "stage": "other",
+      "question": "When an agent is built without a model, which model answers its requests?",
+      "holder": "code",
+      "answer": "OpenAI's gpt-5.4 through the Responses API; any model the developer passes wins.",
+      "evidence": "libs/agno/agno/agent/_init.py:89-101"
+    },
+    {
+      "id": "D1",
+      "stage": "gatekeeping",
+      "question": "May a tool call the model issued run, without a person being asked?",
+      "holder": "code",
+      "answer": "Yes. Code runs every tool call the model makes; it pauses for a person only on tools the developer marked for confirmation, user input or external execution, or on the ask-the-person tools when those are added.",
+      "evidence": "libs/agno/agno/models/base.py:2431-2575"
+    },
+    {
+      "id": "D2",
+      "stage": "gatekeeping",
+      "question": "Approve or reject this paused tool call?",
+      "holder": "human",
+      "answer": "Only for a tool marked for confirmation: the run pauses and returns, the developer's code collects the person's yes or no and continues the run, and a missing answer counts as a no.",
+      "evidence": "libs/agno/agno/run/requirement.py:109-123"
+    },
+    {
+      "id": "D7",
+      "stage": "gatekeeping",
+      "question": "Should the agent stop and ask the person?",
+      "holder": "model",
+      "answer": "Only when the developer adds agno's ask-the-person toolkits; then the model decides when to stop and ask, and the run pauses for the person.",
+      "evidence": "libs/agno/agno/models/base.py:2484-2518"
+    },
+    {
+      "id": "C6",
+      "stage": "done",
+      "question": "After this turn, is the run over, or does the agent take another turn?",
+      "holder": "model",
+      "answer": "The model decides: agno keeps calling it while it asks for tools and stops when a reply has none, with no turn limit by default.",
+      "evidence": "libs/agno/agno/models/base.py:873-874"
+    },
+    {
+      "id": "G1",
+      "stage": "done",
+      "question": "Before an agent's answer is returned, does anything check that it is right or complete?",
+      "holder": "code",
+      "answer": "Nothing, by default. The reply that ends the run is returned as completed; a check runs only if the developer adds post-hooks such as guardrails or evals.",
+      "evidence": "libs/agno/agno/agent/_run.py:620-665"
+    },
+    {
+      "id": "E10",
+      "stage": "done",
+      "question": "Is the model's reply complete, or was it cut off or refused?",
+      "holder": "code",
+      "answer": "The shared run loop does not turn a reply cut off by the token limit, or refused, into anything but a completed run: whatever text came back is the answer. Some provider adapters log a warning.",
+      "evidence": "libs/agno/agno/models/base.py:873-874"
+    },
+    {
+      "id": "F1",
+      "stage": "limits-memory",
+      "question": "When an agent keeps asking for tools, when are further tool calls refused?",
+      "holder": "code",
+      "answer": "No limit by default. With a tool-call limit set, calls past it are not run and the model is told so; the run goes on.",
+      "evidence": "libs/agno/agno/models/base.py:2431-2445"
+    },
+    {
+      "id": "B4",
+      "stage": "limits-memory",
+      "question": "Which earlier messages of this conversation are replayed to the model?",
+      "holder": "code",
+      "answer": "None by default; with history switched on and a database, the last 3 runs of the session, or the count the developer sets.",
+      "evidence": "libs/agno/agno/agent/_messages.py:1964-1998"
+    },
+    {
+      "id": "F4",
+      "stage": "limits-memory",
+      "question": "Has the history grown enough that older turns should be folded into a summary?",
+      "holder": "code",
+      "answer": "Off by default. A Compaction object folds once replayed history reaches 150,000 tokens; compaction=True folds only after the provider rejects a request as too long.",
+      "evidence": "libs/agno/agno/compaction/compaction.py:258-277"
+    },
+    {
+      "id": "E2",
+      "stage": "other",
+      "question": "When a tool fails, what does the model see, and does the run go on?",
+      "holder": "code",
+      "answer": "The error text goes back to the model as the tool's result and the model decides what next; the run does not fail.",
+      "evidence": "libs/agno/agno/tools/function.py:2713-2717"
+    },
+    {
+      "id": "H1",
+      "stage": "other",
+      "question": "In a team, which member should take this piece of the work?",
+      "holder": "model",
+      "answer": "In the default coordinate mode the team leader's model picks the member for each sub-task from the members' roles and descriptions.",
+      "evidence": "libs/agno/agno/team/_default_tools.py:706-723"
+    }
+  ],
+  "problems": [
+    {
+      "title": "A reply cut off by the token limit is reported as completed",
+      "plain": "The run ends as soon as the model replies without asking for a tool, and the shared run loop does not look at why the model stopped (some provider adapters only log a warning). So an answer cut short by the output-token limit, or refused, comes back as the answer with the run marked completed, and the caller cannot tell it from a finished one. An open pull request proposes reporting the provider's stop reason.",
+      "evidence": [
+        "libs/agno/agno/models/base.py:873-874",
+        "libs/agno/agno/agent/_run.py:665"
+      ],
+      "verified": {
+        "how": "re-read at pinned commit",
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again"
+      },
+      "upstream": {
+        "status": "fix-proposed",
+        "url": "https://github.com/agno-agi/agno/pull/8630",
+        "checkedAt": "2026-11-01"
+      }
+    },
+    {
+      "title": "A structured answer that does not parse still counts as success",
+      "plain": "When the developer asks for a structured answer and the model's text cannot be turned into it, agno keeps the raw text, logs a warning, and still marks the run completed. Code that expects the structured object gets plain text instead unless it checks the type itself. An open pull request proposes an opt-in way to report the failure.",
+      "evidence": [
+        "libs/agno/agno/agent/_response.py:922-936",
+        "libs/agno/agno/agent/_run.py:665"
+      ],
+      "verified": {
+        "how": "re-read at pinned commit",
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again"
+      },
+      "upstream": {
+        "status": "fix-proposed",
+        "url": "https://github.com/agno-agi/agno/pull/10782",
+        "checkedAt": "2026-11-01"
+      }
+    },
+    {
+      "title": "Later workflow steps can lose the user's original request",
+      "plain": "From the second step of a workflow on, an agent or team step receives only the previous step's output, not what the user first asked; the original request reaches it only when the previous step produced nothing. The function's own description says it combines the two, so a step can end up working without the user's question in front of it.",
+      "evidence": [
+        "libs/agno/agno/workflow/step.py:2727-2737"
+      ],
+      "verified": {
+        "how": "re-read at pinned commit",
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again"
+      },
+      "upstream": {
+        "status": "not-filed",
+        "url": null,
+        "checkedAt": "2026-11-01"
+      }
+    }
+  ],
+  "notChecked": "This card was taken from the published map of agno at one commit and covers only decisions shown there; it did not look at AgentOS, the server that runs agents, or at provider adapters beyond those the map names, and no agno code was run to make it.",
+  "provenance": {
+    "mapEdition": "edition with 3 of 118 cards left out (published 2026-10-30)",
+    "cardCommit": "70edff7b0e627b793918550a5f548588249df481",
+    "method": "derived-from-full-map"
+  }
+}

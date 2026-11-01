@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How agno decides</title>
+<meta name="description" content="In an ordinary agno agent, the AI model decides at every turn whether to call tools or answer, and plain code runs every tool call it asks for without asking a person unless the developer marked that tool. The run ends when the model replies without asking for a tool, and by default nothing checks that answer, so even a reply cut off by the token limit is reported as completed.">
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1d1b;--muted:#5d5b55;--line:#dedad0;--card:#ffffff;--code:#f2efe8;--link:#2f6f8f;
+  --model:#6b4fa0;--code-h:#2f6f8f;--human:#2e7d4f;--nobody:#a3452f}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--card:#1d1c19;--code:#262520;--link:#6fb3d4;
+  --model:#b9a2e6;--code-h:#6fb3d4;--human:#7fcf9f;--nobody:#f09a83}}
+:root[data-theme="dark"]{--bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--card:#1d1c19;--code:#262520;--link:#6fb3d4;
+  --model:#b9a2e6;--code-h:#6fb3d4;--human:#7fcf9f;--nobody:#f09a83}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:680px;margin:0 auto;padding:0 16px 56px}
+a{color:var(--link)}
+code{background:var(--code);padding:1px 4px;border-radius:4px;font-size:.86em;overflow-wrap:anywhere}
+.crumbs{font-size:.9rem;color:var(--muted);margin-top:18px}
+h1{font-size:1.6rem;line-height:1.2;margin:20px 0 10px}
+.summary{font-size:1.08rem}
+.meta{color:var(--muted);font-size:.88rem}
+h2{font-size:1.15rem;margin:32px 0 8px;padding-top:8px;border-top:1px solid var(--line)}
+ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
+.j,.p{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:10px 0}
+.j p,.p p{margin:4px 0}
+.q{font-weight:650}
+.holder{display:inline-block;font-size:.8rem;font-weight:650;border:1px solid currentColor;border-radius:999px;padding:0 8px;margin-right:4px}
+.holder-model{color:var(--model)}.holder-code{color:var(--code-h)}.holder-human{color:var(--human)}.holder-nobody{color:var(--nobody)}
+.ev{color:var(--muted);font-size:.85rem}
+.p h3{font-size:1.05rem;margin:2px 0 6px}
+.status{font-weight:600}
+.full{display:block;text-align:center;font-weight:650;border:1px solid var(--link);border-radius:8px;padding:12px;margin:28px 0 8px;text-decoration:none}
+</style>
+</head>
+<body>
+<main>
+
+<p class="crumbs"><a href="../../">agent-ops-patterns</a> / <a href="../">gallery</a> / <a href="./">agno map</a> / how it decides</p>
+
+<h1>How agno decides</h1>
+
+<p class="summary">In an ordinary agno agent, the AI model decides at every turn whether to call tools or answer, and plain code runs every tool call it asks for without asking a person unless the developer marked that tool. The run ends when the model replies without asking for a tool, and by default nothing checks that answer, so even a reply cut off by the token limit is reported as completed.</p>
+
+<p class="meta">From <a href="https://github.com/agno-agi/agno"><code>agno-agi/agno</code></a> at source version <a href="https://github.com/agno-agi/agno/tree/9153aacd83edf116a32ccd104bdcbd7358defaf2"><code>9153aacd</code></a>, mapped 2026-10-29. Each answer links the code where that decision is made.</p>
+
+<h2>What it does without asking you</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">May a tool call the model issued run, without a person being asked?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Yes. Code runs every tool call the model makes; it pauses for a person only on tools the developer marked for confirmation, user input or external execution, or on the ask-the-person tools when those are added.</p>
+  <p class="ev"><a href="https://github.com/agno-agi/agno/blob/9153aacd83edf116a32ccd104bdcbd7358defaf2/libs/agno/agno/models/base.py#L2431-L2575" title="libs/agno/agno/models/base.py:2431-2575"><code>base.py:2431-2575</code></a> · decision D1 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Approve or reject this paused tool call?</p>
+  <p class="a"><span class="holder holder-human">Decided by a person</span> Only for a tool marked for confirmation: the run pauses and returns, the developer's code collects the person's yes or no and continues the run, and a missing answer counts as a no.</p>
+  <p class="ev"><a href="https://github.com/agno-agi/agno/blob/9153aacd83edf116a32ccd104bdcbd7358defaf2/libs/agno/agno/run/requirement.py#L109-L123" title="libs/agno/agno/run/requirement.py:109-123"><code>requirement.py:109-123</code></a> · decision D2 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Should the agent stop and ask the person?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> Only when the developer adds agno's ask-the-person toolkits; then the model decides when to stop and ask, and the run pauses for the person.</p>
+  <p class="ev"><a href="https://github.com/agno-agi/agno/blob/9153aacd83edf116a32ccd104bdcbd7358defaf2/libs/agno/agno/models/base.py#L2484-L2518" title="libs/agno/agno/models/base.py:2484-2518"><code>base.py:2484-2518</code></a> · decision D7 in the full map</p>
+</li>
+</ul>
+
+<h2>How it decides it is done</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">After this turn, is the run over, or does the agent take another turn?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> The model decides: agno keeps calling it while it asks for tools and stops when a reply has none, with no turn limit by default.</p>
+  <p class="ev"><a href="https://github.com/agno-agi/agno/blob/9153aacd83edf116a32ccd104bdcbd7358defaf2/libs/agno/agno/models/base.py#L873-L874" title="libs/agno/agno/models/base.py:873-874"><code>base.py:873-874</code></a> · decision C6 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Before an agent's answer is returned, does anything check that it is right or complete?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Nothing, by default. The reply that ends the run is returned as completed; a check runs only if the developer adds post-hooks such as guardrails or evals.</p>
+  <p class="ev"><a href="https://github.com/agno-agi/agno/blob/9153aacd83edf116a32ccd104bdcbd7358defaf2/libs/agno/agno/agent/_run.py#L620-L665" title="libs/agno/agno/agent/_run.py:620-665"><code>_run.py:620-665</code></a> · decision G1 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Is the model's reply complete, or was it cut off or refused?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> The shared run loop does not turn a reply cut off by the token limit, or refused, into anything but a completed run: whatever text came back is the answer. Some provider adapters log a warning.</p>
+  <p class="ev"><a href="https://github.com/agno-agi/agno/blob/9153aacd83edf116a32ccd104bdcbd7358defaf2/libs/agno/agno/models/base.py#L873-L874" title="libs/agno/agno/models/base.py:873-874"><code>base.py:873-874</code></a> · decision E10 in the full map</p>
+</li>
+</ul>
+
+<h2>Limits and memory</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">When an agent keeps asking for tools, when are further tool calls refused?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> No limit by default. With a tool-call limit set, calls past it are not run and the model is told so; the run goes on.</p>
+  <p class="ev"><a href="https://github.com/agno-agi/agno/blob/9153aacd83edf116a32ccd104bdcbd7358defaf2/libs/agno/agno/models/base.py#L2431-L2445" title="libs/agno/agno/models/base.py:2431-2445"><code>base.py:2431-2445</code></a> · decision F1 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Which earlier messages of this conversation are replayed to the model?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> None by default; with history switched on and a database, the last 3 runs of the session, or the count the developer sets.</p>
+  <p class="ev"><a href="https://github.com/agno-agi/agno/blob/9153aacd83edf116a32ccd104bdcbd7358defaf2/libs/agno/agno/agent/_messages.py#L1964-L1998" title="libs/agno/agno/agent/_messages.py:1964-1998"><code>_messages.py:1964-1998</code></a> · decision B4 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Has the history grown enough that older turns should be folded into a summary?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Off by default. A Compaction object folds once replayed history reaches 150,000 tokens; compaction=True folds only after the provider rejects a request as too long.</p>
+  <p class="ev"><a href="https://github.com/agno-agi/agno/blob/9153aacd83edf116a32ccd104bdcbd7358defaf2/libs/agno/agno/compaction/compaction.py#L258-L277" title="libs/agno/agno/compaction/compaction.py:258-277"><code>compaction.py:258-277</code></a> · decision F4 in the full map</p>
+</li>
+</ul>
+
+<h2>Other judgments</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">When an agent is built without a model, which model answers its requests?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> OpenAI's gpt-5.4 through the Responses API; any model the developer passes wins.</p>
+  <p class="ev"><a href="https://github.com/agno-agi/agno/blob/9153aacd83edf116a32ccd104bdcbd7358defaf2/libs/agno/agno/agent/_init.py#L89-L101" title="libs/agno/agno/agent/_init.py:89-101"><code>_init.py:89-101</code></a> · decision A1 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">When a tool fails, what does the model see, and does the run go on?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> The error text goes back to the model as the tool's result and the model decides what next; the run does not fail.</p>
+  <p class="ev"><a href="https://github.com/agno-agi/agno/blob/9153aacd83edf116a32ccd104bdcbd7358defaf2/libs/agno/agno/tools/function.py#L2713-L2717" title="libs/agno/agno/tools/function.py:2713-2717"><code>function.py:2713-2717</code></a> · decision E2 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">In a team, which member should take this piece of the work?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> In the default coordinate mode the team leader's model picks the member for each sub-task from the members' roles and descriptions.</p>
+  <p class="ev"><a href="https://github.com/agno-agi/agno/blob/9153aacd83edf116a32ccd104bdcbd7358defaf2/libs/agno/agno/team/_default_tools.py#L706-L723" title="libs/agno/agno/team/_default_tools.py:706-723"><code>_default_tools.py:706-723</code></a> · decision H1 in the full map</p>
+</li>
+</ul>
+
+<h2>Three problems in the code</h2>
+<ol class="problems">
+<li class="p">
+  <h3>1. A reply cut off by the token limit is reported as completed</h3>
+  <p>The run ends as soon as the model replies without asking for a tool, and the shared run loop does not look at why the model stopped (some provider adapters only log a warning). So an answer cut short by the output-token limit, or refused, comes back as the answer with the run marked completed, and the caller cannot tell it from a finished one. An open pull request proposes reporting the provider's stop reason.</p>
+  <p class="status">Reported; a fix is proposed, not merged (<a href="https://github.com/agno-agi/agno/pull/8630">#8630</a>), checked 2026-11-01.</p>
+  <p class="ev">Where: <a href="https://github.com/agno-agi/agno/blob/9153aacd83edf116a32ccd104bdcbd7358defaf2/libs/agno/agno/models/base.py#L873-L874" title="libs/agno/agno/models/base.py:873-874"><code>base.py:873-874</code></a>, <a href="https://github.com/agno-agi/agno/blob/9153aacd83edf116a32ccd104bdcbd7358defaf2/libs/agno/agno/agent/_run.py#L665" title="libs/agno/agno/agent/_run.py:665"><code>_run.py:665</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again.</p>
+</li>
+<li class="p">
+  <h3>2. A structured answer that does not parse still counts as success</h3>
+  <p>When the developer asks for a structured answer and the model's text cannot be turned into it, agno keeps the raw text, logs a warning, and still marks the run completed. Code that expects the structured object gets plain text instead unless it checks the type itself. An open pull request proposes an opt-in way to report the failure.</p>
+  <p class="status">Reported; a fix is proposed, not merged (<a href="https://github.com/agno-agi/agno/pull/10782">#10782</a>), checked 2026-11-01.</p>
+  <p class="ev">Where: <a href="https://github.com/agno-agi/agno/blob/9153aacd83edf116a32ccd104bdcbd7358defaf2/libs/agno/agno/agent/_response.py#L922-L936" title="libs/agno/agno/agent/_response.py:922-936"><code>_response.py:922-936</code></a>, <a href="https://github.com/agno-agi/agno/blob/9153aacd83edf116a32ccd104bdcbd7358defaf2/libs/agno/agno/agent/_run.py#L665" title="libs/agno/agno/agent/_run.py:665"><code>_run.py:665</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again.</p>
+</li>
+<li class="p">
+  <h3>3. Later workflow steps can lose the user's original request</h3>
+  <p>From the second step of a workflow on, an agent or team step receives only the previous step's output, not what the user first asked; the original request reaches it only when the previous step produced nothing. The function's own description says it combines the two, so a step can end up working without the user's question in front of it.</p>
+  <p class="status">Not reported upstream, checked 2026-11-01.</p>
+  <p class="ev">Where: <a href="https://github.com/agno-agi/agno/blob/9153aacd83edf116a32ccd104bdcbd7358defaf2/libs/agno/agno/workflow/step.py#L2727-L2737" title="libs/agno/agno/workflow/step.py:2727-2737"><code>step.py:2727-2737</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again.</p>
+</li>
+</ol>
+
+<a class="full" href="https://u00dxk2.github.io/agent-ops-patterns/gallery/agno/">See the full map →</a>
+
+<p class="meta">This card was taken from the published map of agno at one commit and covers only decisions shown there; it did not look at AgentOS, the server that runs agents, or at provider adapters beyond those the map names, and no agno code was run to make it.</p>
+<p class="meta">Map edition edition with 3 of 118 cards left out (published 2026-10-30) · taken from the full map · card data: <a href="https://github.com/u00dxk2/agent-ops-patterns/blob/main/gallery/cards/agno.json"><code>gallery/cards/agno.json</code></a>. Corrections are welcome as an <a href="https://github.com/u00dxk2/agent-ops-patterns/issues">issue</a>.</p>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How pi decides</title>
+<meta name="description" content="In pi, the AI model chooses each next step and ends the run by replying without asking to use a tool; plain code checks and runs the tool calls but adds no check of its own that the work was done. By pi's stated design nobody is asked before a tool call runs unless an installed extension blocks it, and a shell command has no time limit unless the model sets one.">
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1d1b;--muted:#5d5b55;--line:#dedad0;--card:#ffffff;--code:#f2efe8;--link:#2f6f8f;
+  --model:#6b4fa0;--code-h:#2f6f8f;--human:#2e7d4f;--nobody:#a3452f}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--card:#1d1c19;--code:#262520;--link:#6fb3d4;
+  --model:#b9a2e6;--code-h:#6fb3d4;--human:#7fcf9f;--nobody:#f09a83}}
+:root[data-theme="dark"]{--bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--card:#1d1c19;--code:#262520;--link:#6fb3d4;
+  --model:#b9a2e6;--code-h:#6fb3d4;--human:#7fcf9f;--nobody:#f09a83}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:680px;margin:0 auto;padding:0 16px 56px}
+a{color:var(--link)}
+code{background:var(--code);padding:1px 4px;border-radius:4px;font-size:.86em;overflow-wrap:anywhere}
+.crumbs{font-size:.9rem;color:var(--muted);margin-top:18px}
+h1{font-size:1.6rem;line-height:1.2;margin:20px 0 10px}
+.summary{font-size:1.08rem}
+.meta{color:var(--muted);font-size:.88rem}
+h2{font-size:1.15rem;margin:32px 0 8px;padding-top:8px;border-top:1px solid var(--line)}
+ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
+.j,.p{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:10px 0}
+.j p,.p p{margin:4px 0}
+.q{font-weight:650}
+.holder{display:inline-block;font-size:.8rem;font-weight:650;border:1px solid currentColor;border-radius:999px;padding:0 8px;margin-right:4px}
+.holder-model{color:var(--model)}.holder-code{color:var(--code-h)}.holder-human{color:var(--human)}.holder-nobody{color:var(--nobody)}
+.ev{color:var(--muted);font-size:.85rem}
+.p h3{font-size:1.05rem;margin:2px 0 6px}
+.status{font-weight:600}
+.full{display:block;text-align:center;font-weight:650;border:1px solid var(--link);border-radius:8px;padding:12px;margin:28px 0 8px;text-decoration:none}
+</style>
+</head>
+<body>
+<main>
+
+<p class="crumbs"><a href="../../">agent-ops-patterns</a> / <a href="../">gallery</a> / <a href="./">pi map</a> / how it decides</p>
+
+<h1>How pi decides</h1>
+
+<p class="summary">In pi, the AI model chooses each next step and ends the run by replying without asking to use a tool; plain code checks and runs the tool calls but adds no check of its own that the work was done. By pi's stated design nobody is asked before a tool call runs unless an installed extension blocks it, and a shell command has no time limit unless the model sets one.</p>
+
+<p class="meta">From <a href="https://github.com/earendil-works/pi"><code>earendil-works/pi</code></a> at source version <a href="https://github.com/earendil-works/pi/tree/1ce44bedebc66acde3579425ba16bc318c9b9270"><code>1ce44bed</code></a>, mapped 2026-10-28. Each answer links the code where that decision is made.</p>
+
+<h2>What it does without asking you</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">Is a person asked before a tool call the model issued runs?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> No, by pi's stated design. A call runs once its tool is found and its arguments are valid, unless an installed extension blocks it.</p>
+  <p class="ev"><a href="https://github.com/earendil-works/pi/blob/1ce44bedebc66acde3579425ba16bc318c9b9270/packages/coding-agent/src/core/agent-session.ts#L658-L681" title="packages/coding-agent/src/core/agent-session.ts:658-681"><code>agent-session.ts:658-681</code></a> · decision D1 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Can anything block a tool call?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Only an installed extension that handles tool calls: the first one that says block stops the call, and the model gets its reason as an error. pi ships no blocking policy; the two in its repository are examples.</p>
+  <p class="ev"><a href="https://github.com/earendil-works/pi/blob/1ce44bedebc66acde3579425ba16bc318c9b9270/packages/coding-agent/src/core/extensions/runner.ts#L1249-L1267" title="packages/coding-agent/src/core/extensions/runner.ts:1249-1267"><code>runner.ts:1249-1267</code></a> · decision D2 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Should this project folder be trusted to load its own settings, extensions, skills and MCP servers?</p>
+  <p class="a"><span class="holder holder-human">Decided by a person</span> When nothing earlier answered, the person chooses at startup in the terminal: trust, trust the parent folder, do not trust, or either answer for this session only. A lasting choice is saved.</p>
+  <p class="ev"><a href="https://github.com/earendil-works/pi/blob/1ce44bedebc66acde3579425ba16bc318c9b9270/packages/coding-agent/src/core/project-trust.ts#L25-L45" title="packages/coding-agent/src/core/project-trust.ts:25-45"><code>project-trust.ts:25-45</code></a> · decision D7 in the full map</p>
+</li>
+</ul>
+
+<h2>How it decides it is done</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">Is the work finished, so the run may stop?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> The model decides implicitly: a reply with no tool call normally ends the run unless messages are queued or an extension asks for more; a reply cut off at its length limit may first get one compact-and-retry. Code adds no check of its own.</p>
+  <p class="ev"><a href="https://github.com/earendil-works/pi/blob/1ce44bedebc66acde3579425ba16bc318c9b9270/packages/agent/src/agent-loop.ts#L303-L326" title="packages/agent/src/agent-loop.ts:303-326"><code>agent-loop.ts:303-326</code></a> · decision G1 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Did the run end completed, in error, or aborted?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Code labels it from the last reply: error and aborted as such, and everything else, a reply cut off at its length limit included, as completed.</p>
+  <p class="ev"><a href="https://github.com/earendil-works/pi/blob/1ce44bedebc66acde3579425ba16bc318c9b9270/packages/coding-agent/src/core/agent-session.ts#L850-L851" title="packages/coding-agent/src/core/agent-session.ts:850-851"><code>agent-session.ts:850-851</code></a> · decision G4 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Does a one-shot text run report success?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Code looks only at the last message: an error or abort exits 1, and a reply cut off at its output limit is printed and also exits 1.</p>
+  <p class="ev"><a href="https://github.com/earendil-works/pi/blob/1ce44bedebc66acde3579425ba16bc318c9b9270/packages/coding-agent/src/modes/print-mode.ts#L139-L160" title="packages/coding-agent/src/modes/print-mode.ts:139-160"><code>print-mode.ts:139-160</code></a> · decision A16 in the full map</p>
+</li>
+</ul>
+
+<h2>Limits and memory</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">How long may a shell command run before it is killed?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> The model passes a timeout or leaves it out; with none, the command can run until the person stops it.</p>
+  <p class="ev"><a href="https://github.com/earendil-works/pi/blob/1ce44bedebc66acde3579425ba16bc318c9b9270/packages/coding-agent/src/core/tools/bash.ts#L42" title="packages/coding-agent/src/core/tools/bash.ts:42"><code>bash.ts:42</code></a> · decision E9 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">When must the conversation be compacted?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> When its estimated size passes the model's window minus a reserve (16,384 tokens by default), checked before each request and after each run.</p>
+  <p class="ev"><a href="https://github.com/earendil-works/pi/blob/1ce44bedebc66acde3579425ba16bc318c9b9270/packages/coding-agent/src/core/compaction/compaction.ts#L267-L270" title="packages/coding-agent/src/core/compaction/compaction.ts:267-270"><code>compaction.ts:267-270</code></a> · decision F1 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">What does the summary that replaces the older conversation say?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> The session's model writes it with a fixed prompt of six headed sections; code rejects an error, a cut-off reply or a tool call, and otherwise stores the text as returned.</p>
+  <p class="ev"><a href="https://github.com/earendil-works/pi/blob/1ce44bedebc66acde3579425ba16bc318c9b9270/packages/coding-agent/src/core/compaction/compaction.ts#L696-L753" title="packages/coding-agent/src/core/compaction/compaction.ts:696-753"><code>compaction.ts:696-753</code></a> · decision F5 in the full map</p>
+</li>
+</ul>
+
+<h2>Other judgments</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">What does the agent do next: answer, or call which tools?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> The session model decides each turn, replying with text, tool calls, or both. Before any call runs, code checks the tool name and validates the arguments.</p>
+  <p class="ev"><a href="https://github.com/earendil-works/pi/blob/1ce44bedebc66acde3579425ba16bc318c9b9270/packages/agent/src/agent-loop.ts#L412" title="packages/agent/src/agent-loop.ts:412"><code>agent-loop.ts:412</code></a> · decision C1 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Do the tool calls of one reply run at the same time?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> By default yes, and results come back in order. A tool, or the agent, set to sequential makes them run one by one.</p>
+  <p class="ev"><a href="https://github.com/earendil-works/pi/blob/1ce44bedebc66acde3579425ba16bc318c9b9270/packages/agent/src/agent-loop.ts#L518-L533" title="packages/agent/src/agent-loop.ts:518-533"><code>agent-loop.ts:518-533</code></a> · decision E3 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">When an edit's old text does not match the file exactly, is a near match good enough?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Code tries an exact match first, then one that ignores differences in line-end spaces, quotes, dashes, special spaces and Unicode forms. The match must be unique, and the lines a near match touches are written back in normalized form.</p>
+  <p class="ev"><a href="https://github.com/earendil-works/pi/blob/1ce44bedebc66acde3579425ba16bc318c9b9270/packages/coding-agent/src/core/tools/edit-diff.ts#L300-L362" title="packages/coding-agent/src/core/tools/edit-diff.ts:300-362"><code>edit-diff.ts:300-362</code></a> · decision E8 in the full map</p>
+</li>
+</ul>
+
+<h2>Three problems in the code</h2>
+<ol class="problems">
+<li class="p">
+  <h3>1. Piped input and your message are joined with nothing between them</h3>
+  <p>In a one-shot run, pi joins piped input, the text of @file arguments and the first message into one prompt with no separator between them, so the end of one part runs straight into the start of the next. pi's maintainers closed the report about this as not planned.</p>
+  <p class="status">Reported; no linked fix found (<a href="https://github.com/earendil-works/pi/issues/7863">#7863</a>), checked 2026-11-01.</p>
+  <p class="ev">Where: <a href="https://github.com/earendil-works/pi/blob/1ce44bedebc66acde3579425ba16bc318c9b9270/packages/coding-agent/src/cli/initial-message.ts#L26-L40" title="packages/coding-agent/src/cli/initial-message.ts:26-40"><code>initial-message.ts:26-40</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again.</p>
+</li>
+<li class="p">
+  <h3>2. Cut-down output from your own shell command can be marked as not cut</h3>
+  <p>When you run a command yourself with !, pi keeps only the tail of a long output. After older output has been dropped, the flag that says the output was cut can still read false.</p>
+  <p class="status">Reported; a fix is proposed, not merged (<a href="https://github.com/earendil-works/pi/pull/10165">#10165</a>), checked 2026-11-01.</p>
+  <p class="ev">Where: <a href="https://github.com/earendil-works/pi/blob/1ce44bedebc66acde3579425ba16bc318c9b9270/packages/coding-agent/src/core/bash-executor.ts#L92-L98" title="packages/coding-agent/src/core/bash-executor.ts:92-98"><code>bash-executor.ts:92-98</code></a>, <a href="https://github.com/earendil-works/pi/blob/1ce44bedebc66acde3579425ba16bc318c9b9270/packages/coding-agent/src/core/bash-executor.ts#L131-L143" title="packages/coding-agent/src/core/bash-executor.ts:131-143"><code>bash-executor.ts:131-143</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again.</p>
+</li>
+<li class="p">
+  <h3>3. A &quot;too long&quot; error in unfamiliar wording is not recognized</h3>
+  <p>When a request fails, pi recognizes that it overflowed the model's context by matching the error text against a list of known provider messages. Wording the list does not know is treated as an ordinary error, so pi does not compact the history and retry. pi's tracker has an open report about one such message.</p>
+  <p class="status">Already tracked upstream (<a href="https://github.com/earendil-works/pi/issues/10885">#10885</a>), checked 2026-11-01.</p>
+  <p class="ev">Where: <a href="https://github.com/earendil-works/pi/blob/1ce44bedebc66acde3579425ba16bc318c9b9270/packages/ai/src/utils/overflow.ts#L144-L178" title="packages/ai/src/utils/overflow.ts:144-178"><code>overflow.ts:144-178</code></a>, <a href="https://github.com/earendil-works/pi/blob/1ce44bedebc66acde3579425ba16bc318c9b9270/packages/ai/src/utils/overflow.ts#L39-L69" title="packages/ai/src/utils/overflow.ts:39-69"><code>overflow.ts:39-69</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again.</p>
+</li>
+</ol>
+
+<a class="full" href="https://u00dxk2.github.io/agent-ops-patterns/gallery/pi/">See the full map →</a>
+
+<p class="meta">This card was taken from the published map of pi at one commit and covers only decisions shown there; it did not look at code outside the map's scope (the command-line agent, agent loop, model layer, code mode and MCP client), and no pi code was run to make it.</p>
+<p class="meta">Map edition first edition (2026-10-29) · taken from the full map · card data: <a href="https://github.com/u00dxk2/agent-ops-patterns/blob/main/gallery/cards/pi.json"><code>gallery/cards/pi.json</code></a>. Corrections are welcome as an <a href="https://github.com/u00dxk2/agent-ops-patterns/issues">issue</a>.</p>
+
+</main>
+</body>
+</html>

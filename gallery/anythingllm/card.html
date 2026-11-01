@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How AnythingLLM decides</title>
+<meta name="description" content="In AnythingLLM, plain code routes each message, gathers what the model sees and cuts it down to fit, while the AI model picks the agent's tools and decides when the agent is done: its first reply without a tool call is the answer. In web chat a person is asked before some tool actions, but MCP tool calls run without asking anyone.">
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1d1b;--muted:#5d5b55;--line:#dedad0;--card:#ffffff;--code:#f2efe8;--link:#2f6f8f;
+  --model:#6b4fa0;--code-h:#2f6f8f;--human:#2e7d4f;--nobody:#a3452f}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--card:#1d1c19;--code:#262520;--link:#6fb3d4;
+  --model:#b9a2e6;--code-h:#6fb3d4;--human:#7fcf9f;--nobody:#f09a83}}
+:root[data-theme="dark"]{--bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--card:#1d1c19;--code:#262520;--link:#6fb3d4;
+  --model:#b9a2e6;--code-h:#6fb3d4;--human:#7fcf9f;--nobody:#f09a83}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:680px;margin:0 auto;padding:0 16px 56px}
+a{color:var(--link)}
+code{background:var(--code);padding:1px 4px;border-radius:4px;font-size:.86em;overflow-wrap:anywhere}
+.crumbs{font-size:.9rem;color:var(--muted);margin-top:18px}
+h1{font-size:1.6rem;line-height:1.2;margin:20px 0 10px}
+.summary{font-size:1.08rem}
+.meta{color:var(--muted);font-size:.88rem}
+h2{font-size:1.15rem;margin:32px 0 8px;padding-top:8px;border-top:1px solid var(--line)}
+ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
+.j,.p{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:10px 0}
+.j p,.p p{margin:4px 0}
+.q{font-weight:650}
+.holder{display:inline-block;font-size:.8rem;font-weight:650;border:1px solid currentColor;border-radius:999px;padding:0 8px;margin-right:4px}
+.holder-model{color:var(--model)}.holder-code{color:var(--code-h)}.holder-human{color:var(--human)}.holder-nobody{color:var(--nobody)}
+.ev{color:var(--muted);font-size:.85rem}
+.p h3{font-size:1.05rem;margin:2px 0 6px}
+.status{font-weight:600}
+.full{display:block;text-align:center;font-weight:650;border:1px solid var(--link);border-radius:8px;padding:12px;margin:28px 0 8px;text-decoration:none}
+</style>
+</head>
+<body>
+<main>
+
+<p class="crumbs"><a href="../../">agent-ops-patterns</a> / <a href="../">gallery</a> / <a href="./">AnythingLLM map</a> / how it decides</p>
+
+<h1>How AnythingLLM decides</h1>
+
+<p class="summary">In AnythingLLM, plain code routes each message, gathers what the model sees and cuts it down to fit, while the AI model picks the agent's tools and decides when the agent is done: its first reply without a tool call is the answer. In web chat a person is asked before some tool actions, but MCP tool calls run without asking anyone.</p>
+
+<p class="meta">From <a href="https://github.com/Mintplex-Labs/anything-llm"><code>Mintplex-Labs/anything-llm</code></a> at source version <a href="https://github.com/Mintplex-Labs/anything-llm/tree/d7d68e75c422d10384b8aa30f72d6d032fcc555e"><code>d7d68e75</code></a>, mapped 2026-10-15. Each answer links the code where that decision is made.</p>
+
+<h2>What it does without asking you</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">Does this message go to the agent instead of plain chat?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> It goes to the agent when it starts with @agent, or when the workspace is in automatic mode and its model can call tools natively, provided the agent run can be set up; otherwise it is answered as plain chat.</p>
+  <p class="ev"><a href="https://github.com/Mintplex-Labs/anything-llm/blob/d7d68e75c422d10384b8aa30f72d6d032fcc555e/server/utils/chats/agents.js#L56" title="server/utils/chats/agents.js:56"><code>agents.js:56</code></a> · decision A3 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">In web chat, should this tool action run right now?</p>
+  <p class="a"><span class="holder holder-human">Decided by a person</span> The person sees a card with the skill name, the tool's description and the request, and clicks approve or reject.</p>
+  <p class="ev"><a href="https://github.com/Mintplex-Labs/anything-llm/blob/d7d68e75c422d10384b8aa30f72d6d032fcc555e/server/utils/agents/aibitat/plugins/websocket.js#L283" title="server/utils/agents/aibitat/plugins/websocket.js:283"><code>websocket.js:283</code></a> · decision D3 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">May this MCP tool call run?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Yes: once a server's tools are loaded, each call goes straight to the server with the model's arguments; nothing asks a person.</p>
+  <p class="ev"><a href="https://github.com/Mintplex-Labs/anything-llm/blob/d7d68e75c422d10384b8aa30f72d6d032fcc555e/server/utils/MCP/index.js#L94" title="server/utils/MCP/index.js:94"><code>index.js:94</code></a> · decision D21 in the full map</p>
+</li>
+</ul>
+
+<h2>How it decides it is done</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">Has the agent finished, so its text goes back as the answer?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> The agent model decides: its first reply without a tool call ends the loop and becomes the answer. A reply that is exactly TERMINATE ends the whole session.</p>
+  <p class="ev"><a href="https://github.com/Mintplex-Labs/anything-llm/blob/d7d68e75c422d10384b8aa30f72d6d032fcc555e/server/utils/agents/aibitat/index.js#L1056" title="server/utils/agents/aibitat/index.js:1056"><code>index.js:1056</code></a> · decision G1 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Did the model stop because it ran out of output tokens rather than because it finished?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Code watches for the provider's out-of-tokens stop reason and flags the run, which the interface uses to say why the reply stopped.</p>
+  <p class="ev"><a href="https://github.com/Mintplex-Labs/anything-llm/blob/d7d68e75c422d10384b8aa30f72d6d032fcc555e/server/utils/agents/aibitat/providers/ai-provider.js#L818" title="server/utils/agents/aibitat/providers/ai-provider.js:818"><code>ai-provider.js:818</code></a> · decision G2 in the full map</p>
+</li>
+</ul>
+
+<h2>Limits and memory</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">When the assembled prompt does not fit the model's window, what is cut?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Code trims by fixed shares: a system prompt or context over its share has its middle cut out, and the newest history that fits is kept. If the user's message alone is over 70% of the window, only that message is sent, cut down.</p>
+  <p class="ev"><a href="https://github.com/Mintplex-Labs/anything-llm/blob/d7d68e75c422d10384b8aa30f72d6d032fcc555e/server/utils/helpers/chat/index.js#L49" title="server/utils/helpers/chat/index.js:49"><code>index.js:49</code></a> · decision B11 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">How much earlier conversation does the agent start with?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> The newest 20 saved exchanges for this workspace, user and thread, fixed, whatever the workspace's own history setting says.</p>
+  <p class="ev"><a href="https://github.com/Mintplex-Labs/anything-llm/blob/d7d68e75c422d10384b8aa30f72d6d032fcc555e/server/utils/agents/index.js#L89" title="server/utils/agents/index.js:89"><code>index.js:89</code></a> · decision B4 in the full map</p>
+</li>
+</ul>
+
+<h2>Other judgments</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">Which tool, if any, does the agent call next (models with native tool calling)?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> The agent model, given the chat history and the offered tools, returns either text or a tool call; code keeps the first call.</p>
+  <p class="ev"><a href="https://github.com/Mintplex-Labs/anything-llm/blob/d7d68e75c422d10384b8aa30f72d6d032fcc555e/server/utils/agents/aibitat/providers/helpers/tooled.js#L248" title="server/utils/agents/aibitat/providers/helpers/tooled.js:248"><code>tooled.js:248</code></a> · decision C1 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">When the model asks for several tools at once, which run?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Only the first; code drops the rest without telling the model.</p>
+  <p class="ev"><a href="https://github.com/Mintplex-Labs/anything-llm/blob/d7d68e75c422d10384b8aa30f72d6d032fcc555e/server/utils/agents/aibitat/providers/helpers/tooled.js#L372" title="server/utils/agents/aibitat/providers/helpers/tooled.js:372"><code>tooled.js:372</code></a> · decision C10 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Which parts of the workspace's documents are relevant enough to put in the context?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> An embedding model finds the 4 nearest chunks by default, and code drops those below the workspace's similarity threshold (default 0.25) or from a pinned document.</p>
+  <p class="ev"><a href="https://github.com/Mintplex-Labs/anything-llm/blob/d7d68e75c422d10384b8aa30f72d6d032fcc555e/server/utils/vectorDbProviders/lance/index.js#L417" title="server/utils/vectorDbProviders/lance/index.js:417"><code>index.js:417</code></a> · decision B8 in the full map</p>
+</li>
+</ul>
+
+<h2>Three problems in the code</h2>
+<ol class="problems">
+<li class="p">
+  <h3>1. When the model asks for several tools at once, only the first runs</h3>
+  <p>On the shared OpenAI-compatible tool-calling path, if the model asks for more than one tool in a single reply, only the first is run and the others are dropped without the model being told. A request that needs several lookups or actions can come back with part of the work left undone unless the model notices and asks again.</p>
+  <p class="status">Not reported upstream, checked 2026-11-01.</p>
+  <p class="ev">Where: <a href="https://github.com/Mintplex-Labs/anything-llm/blob/d7d68e75c422d10384b8aa30f72d6d032fcc555e/server/utils/agents/aibitat/providers/helpers/tooled.js#L370-L381" title="server/utils/agents/aibitat/providers/helpers/tooled.js:370-381"><code>tooled.js:370-381</code></a>, <a href="https://github.com/Mintplex-Labs/anything-llm/blob/d7d68e75c422d10384b8aa30f72d6d032fcc555e/server/utils/agents/aibitat/providers/helpers/tooled.js#L454-L455" title="server/utils/agents/aibitat/providers/helpers/tooled.js:454-455"><code>tooled.js:454-455</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again.</p>
+</li>
+<li class="p">
+  <h3>2. The agent does not use the workspace's chat history setting</h3>
+  <p>A workspace's chat history setting decides how much earlier conversation plain chat sends (20 when it is unset or zero). The agent does not read it: it always starts with the newest 20 saved exchanges, so a workspace set to send less, or more, gets 20 in agent mode.</p>
+  <p class="status">Not reported upstream, checked 2026-11-01.</p>
+  <p class="ev">Where: <a href="https://github.com/Mintplex-Labs/anything-llm/blob/d7d68e75c422d10384b8aa30f72d6d032fcc555e/server/utils/agents/index.js#L908" title="server/utils/agents/index.js:908"><code>index.js:908</code></a>, <a href="https://github.com/Mintplex-Labs/anything-llm/blob/d7d68e75c422d10384b8aa30f72d6d032fcc555e/server/utils/agents/index.js#L89-L102" title="server/utils/agents/index.js:89-102"><code>index.js:89-102</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again.</p>
+</li>
+<li class="p">
+  <h3>3. Chats are marked as processed for memory even when the memory pass did not run</h3>
+  <p>Every 3 hours by default, a background job reads a person's recent chats to pick out facts worth remembering. Once a group of chats passes the first two checks it is marked processed whatever happened, so if the model call fails or no model is set up, the job does not come back to those chats on its next run. Only the latest 20 are read, so in a larger group the older chats are marked processed without being read.</p>
+  <p class="status">Not reported upstream, checked 2026-11-01.</p>
+  <p class="ev">Where: <a href="https://github.com/Mintplex-Labs/anything-llm/blob/d7d68e75c422d10384b8aa30f72d6d032fcc555e/server/jobs/extract-memories.js#L178-L182" title="server/jobs/extract-memories.js:178-182"><code>extract-memories.js:178-182</code></a>, <a href="https://github.com/Mintplex-Labs/anything-llm/blob/d7d68e75c422d10384b8aa30f72d6d032fcc555e/server/jobs/extract-memories.js#L34-L38" title="server/jobs/extract-memories.js:34-38"><code>extract-memories.js:34-38</code></a>, <a href="https://github.com/Mintplex-Labs/anything-llm/blob/d7d68e75c422d10384b8aa30f72d6d032fcc555e/server/jobs/helpers/memory-extraction-utils.js#L83-L88" title="server/jobs/helpers/memory-extraction-utils.js:83-88"><code>memory-extraction-utils.js:83-88</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again.</p>
+</li>
+</ol>
+
+<a class="full" href="https://u00dxk2.github.io/agent-ops-patterns/gallery/anythingllm/">See the full map →</a>
+
+<p class="meta">This card was taken from the published AnythingLLM map at one commit and covers only decisions shown there; it did not look at the web frontend or the document collector except where they reach the server, or at the 11 decisions left out of that edition, and no AnythingLLM code was run to make it.</p>
+<p class="meta">Map edition edition with 11 of 117 cards left out (published 2026-10-30) · taken from the full map · card data: <a href="https://github.com/u00dxk2/agent-ops-patterns/blob/main/gallery/cards/anythingllm.json"><code>gallery/cards/anythingllm.json</code></a>. Corrections are welcome as an <a href="https://github.com/u00dxk2/agent-ops-patterns/issues">issue</a>.</p>
+
+</main>
+</body>
+</html>

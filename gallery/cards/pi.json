@@ -1,0 +1,168 @@
+{
+  "schema": "aop-decides-card/v1",
+  "agent": {
+    "name": "pi",
+    "slug": "pi",
+    "repo": "https://github.com/earendil-works/pi",
+    "commit": "1ce44bedebc66acde3579425ba16bc318c9b9270",
+    "mappedAt": "2026-10-28"
+  },
+  "fullMapUrl": "https://u00dxk2.github.io/agent-ops-patterns/gallery/pi/",
+  "summary": "In pi, the AI model chooses each next step and ends the run by replying without asking to use a tool; plain code checks and runs the tool calls but adds no check of its own that the work was done. By pi's stated design nobody is asked before a tool call runs unless an installed extension blocks it, and a shell command has no time limit unless the model sets one.",
+  "judgments": [
+    {
+      "id": "D1",
+      "stage": "gatekeeping",
+      "question": "Is a person asked before a tool call the model issued runs?",
+      "holder": "code",
+      "answer": "No, by pi's stated design. A call runs once its tool is found and its arguments are valid, unless an installed extension blocks it.",
+      "evidence": "packages/coding-agent/src/core/agent-session.ts:658-681"
+    },
+    {
+      "id": "D2",
+      "stage": "gatekeeping",
+      "question": "Can anything block a tool call?",
+      "holder": "code",
+      "answer": "Only an installed extension that handles tool calls: the first one that says block stops the call, and the model gets its reason as an error. pi ships no blocking policy; the two in its repository are examples.",
+      "evidence": "packages/coding-agent/src/core/extensions/runner.ts:1249-1267"
+    },
+    {
+      "id": "D7",
+      "stage": "gatekeeping",
+      "question": "Should this project folder be trusted to load its own settings, extensions, skills and MCP servers?",
+      "holder": "human",
+      "answer": "When nothing earlier answered, the person chooses at startup in the terminal: trust, trust the parent folder, do not trust, or either answer for this session only. A lasting choice is saved.",
+      "evidence": "packages/coding-agent/src/core/project-trust.ts:25-45"
+    },
+    {
+      "id": "G1",
+      "stage": "done",
+      "question": "Is the work finished, so the run may stop?",
+      "holder": "model",
+      "answer": "The model decides implicitly: a reply with no tool call normally ends the run unless messages are queued or an extension asks for more; a reply cut off at its length limit may first get one compact-and-retry. Code adds no check of its own.",
+      "evidence": "packages/agent/src/agent-loop.ts:303-326"
+    },
+    {
+      "id": "G4",
+      "stage": "done",
+      "question": "Did the run end completed, in error, or aborted?",
+      "holder": "code",
+      "answer": "Code labels it from the last reply: error and aborted as such, and everything else, a reply cut off at its length limit included, as completed.",
+      "evidence": "packages/coding-agent/src/core/agent-session.ts:850-851"
+    },
+    {
+      "id": "A16",
+      "stage": "done",
+      "question": "Does a one-shot text run report success?",
+      "holder": "code",
+      "answer": "Code looks only at the last message: an error or abort exits 1, and a reply cut off at its output limit is printed and also exits 1.",
+      "evidence": "packages/coding-agent/src/modes/print-mode.ts:139-160"
+    },
+    {
+      "id": "E9",
+      "stage": "limits-memory",
+      "question": "How long may a shell command run before it is killed?",
+      "holder": "model",
+      "answer": "The model passes a timeout or leaves it out; with none, the command can run until the person stops it.",
+      "evidence": "packages/coding-agent/src/core/tools/bash.ts:42"
+    },
+    {
+      "id": "F1",
+      "stage": "limits-memory",
+      "question": "When must the conversation be compacted?",
+      "holder": "code",
+      "answer": "When its estimated size passes the model's window minus a reserve (16,384 tokens by default), checked before each request and after each run.",
+      "evidence": "packages/coding-agent/src/core/compaction/compaction.ts:267-270"
+    },
+    {
+      "id": "F5",
+      "stage": "limits-memory",
+      "question": "What does the summary that replaces the older conversation say?",
+      "holder": "model",
+      "answer": "The session's model writes it with a fixed prompt of six headed sections; code rejects an error, a cut-off reply or a tool call, and otherwise stores the text as returned.",
+      "evidence": "packages/coding-agent/src/core/compaction/compaction.ts:696-753"
+    },
+    {
+      "id": "C1",
+      "stage": "other",
+      "question": "What does the agent do next: answer, or call which tools?",
+      "holder": "model",
+      "answer": "The session model decides each turn, replying with text, tool calls, or both. Before any call runs, code checks the tool name and validates the arguments.",
+      "evidence": "packages/agent/src/agent-loop.ts:412"
+    },
+    {
+      "id": "E3",
+      "stage": "other",
+      "question": "Do the tool calls of one reply run at the same time?",
+      "holder": "code",
+      "answer": "By default yes, and results come back in order. A tool, or the agent, set to sequential makes them run one by one.",
+      "evidence": "packages/agent/src/agent-loop.ts:518-533"
+    },
+    {
+      "id": "E8",
+      "stage": "other",
+      "question": "When an edit's old text does not match the file exactly, is a near match good enough?",
+      "holder": "code",
+      "answer": "Code tries an exact match first, then one that ignores differences in line-end spaces, quotes, dashes, special spaces and Unicode forms. The match must be unique, and the lines a near match touches are written back in normalized form.",
+      "evidence": "packages/coding-agent/src/core/tools/edit-diff.ts:300-362"
+    }
+  ],
+  "problems": [
+    {
+      "title": "Piped input and your message are joined with nothing between them",
+      "plain": "In a one-shot run, pi joins piped input, the text of @file arguments and the first message into one prompt with no separator between them, so the end of one part runs straight into the start of the next. pi's maintainers closed the report about this as not planned.",
+      "evidence": [
+        "packages/coding-agent/src/cli/initial-message.ts:26-40"
+      ],
+      "verified": {
+        "how": "re-read at pinned commit",
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again"
+      },
+      "upstream": {
+        "status": "reported",
+        "url": "https://github.com/earendil-works/pi/issues/7863",
+        "checkedAt": "2026-11-01"
+      }
+    },
+    {
+      "title": "Cut-down output from your own shell command can be marked as not cut",
+      "plain": "When you run a command yourself with !, pi keeps only the tail of a long output. After older output has been dropped, the flag that says the output was cut can still read false.",
+      "evidence": [
+        "packages/coding-agent/src/core/bash-executor.ts:92-98",
+        "packages/coding-agent/src/core/bash-executor.ts:131-143"
+      ],
+      "verified": {
+        "how": "re-read at pinned commit",
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again"
+      },
+      "upstream": {
+        "status": "fix-proposed",
+        "url": "https://github.com/earendil-works/pi/pull/10165",
+        "checkedAt": "2026-11-01"
+      }
+    },
+    {
+      "title": "A \"too long\" error in unfamiliar wording is not recognized",
+      "plain": "When a request fails, pi recognizes that it overflowed the model's context by matching the error text against a list of known provider messages. Wording the list does not know is treated as an ordinary error, so pi does not compact the history and retry. pi's tracker has an open report about one such message.",
+      "evidence": [
+        "packages/ai/src/utils/overflow.ts:144-178",
+        "packages/ai/src/utils/overflow.ts:39-69"
+      ],
+      "verified": {
+        "how": "re-read at pinned commit",
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again"
+      },
+      "upstream": {
+        "status": "already-tracked",
+        "url": "https://github.com/earendil-works/pi/issues/10885",
+        "checkedAt": "2026-11-01"
+      }
+    }
+  ],
+  "notChecked": "This card was taken from the published map of pi at one commit and covers only decisions shown there; it did not look at code outside the map's scope (the command-line agent, agent loop, model layer, code mode and MCP client), and no pi code was run to make it.",
+  "provenance": {
+    "mapEdition": "first edition (2026-10-29)",
+    "cardCommit": "b5e87a627a1635ebfcce06d598d2011a068f21eb",
+    "method": "derived-from-full-map"
+  }
+}

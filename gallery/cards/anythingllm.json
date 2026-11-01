@@ -1,0 +1,154 @@
+{
+  "schema": "aop-decides-card/v1",
+  "agent": {
+    "name": "AnythingLLM",
+    "slug": "anythingllm",
+    "repo": "https://github.com/Mintplex-Labs/anything-llm",
+    "commit": "d7d68e75c422d10384b8aa30f72d6d032fcc555e",
+    "mappedAt": "2026-10-15"
+  },
+  "fullMapUrl": "https://u00dxk2.github.io/agent-ops-patterns/gallery/anythingllm/",
+  "summary": "In AnythingLLM, plain code routes each message, gathers what the model sees and cuts it down to fit, while the AI model picks the agent's tools and decides when the agent is done: its first reply without a tool call is the answer. In web chat a person is asked before some tool actions, but MCP tool calls run without asking anyone.",
+  "judgments": [
+    {
+      "id": "A3",
+      "stage": "gatekeeping",
+      "question": "Does this message go to the agent instead of plain chat?",
+      "holder": "code",
+      "answer": "It goes to the agent when it starts with @agent, or when the workspace is in automatic mode and its model can call tools natively, provided the agent run can be set up; otherwise it is answered as plain chat.",
+      "evidence": "server/utils/chats/agents.js:56"
+    },
+    {
+      "id": "D3",
+      "stage": "gatekeeping",
+      "question": "In web chat, should this tool action run right now?",
+      "holder": "human",
+      "answer": "The person sees a card with the skill name, the tool's description and the request, and clicks approve or reject.",
+      "evidence": "server/utils/agents/aibitat/plugins/websocket.js:283"
+    },
+    {
+      "id": "D21",
+      "stage": "gatekeeping",
+      "question": "May this MCP tool call run?",
+      "holder": "code",
+      "answer": "Yes: once a server's tools are loaded, each call goes straight to the server with the model's arguments; nothing asks a person.",
+      "evidence": "server/utils/MCP/index.js:94"
+    },
+    {
+      "id": "G1",
+      "stage": "done",
+      "question": "Has the agent finished, so its text goes back as the answer?",
+      "holder": "model",
+      "answer": "The agent model decides: its first reply without a tool call ends the loop and becomes the answer. A reply that is exactly TERMINATE ends the whole session.",
+      "evidence": "server/utils/agents/aibitat/index.js:1056"
+    },
+    {
+      "id": "G2",
+      "stage": "done",
+      "question": "Did the model stop because it ran out of output tokens rather than because it finished?",
+      "holder": "code",
+      "answer": "Code watches for the provider's out-of-tokens stop reason and flags the run, which the interface uses to say why the reply stopped.",
+      "evidence": "server/utils/agents/aibitat/providers/ai-provider.js:818"
+    },
+    {
+      "id": "B11",
+      "stage": "limits-memory",
+      "question": "When the assembled prompt does not fit the model's window, what is cut?",
+      "holder": "code",
+      "answer": "Code trims by fixed shares: a system prompt or context over its share has its middle cut out, and the newest history that fits is kept. If the user's message alone is over 70% of the window, only that message is sent, cut down.",
+      "evidence": "server/utils/helpers/chat/index.js:49"
+    },
+    {
+      "id": "B4",
+      "stage": "limits-memory",
+      "question": "How much earlier conversation does the agent start with?",
+      "holder": "code",
+      "answer": "The newest 20 saved exchanges for this workspace, user and thread, fixed, whatever the workspace's own history setting says.",
+      "evidence": "server/utils/agents/index.js:89"
+    },
+    {
+      "id": "C1",
+      "stage": "other",
+      "question": "Which tool, if any, does the agent call next (models with native tool calling)?",
+      "holder": "model",
+      "answer": "The agent model, given the chat history and the offered tools, returns either text or a tool call; code keeps the first call.",
+      "evidence": "server/utils/agents/aibitat/providers/helpers/tooled.js:248"
+    },
+    {
+      "id": "C10",
+      "stage": "other",
+      "question": "When the model asks for several tools at once, which run?",
+      "holder": "code",
+      "answer": "Only the first; code drops the rest without telling the model.",
+      "evidence": "server/utils/agents/aibitat/providers/helpers/tooled.js:372"
+    },
+    {
+      "id": "B8",
+      "stage": "other",
+      "question": "Which parts of the workspace's documents are relevant enough to put in the context?",
+      "holder": "model",
+      "answer": "An embedding model finds the 4 nearest chunks by default, and code drops those below the workspace's similarity threshold (default 0.25) or from a pinned document.",
+      "evidence": "server/utils/vectorDbProviders/lance/index.js:417"
+    }
+  ],
+  "problems": [
+    {
+      "title": "When the model asks for several tools at once, only the first runs",
+      "plain": "On the shared OpenAI-compatible tool-calling path, if the model asks for more than one tool in a single reply, only the first is run and the others are dropped without the model being told. A request that needs several lookups or actions can come back with part of the work left undone unless the model notices and asks again.",
+      "evidence": [
+        "server/utils/agents/aibitat/providers/helpers/tooled.js:370-381",
+        "server/utils/agents/aibitat/providers/helpers/tooled.js:454-455"
+      ],
+      "verified": {
+        "how": "re-read at pinned commit",
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again"
+      },
+      "upstream": {
+        "status": "not-filed",
+        "url": null,
+        "checkedAt": "2026-11-01"
+      }
+    },
+    {
+      "title": "The agent does not use the workspace's chat history setting",
+      "plain": "A workspace's chat history setting decides how much earlier conversation plain chat sends (20 when it is unset or zero). The agent does not read it: it always starts with the newest 20 saved exchanges, so a workspace set to send less, or more, gets 20 in agent mode.",
+      "evidence": [
+        "server/utils/agents/index.js:908",
+        "server/utils/agents/index.js:89-102"
+      ],
+      "verified": {
+        "how": "re-read at pinned commit",
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again"
+      },
+      "upstream": {
+        "status": "not-filed",
+        "url": null,
+        "checkedAt": "2026-11-01"
+      }
+    },
+    {
+      "title": "Chats are marked as processed for memory even when the memory pass did not run",
+      "plain": "Every 3 hours by default, a background job reads a person's recent chats to pick out facts worth remembering. Once a group of chats passes the first two checks it is marked processed whatever happened, so if the model call fails or no model is set up, the job does not come back to those chats on its next run. Only the latest 20 are read, so in a larger group the older chats are marked processed without being read.",
+      "evidence": [
+        "server/jobs/extract-memories.js:178-182",
+        "server/jobs/extract-memories.js:34-38",
+        "server/jobs/helpers/memory-extraction-utils.js:83-88"
+      ],
+      "verified": {
+        "how": "re-read at pinned commit",
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again"
+      },
+      "upstream": {
+        "status": "not-filed",
+        "url": null,
+        "checkedAt": "2026-11-01"
+      }
+    }
+  ],
+  "notChecked": "This card was taken from the published AnythingLLM map at one commit and covers only decisions shown there; it did not look at the web frontend or the document collector except where they reach the server, or at the 11 decisions left out of that edition, and no AnythingLLM code was run to make it.",
+  "provenance": {
+    "mapEdition": "edition with 11 of 117 cards left out (published 2026-10-30)",
+    "cardCommit": "46c7e28729f100a3ebcebf59442494fdb1b1580a",
+    "method": "derived-from-full-map"
+  }
+}
