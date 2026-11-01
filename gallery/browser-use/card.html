@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How browser-use decides</title>
+<meta name="description" content="In browser-use, the AI model chooses the actions on each of its steps (code may first open a web address named in the task) and decides the task is finished by calling done. Among the decisions this map shows, nobody is asked before an action runs, so a form submit or a script the model writes goes ahead on its own, and code clicks OK on alerts and confirm dialogs. The built-in limits on how long a run goes are counts, not judgments (500 steps, or 5 failed steps in a row), and the run's success flag is the model's value when it gives one and true when it does not; a second model call grades the run without changing that flag.">
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1d1b;--muted:#5d5b55;--line:#dedad0;--card:#ffffff;--code:#f2efe8;--link:#2f6f8f;
+  --model:#6b4fa0;--code-h:#2f6f8f;--human:#2e7d4f;--nobody:#a3452f}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--card:#1d1c19;--code:#262520;--link:#6fb3d4;
+  --model:#b9a2e6;--code-h:#6fb3d4;--human:#7fcf9f;--nobody:#f09a83}}
+:root[data-theme="dark"]{--bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--card:#1d1c19;--code:#262520;--link:#6fb3d4;
+  --model:#b9a2e6;--code-h:#6fb3d4;--human:#7fcf9f;--nobody:#f09a83}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:680px;margin:0 auto;padding:0 16px 56px}
+a{color:var(--link)}
+code{background:var(--code);padding:1px 4px;border-radius:4px;font-size:.86em;overflow-wrap:anywhere}
+.crumbs{font-size:.9rem;color:var(--muted);margin-top:18px}
+h1{font-size:1.6rem;line-height:1.2;margin:20px 0 10px}
+.summary{font-size:1.08rem}
+.meta{color:var(--muted);font-size:.88rem}
+h2{font-size:1.15rem;margin:32px 0 8px;padding-top:8px;border-top:1px solid var(--line)}
+ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
+.j,.p{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:10px 0}
+.j p,.p p{margin:4px 0}
+.q{font-weight:650}
+.holder{display:inline-block;font-size:.8rem;font-weight:650;border:1px solid currentColor;border-radius:999px;padding:0 8px;margin-right:4px}
+.holder-model{color:var(--model)}.holder-code{color:var(--code-h)}.holder-human{color:var(--human)}.holder-nobody{color:var(--nobody)}
+.ev{color:var(--muted);font-size:.85rem}
+.p h3{font-size:1.05rem;margin:2px 0 6px}
+.status{font-weight:600}
+.full{display:block;text-align:center;font-weight:650;border:1px solid var(--link);border-radius:8px;padding:12px;margin:28px 0 8px;text-decoration:none}
+</style>
+</head>
+<body>
+<main>
+
+<p class="crumbs"><a href="../../">agent-ops-patterns</a> / <a href="../">gallery</a> / <a href="./">browser-use map</a> / how it decides</p>
+
+<h1>How browser-use decides</h1>
+
+<p class="summary">In browser-use, the AI model chooses the actions on each of its steps (code may first open a web address named in the task) and decides the task is finished by calling done. Among the decisions this map shows, nobody is asked before an action runs, so a form submit or a script the model writes goes ahead on its own, and code clicks OK on alerts and confirm dialogs. The built-in limits on how long a run goes are counts, not judgments (500 steps, or 5 failed steps in a row), and the run's success flag is the model's value when it gives one and true when it does not; a second model call grades the run without changing that flag.</p>
+
+<p class="meta">From <a href="https://github.com/browser-use/browser-use"><code>browser-use/browser-use</code></a> at source version <a href="https://github.com/browser-use/browser-use/tree/b49a68e4060acb226da8f784194fef301c53a6d7"><code>b49a68e4</code></a>, mapped 2026-10-29. Each answer links the code where that decision is made.</p>
+
+<h2>What it does without asking you</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">Before the agent submits, buys, sends, deletes or runs page JavaScript, does anyone approve it?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Nobody is asked: the model's actions run as soon as they are parsed. An integrator can add a check in their own code through the step callback, which sees the proposed actions before they run.</p>
+  <p class="ev"><a href="https://github.com/browser-use/browser-use/blob/b49a68e4060acb226da8f784194fef301c53a6d7/browser_use/agent/service.py#L1201-L1217" title="browser_use/agent/service.py:1201-1217"><code>service.py:1201-1217</code></a> · decision D17 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Which actions is the model offered this step?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Every built-in action on every page, including evaluate, which runs JavaScript the model writes, except screenshot at the default vision setting and any the integrator excluded, plus custom actions whose site filter matches. On the last step or after repeated failures, only done.</p>
+  <p class="ev"><a href="https://github.com/browser-use/browser-use/blob/b49a68e4060acb226da8f784194fef301c53a6d7/browser_use/agent/service.py#L4049-L4068" title="browser_use/agent/service.py:4049-4068"><code>service.py:4049-4068</code></a> · decision B10 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">When a page opens a JavaScript dialog, who decides OK or Cancel?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Code clicks OK on every alert, confirm and leave-page dialog the moment it opens, and Cancel on every text prompt, before the model sees it; the model is told afterwards.</p>
+  <p class="ev"><a href="https://github.com/browser-use/browser-use/blob/b49a68e4060acb226da8f784194fef301c53a6d7/browser_use/browser/watchdogs/popups_watchdog.py#L62-L123" title="browser_use/browser/watchdogs/popups_watchdog.py:62-123"><code>popups_watchdog.py:62-123</code></a> · decision D7 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Which browser permissions are granted to the sites the agent visits?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> When the browser connects, code grants clipboard read/write and notifications to every site; any other permission a page asks for is left to Chrome.</p>
+  <p class="ev"><a href="https://github.com/browser-use/browser-use/blob/b49a68e4060acb226da8f784194fef301c53a6d7/browser_use/browser/watchdogs/permissions_watchdog.py#L23-L43" title="browser_use/browser/watchdogs/permissions_watchdog.py:23-43"><code>permissions_watchdog.py:23-43</code></a> · decision D8 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">When a page offers a file, is it saved to disk?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Yes. Downloads are always allowed, into a fresh temporary folder, and by default PDFs and attachments are also saved without a click.</p>
+  <p class="ev"><a href="https://github.com/browser-use/browser-use/blob/b49a68e4060acb226da8f784194fef301c53a6d7/browser_use/browser/watchdogs/downloads_watchdog.py#L500-L513" title="browser_use/browser/watchdogs/downloads_watchdog.py:500-513"><code>downloads_watchdog.py:500-513</code></a> · decision D9 in the full map</p>
+</li>
+</ul>
+
+<h2>How it decides it is done</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">Is the task finished?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> The model decides by calling done; code ends the run on that call without checking whether the answer is right, and the judge only grades it afterwards.</p>
+  <p class="ev"><a href="https://github.com/browser-use/browser-use/blob/b49a68e4060acb226da8f784194fef301c53a6d7/browser_use/tools/service.py#L2049-L2090" title="browser_use/tools/service.py:2049-2090"><code>service.py:2049-2090</code></a> · decision G1 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Did the task succeed, by the agent's own report?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> The success flag is whatever the model puts in done. If the model leaves it out, code records success, and with an output schema the field is hidden from the model.</p>
+  <p class="ev"><a href="https://github.com/browser-use/browser-use/blob/b49a68e4060acb226da8f784194fef301c53a6d7/browser_use/tools/views.py#L100" title="browser_use/tools/views.py:100"><code>views.py:100</code></a> · decision G2 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Does an independent judge think the task succeeded?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> On by default: after a done, a second call through the agent's own model client grades the run against the task and the last 10 screenshots. The verdict is logged; the agent's own success flag stands.</p>
+  <p class="ev"><a href="https://github.com/browser-use/browser-use/blob/b49a68e4060acb226da8f784194fef301c53a6d7/browser_use/agent/service.py#L1594-L1627" title="browser_use/agent/service.py:1594-1627"><code>service.py:1594-1627</code></a> · decision G3 in the full map</p>
+</li>
+</ul>
+
+<h2>Limits and memory</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">When has the run used up its step budget?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> After 500 steps by default; code records &quot;Failed to complete task in maximum steps&quot; and returns with no answer.</p>
+  <p class="ev"><a href="https://github.com/browser-use/browser-use/blob/b49a68e4060acb226da8f784194fef301c53a6d7/browser_use/agent/service.py#L2620" title="browser_use/agent/service.py:2620"><code>service.py:2620</code></a> · decision F1 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">When does the agent give up after repeated failures?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> After 5 failed steps in a row (the default), the model gets one step that may only call done; if that fails too, the run ends.</p>
+  <p class="ev"><a href="https://github.com/browser-use/browser-use/blob/b49a68e4060acb226da8f784194fef301c53a6d7/browser_use/agent/service.py#L2629-L2635" title="browser_use/agent/service.py:2629-2635"><code>service.py:2629-2635</code></a> · decision F5 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">While the agent runs, may a person at the terminal halt it, and how does it resume?</p>
+  <p class="a"><span class="holder holder-human">Decided by a person</span> On Mac and Linux, Ctrl+C pauses the run and a second press quits; on Windows the first press quits. Pressing Enter does not resume, despite the printed hint: only code calling agent.resume() does.</p>
+  <p class="ev"><a href="https://github.com/browser-use/browser-use/blob/b49a68e4060acb226da8f784194fef301c53a6d7/browser_use/utils.py#L324-L360" title="browser_use/utils.py:324-360"><code>utils.py:324-360</code></a> · decision D18 in the full map</p>
+</li>
+</ul>
+
+<h2>Other judgments</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">What should the agent do next?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> Every step, the model (by default Browser Use's hosted bu-2-0) reads the task, the page and the history and returns up to five actions; code runs them in order.</p>
+  <p class="ev"><a href="https://github.com/browser-use/browser-use/blob/b49a68e4060acb226da8f784194fef301c53a6d7/browser_use/agent/service.py#L1953" title="browser_use/agent/service.py:1953"><code>service.py:1953</code></a> · decision C1 in the full map</p>
+</li>
+</ul>
+
+<h2>Three problems in the code</h2>
+<ol class="problems">
+<li class="p">
+  <h3>1. A run can be reported successful when the model never said so</h3>
+  <p>A program reads the success flag in the model's done call at the end of a run. If the model leaves the flag out, code records success. When the developer asks for a structured result, that field is hidden from the model, so such a run normally reads as successful unless the model sets it anyway. An open pull request in browser-use's tracker proposes a fix.</p>
+  <p class="status">Reported; a fix is proposed, not merged (<a href="https://github.com/browser-use/browser-use/pull/6178">#6178</a>), checked 2026-11-01.</p>
+  <p class="ev">Where: <a href="https://github.com/browser-use/browser-use/blob/b49a68e4060acb226da8f784194fef301c53a6d7/browser_use/tools/views.py#L100" title="browser_use/tools/views.py:100"><code>views.py:100</code></a>, <a href="https://github.com/browser-use/browser-use/blob/b49a68e4060acb226da8f784194fef301c53a6d7/browser_use/tools/views.py#L107-L117" title="browser_use/tools/views.py:107-117"><code>views.py:107-117</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again.</p>
+</li>
+<li class="p">
+  <h3>2. After a step times out, the model is not told which of its actions already ran</h3>
+  <p>A whole step gets 180 seconds by default. If it runs over, it is cut off, the record of which of the step's actions finished is dropped, and the step's result is only a timeout error. If the run takes another step, the model sees the page as it now is, which may show some effects, but it is not told which of its actions already ran. We found no report of this in browser-use's tracker.</p>
+  <p class="status">Not reported upstream, checked 2026-11-01.</p>
+  <p class="ev">Where: <a href="https://github.com/browser-use/browser-use/blob/b49a68e4060acb226da8f784194fef301c53a6d7/browser_use/agent/service.py#L2487-L2493" title="browser_use/agent/service.py:2487-2493"><code>service.py:2487-2493</code></a>, <a href="https://github.com/browser-use/browser-use/blob/b49a68e4060acb226da8f784194fef301c53a6d7/browser_use/agent/service.py#L1217-L1218" title="browser_use/agent/service.py:1217-1218"><code>service.py:1217-1218</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again.</p>
+</li>
+<li class="p">
+  <h3>3. Pressing Enter does not resume a paused run, though the message says it will</h3>
+  <p>On Mac and Linux, pressing Ctrl+C pauses the run and prints &quot;Press [Enter] to resume or [Ctrl+C] again to quit&quot;. Pressing Enter does not resume it; only code that calls agent.resume() does, so a person at the terminal can quit with a second Ctrl+C but cannot continue the run from there. We found no report of this in browser-use's tracker.</p>
+  <p class="status">Not reported upstream, checked 2026-11-01.</p>
+  <p class="ev">Where: <a href="https://github.com/browser-use/browser-use/blob/b49a68e4060acb226da8f784194fef301c53a6d7/browser_use/agent/service.py#L3942-L3946" title="browser_use/agent/service.py:3942-3946"><code>service.py:3942-3946</code></a>, <a href="https://github.com/browser-use/browser-use/blob/b49a68e4060acb226da8f784194fef301c53a6d7/browser_use/utils.py#L399-L437" title="browser_use/utils.py:399-437"><code>utils.py:399-437</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again.</p>
+</li>
+</ol>
+
+<a class="full" href="https://u00dxk2.github.io/agent-ops-patterns/gallery/browser-use/">See the full map →</a>
+
+<p class="meta">This card was taken from the published map of browser-use at one commit and covers only decisions shown there; it did not look at the beta agent, the sandbox runner, the MCP server, the command line, Browser Use's cloud browsers or features that are off until a setting turns them on, and no browser-use code was run to make it.</p>
+<p class="meta">Map edition edition with 5 of 90 cards left out (published 2026-10-31) · taken from the full map · card data: <a href="https://github.com/u00dxk2/agent-ops-patterns/blob/main/gallery/cards/browser-use.json"><code>gallery/cards/browser-use.json</code></a>. Corrections are welcome as an <a href="https://github.com/u00dxk2/agent-ops-patterns/issues">issue</a>.</p>
+
+</main>
+</body>
+</html>
