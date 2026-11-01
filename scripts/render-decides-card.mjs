@@ -169,6 +169,12 @@ export function renderCard(card) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>How ${esc(agent.name)} decides</title>
 <meta name="description" content="${esc(card.summary)}">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="agent-ops-patterns">
+<meta property="og:title" content="How ${esc(agent.name)} decides">
+<meta property="og:description" content="${esc(card.summary)}">
+<meta property="og:url" content="${esc(card.fullMapUrl)}card.html">
+<meta name="twitter:card" content="summary">
 <style>
 :root{--bg:#fbfaf7;--fg:#1d1d1b;--muted:#5d5b55;--line:#dedad0;--card:#ffffff;--code:#f2efe8;--link:#2f6f8f;
   --model:#6b4fa0;--code-h:#2f6f8f;--human:#2e7d4f;--nobody:#a3452f}
@@ -220,7 +226,7 @@ ${problems}
 <a class="full" href="${esc(card.fullMapUrl)}">See the full map →</a>
 
 <p class="meta">${esc(card.notChecked)}</p>
-<p class="meta">Map: ${esc(card.provenance.mapEdition)} · ${esc(METHOD_LABELS[card.provenance.method])} · card data: <a href="https://github.com/u00dxk2/agent-ops-patterns/blob/main/gallery/cards/${esc(agent.slug)}.json"><code>gallery/cards/${esc(agent.slug)}.json</code></a>. Corrections are welcome as an <a href="https://github.com/u00dxk2/agent-ops-patterns/issues">issue</a>.</p>
+<p class="meta">Map: ${esc(card.provenance.mapEdition)} · ${esc(METHOD_LABELS[card.provenance.method])} · card data: <a href="https://github.com/u00dxk2/agent-ops-patterns/blob/main/gallery/cards/${esc(agent.slug)}.json"><code>gallery/cards/${esc(agent.slug)}.json</code></a>. Found something wrong? Use the <a href="https://github.com/u00dxk2/agent-ops-patterns/issues/new?template=map-correction.yml">correction form</a>.</p>
 
 </main>
 </body>

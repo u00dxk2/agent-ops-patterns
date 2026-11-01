@@ -1,0 +1,48 @@
+name: Correction to a map
+description: A map or one-page summary says something the code does not do. Tell us which decision, and what the code really does.
+title: "Correction: <map> <decision id>"
+labels: ["map-correction"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks. Every card on a map cites the file and lines it was read from, at one fixed commit, so a correction
+        is easiest to check when it points at code.
+
+        **Is it a security weakness in the project that was mapped?** Then please report it to that project privately,
+        through its own security policy, not here. A hole in this repository itself (a page, a library, a skill, the
+        audit prompt or a workflow) goes to our private form instead: https://github.com/u00dxk2/agent-ops-patterns/security/advisories/new
+
+  - type: dropdown
+    id: map
+    attributes:
+      label: Which map?
+      options: ["OpenHands", "Cline", "opencode", "pi", "agno", "AnythingLLM", "browser-use", "Other / the gallery itself"]
+    validations:
+      required: true
+
+  - type: input
+    id: decision
+    attributes:
+      label: Which decision?
+      description: The id on the card (for example D17), or paste the link to it. Leave blank if it is about the whole page.
+      placeholder: "D17"
+    validations:
+      required: false
+
+  - type: textarea
+    id: wrong
+    attributes:
+      label: What does the page say, and what does the code actually do?
+      description: Quote the sentence you think is wrong, then say what is true instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Where in the code?
+      description: A link to the file and lines, ideally at the commit the map names. If the code has changed since that commit, say so; that is useful too.
+      placeholder: "https://github.com/<owner>/<repo>/blob/<commit>/<path>#L10-L20"
+    validations:
+      required: false

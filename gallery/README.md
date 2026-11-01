@@ -26,6 +26,6 @@ Each map is one self-contained HTML file with no external requests. The links in
 - **Not a security audit, and not a verdict on the project.** The maps describe behaviour. Where a project's own docstring states a choice, the map quotes or cites it.
 - **Shared with the project first.** Where a map publishes a finding that was reproduced, it was reported to the project in public before or alongside the map, and the map names the report by issue number.
 
-Corrections are welcome as an [issue](https://github.com/u00dxk2/agent-ops-patterns/issues). A wrong sentence about someone else's code is the worst bug a map can have.
+Corrections are welcome through the [correction form](https://github.com/u00dxk2/agent-ops-patterns/issues/new?template=map-correction.yml). A wrong sentence about someone else's code is the worst bug a map can have.
 
 Quotations from code in each map belong to the mapped project and keep its licence, which each map names.

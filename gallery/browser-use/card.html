@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>How browser-use decides</title>
 <meta name="description" content="In browser-use, the AI model chooses the actions on each of its steps (code may first open a web address named in the task) and decides the task is finished by calling done. Among the decisions this map shows, nobody is asked before an action runs, so a form submit or a script the model writes goes ahead on its own, and code clicks OK on alerts and confirm dialogs. The built-in limits on how long a run goes are counts, not judgments (500 steps, or 5 failed steps in a row), and the run's success flag is the model's value when it gives one and true when it does not; a second model call grades the run without changing that flag.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="agent-ops-patterns">
+<meta property="og:title" content="How browser-use decides">
+<meta property="og:description" content="In browser-use, the AI model chooses the actions on each of its steps (code may first open a web address named in the task) and decides the task is finished by calling done. Among the decisions this map shows, nobody is asked before an action runs, so a form submit or a script the model writes goes ahead on its own, and code clicks OK on alerts and confirm dialogs. The built-in limits on how long a run goes are counts, not judgments (500 steps, or 5 failed steps in a row), and the run's success flag is the model's value when it gives one and true when it does not; a second model call grades the run without changing that flag.">
+<meta property="og:url" content="https://u00dxk2.github.io/agent-ops-patterns/gallery/browser-use/card.html">
+<meta name="twitter:card" content="summary">
 <style>
 :root{--bg:#fbfaf7;--fg:#1d1d1b;--muted:#5d5b55;--line:#dedad0;--card:#ffffff;--code:#f2efe8;--link:#2f6f8f;
   --model:#6b4fa0;--code-h:#2f6f8f;--human:#2e7d4f;--nobody:#a3452f}
@@ -147,7 +153,7 @@ ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
 <a class="full" href="https://u00dxk2.github.io/agent-ops-patterns/gallery/browser-use/">See the full map →</a>
 
 <p class="meta">This card was taken from the published map of browser-use at one commit and covers only decisions shown there; it did not look at the beta agent, the sandbox runner, the MCP server, the command line, Browser Use's cloud browsers or features that are off until a setting turns them on, and no browser-use code was run to make it.</p>
-<p class="meta">Map: edition with 5 of 90 cards left out (published 2026-10-31) · taken from the full map · card data: <a href="https://github.com/u00dxk2/agent-ops-patterns/blob/main/gallery/cards/browser-use.json"><code>gallery/cards/browser-use.json</code></a>. Corrections are welcome as an <a href="https://github.com/u00dxk2/agent-ops-patterns/issues">issue</a>.</p>
+<p class="meta">Map: edition with 5 of 90 cards left out (published 2026-10-31) · taken from the full map · card data: <a href="https://github.com/u00dxk2/agent-ops-patterns/blob/main/gallery/cards/browser-use.json"><code>gallery/cards/browser-use.json</code></a>. Found something wrong? Use the <a href="https://github.com/u00dxk2/agent-ops-patterns/issues/new?template=map-correction.yml">correction form</a>.</p>
 
 </main>
 </body>
