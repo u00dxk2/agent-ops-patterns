@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { validateCard, renderCard, evidenceUrl } from "../scripts/render-decides-card.mjs";
+import { validateCard, renderCard, evidenceUrl, MAX_TEXT, SITE } from "../scripts/render-decides-card.mjs";
 
 // A "How it decides" card is a JSON file in gallery/cards/ (contract: aop-decides-card/v1) and a page
 // generated from it at gallery/<slug>/card.html. Another site vendors the JSON, so its shape is a
@@ -85,7 +85,21 @@ describe("How-it-decides cards", () => {
     assert.notDeepEqual(broken((c) => { c.problems[0].verified.how = "looked"; }), [], "how outside the enum");
     assert.notDeepEqual(broken((c) => { c.judgments[0].score = 0.9; }), [], "a score on a judgment");
     assert.notDeepEqual(broken((c) => { c.total = 7; }), [], "a total on the card");
+    // A downstream site links fullMapUrl and shows the text: a foreign or mismatched map link and
+    // an oversized field are refused here, before any renderer sees them.
+    assert.notDeepEqual(broken((c) => { c.fullMapUrl = "https://example.com/phish/"; }), [], "fullMapUrl on another site");
+    assert.notDeepEqual(broken((c) => { c.fullMapUrl = `${SITE}not-${c.agent.slug}/`; }), [], "fullMapUrl for another map");
+    assert.notDeepEqual(broken((c) => { c.summary = "x".repeat(MAX_TEXT + 1); }), [], "a summary over the length cap");
+    assert.notDeepEqual(broken((c) => { c.problems[2].plain = "y".repeat(5_000_000); }), [], "a multi-megabyte field");
+    assert.deepEqual(broken((c) => { c.summary = "x".repeat(MAX_TEXT); }), [], "a field exactly at the cap passes");
     assert.throws(() => renderCard({ ...clone(good), problems: [] }), /card refused/);
+  });
+
+  it("LIMIT: text fields are not checked for HTML; the renderer escapes them, and a downstream site must too", () => {
+    const c = clone(load(cardFiles()[0]));
+    c.summary = "<img src=x onerror=alert(1)>";
+    assert.deepEqual(validateCard(c), [], "markup in prose is not a contract error");
+    assert.ok(!renderCard(c).includes("<img src=x"), "but our page never emits it as markup");
   });
 
   it("the renderer escapes the card's text", () => {

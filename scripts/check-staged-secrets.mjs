@@ -47,7 +47,9 @@
  *     `git cat-file --batch-all-objects`.
  *   - A binary file, or one marked -diff in .gitattributes, shows no hunk in `git log -p`,
  *     so its content is NOT scanned. The history denominator counts those diffs ("binary
- *     file diffs not read") so a clean verdict says what it did not read.
+ *     file diffs not read") so a clean verdict says what it did not read. In --range mode
+ *     (the CI form) any unread binary diff is UNREAD, exit 2, never CLEAN: a credential saved
+ *     as UTF-16, or in a file a PR marks -diff, would otherwise pass the job green.
  *   - Removing a value from the tip does not remove it from history. Rotate first.
  *
  * `--history <days> --selftest` builds throwaway repos and runs this file as a child
@@ -306,6 +308,8 @@ if (argv.includes("--help")) {
         the same sweep, same exits and redaction, over exactly the commits in the range
         (git log -p <a>..<b>) — the CI form: per commit, so a value added then deleted inside
         one PR still fires. An empty range is NOTHING SWEPT (exit 2); an unknown rev is ERROR (2).
+        Any binary or -diff file diff in the range is UNREAD (exit 2), never CLEAN: its content
+          was not scanned, so the range cannot be called clean.
   node scripts/${SCRIPT}.mjs --history <days> --selftest
         throwaway-repo arms, each run as a real child process of this script:
           coverage every pattern has exactly one fixture
@@ -318,13 +322,14 @@ if (argv.includes("--help")) {
           CONTENT-AS-STRUCTURE an added line whose text starts "++ " is scanned, not taken for a file header
           ROOT   log.showRoot=false in the environment does not hide the root commit
           BINARY a -diff file is counted in the denominator as not read
+          RANGE BINARY a -diff file inside --range → UNREAD, exit 2, not CLEAN
           SECRET-SHAPED PATH a value in a file name is withheld from the printed path
           RELATIVE diff.relative=true with --repo at a subdirectory still sweeps the whole repo
           GIT FAILS an unknown revision → ERROR, not NOTHING SWEPT
           STAGED STRUCTURE a renamed file's added line and a "++ " line both fire on the staged path
           VARIANTS rediss://, +driver schemes, the PGP key block and a gho_ token each fire
           plus staged / --message-file regression arms (exit 1 on a fixture, 0 on clean).
-        17 arms; a run where a different number ran is a FAIL.
+        18 arms; a run where a different number ran is a FAIL.
         exit 0 all arms pass · 1 an arm failed
   --help  this text
 
@@ -441,6 +446,11 @@ if (historyIdx !== -1 || rangeIdx !== -1) {
     console.log("  Rotate the credential first; then decide whether the history itself must be rewritten.");
     console.log("  False positive? the line needs a trailing `pragma: allowlist secret` in the commit that added it.\n");
     finish(3, "FINDINGS", `${r.hits.length} hit(s) · ${r.summary}`);
+  }
+  if (rangeIdx !== -1 && r.binaryUnread > 0) {
+    console.log(`UNREAD — ${r.binaryUnread} binary or -diff file diff(s) in this range were not scanned, so the range is not clean.`);
+    console.log("  Scan those files some other way, or keep them out of the change; this check will not pass over content it did not read.");
+    finish(2, "UNREAD", r.summary);
   }
   console.log("CLEAN — no secret-shaped ADDED line in scope.");
   finish(0, "PASS", r.summary);
@@ -615,7 +625,7 @@ async function sweepHistory({ repo, revArgs, label }) {
   }
 
   const summary = `history: ${commits} commits scanned · ${hunks} hunks · ${added} added lines · ${binaryUnread} binary file diffs not read · ${label}`;
-  return { summary, hits, nothingSwept: commits === 0 };
+  return { summary, hits, nothingSwept: commits === 0, binaryUnread };
 }
 
 /**
@@ -952,6 +962,25 @@ function selftestHistory(days) {
       `exit ${r14.status}; out: ${r14.out.slice(0, 200)}`,
     );
 
+    // RANGE BINARY — the CI form must not call a range clean when it skipped a file: a PR
+    // that marks a credential-bearing file -diff (or saves it as UTF-16) is UNREAD, exit 2.
+    const rbin = initRepo("range-binary");
+    writeFileSync(join(rbin, "a.txt"), `${SILENT[0]}\n`);
+    git(rbin, ["add", "-A"]);
+    git(rbin, ["commit", "-q", "-m", "base"]);
+    const rb0 = git(rbin, ["rev-parse", "HEAD"]).trim();
+    writeFileSync(join(rbin, ".gitattributes"), "*.env -diff\n");
+    writeFileSync(join(rbin, "x.env"), `${FIRE[7][1]}\n`);
+    git(rbin, ["add", "-A"]);
+    git(rbin, ["commit", "-q", "-m", "a -diff file"]);
+    const rb1 = git(rbin, ["rev-parse", "HEAD"]).trim();
+    const r14b = runSelf(["--range", `${rb0}..${rb1}`, "--repo", rbin]);
+    arm(
+      "RANGE BINARY — a -diff file inside --range is UNREAD, exit 2, never CLEAN",
+      r14b.status === 2 && r14b.out.includes("UNREAD") && !r14b.out.includes("CLEAN") && leaked(r14b.out).length === 0,
+      `exit ${r14b.status}; out: ${r14b.out.slice(0, 200)}`,
+    );
+
     // SECRET-SHAPED PATH — a real file NAME holding a value: the hit fires and the name is
     // withheld, because the path is printed beside every hit.
     const named = initRepo("named");
@@ -1014,7 +1043,7 @@ function selftestHistory(days) {
   }
   // An arm dropped by a later edit (or skipped behind an early return) must not still
   // read PASS: the expected count is stated once, here, and checked.
-  const EXPECTED_ARMS = 17;
+  const EXPECTED_ARMS = 18;
   if (failed === 0 && arms !== EXPECTED_ARMS) {
     failed++;
     console.log(`selftest arm — arm count: FAIL — ${arms} ran, ${EXPECTED_ARMS} expected`);

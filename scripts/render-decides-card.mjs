@@ -10,6 +10,12 @@
 // Failure posture: fail-closed. A card that breaks the contract (validateCard) is refused with every
 // problem listed, and no page is written. Limits: the checks are on shape, not truth. A wrong answer
 // with a well-formed evidence pointer passes; only a source re-read and a claims pass can catch it.
+//
+// For anyone who renders the JSON themselves: every text field is plain, untrusted text, never HTML.
+// Escape it for where it goes (or set it as text, never innerHTML), and parse any URL before linking
+// it. validateCard narrows what a card may hold: GitHub-only patterns for the repo, issue and evidence
+// links, fullMapUrl pinned to this site's page for the card's own slug, and no string longer than
+// MAX_TEXT characters. That is a floor for a downstream site, not a substitute for its own escaping.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -28,6 +34,18 @@ const EVIDENCE = /^[\w.-]+(?:\/[\w.-]+)*:(\d+)(?:-(\d+))?$/;
 const SCORE_KEYS = /^(score|scores|grade|grades|total|totals|rating|ratings)$/i;
 
 const nonEmpty = (v) => typeof v === "string" && v.trim().length > 0;
+
+// The longest field in the published cards is 633 characters (a summary, 2026-11-01); this leaves
+// room for an honest card and refuses a multi-megabyte one before any renderer sees it.
+export const MAX_TEXT = 1200;
+export const SITE = "https://u00dxk2.github.io/agent-ops-patterns/gallery/";
+
+function longStrings(value, at = "card") {
+  if (typeof value === "string") return value.length > MAX_TEXT ? [`${at} is ${value.length} characters (at most ${MAX_TEXT})`] : [];
+  if (Array.isArray(value)) return value.flatMap((v, i) => longStrings(v, `${at}[${i}]`));
+  if (value && typeof value === "object") return Object.entries(value).flatMap(([k, v]) => longStrings(v, `${at}.${k}`));
+  return [];
+}
 
 function evidenceOk(e) {
   const m = typeof e === "string" && e.match(EVIDENCE);
@@ -57,7 +75,7 @@ export function validateCard(card) {
   need(/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+$/.test(a.repo ?? ""), "agent.repo is a github.com repository URL");
   need(SHA.test(a.commit ?? ""), "agent.commit is a full 40-hex commit");
   need(DATE.test(a.mappedAt ?? ""), "agent.mappedAt is YYYY-MM-DD");
-  need(/^https:\/\//.test(card.fullMapUrl ?? ""), "fullMapUrl is an https URL");
+  need(card.fullMapUrl === `${SITE}${a.slug}/`, `fullMapUrl is this site's page for the card's slug (${SITE}<slug>/)`);
   need(nonEmpty(card.summary), "summary");
   need(nonEmpty(card.notChecked), "notChecked");
 
@@ -97,6 +115,7 @@ export function validateCard(card) {
   need(nonEmpty(pv.cardCommit), "provenance.cardCommit");
   need(METHODS.includes(pv.method), `provenance.method is one of ${METHODS.join(", ")}`);
   errs.push(...scoreKeys(card));
+  errs.push(...longStrings(card));
   return errs;
 }
 

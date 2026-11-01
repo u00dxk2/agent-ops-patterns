@@ -76,6 +76,29 @@ describe("SELF-AUDIT prompt block", () => {
     assert.ok(shapeProblems(changed).length > 0);
   });
 
+  // The page promises secrets are counted, never printed. Question 1 carries its own rule,
+  // but Questions 2-5 ask for quoted lines from logs and config, so the no-print rule must
+  // sit in the general rules, inside the block, where it binds every question.
+  const GLOBAL_SECRET_RULE = "- Never print a secret, in any question.";
+  const globalRuleProblems = (text) => {
+    const start = text.indexOf(HEADING);
+    const body = start < 0 ? "" : text.slice(start);
+    const rules = body.indexOf("Rules for you, the auditing agent:");
+    const q1 = body.indexOf("**Question 1");
+    const at = body.indexOf(GLOBAL_SECRET_RULE);
+    return rules >= 0 && at > rules && (q1 < 0 || at < q1) ? [] : ["no global never-print-a-secret rule before Question 1"];
+  };
+
+  it("carries a never-print-a-secret rule that binds every question, not only Question 1", () => {
+    assert.deepEqual(globalRuleProblems(audit), []);
+  });
+
+  it("refuses a prompt whose only no-print rule is Question 1's", () => {
+    const without = audit.replace(GLOBAL_SECRET_RULE, "- Be careful with secrets.");
+    assert.notEqual(without, audit);
+    assert.deepEqual(globalRuleProblems(without), ["no global never-print-a-secret rule before Question 1"]);
+  });
+
   it("LIMIT: does not pin the prompt's wording — a reworded sentence still passes", () => {
     const reworded = audit.replace("Run the five-question", "Please run the five-question");
     assert.notEqual(reworded, audit, "the opening sentence moved; update this LIMIT");
