@@ -6,6 +6,7 @@ import {
   suggestMemoryRepairs,
   compactIndexLines,
   extractIndexLinks,
+  extractWikiLinks,
   extractToolReferences,
   classifyMemoryIndexSizes,
   MEMORY_SIZE_STATES,
@@ -321,6 +322,100 @@ test("extractToolReferences is linear on a long line with no match", () => {
   const t = Date.now();
   assert.deepEqual(extractToolReferences("-".repeat(50_000)), []);
   assert.ok(Date.now() - t < 200, `took ${Date.now() - t} ms`);
+});
+
+// Was quadratic: a security review timed 4,000 / 8,000 / 16,000 unmatched `[`
+// at ~15 / ~40 / ~200 ms per parser — each `[` re-scanned the rest of the line
+// looking for a `]`. Doubling the input must roughly double the time, not
+// quadruple it. Best of two runs damps scheduler noise; the +20 ms slack keeps
+// a linear parser (well under 1 ms here) from failing on timer granularity.
+function bestOfTwoMs(fn) {
+  let best = Infinity;
+  for (let r = 0; r < 2; r++) {
+    const t = performance.now();
+    fn();
+    best = Math.min(best, performance.now() - t);
+  }
+  return best;
+}
+for (const [name, run] of [
+  ["extractIndexLinks", (n) => assert.deepEqual(extractIndexLinks("[".repeat(n)), [])],
+  ["extractWikiLinks", (n) => assert.deepEqual(extractWikiLinks("[".repeat(n)), [])],
+  ["compactIndexLines", (n) => assert.equal(compactIndexLines(`- ${"[".repeat(n)}`).changes.length, 0)],
+]) {
+  test(`${name} is linear on a long run of unmatched [ (doubling ratio)`, () => {
+    const t1 = bestOfTwoMs(() => run(20_000));
+    const t2 = bestOfTwoMs(() => run(40_000));
+    assert.ok(t2 < 3 * t1 + 20, `20k took ${t1.toFixed(1)} ms, 40k took ${t2.toFixed(1)} ms`);
+    assert.ok(t2 < 200, `40k took ${t2.toFixed(1)} ms`);
+  });
+}
+
+// The linear scanners replaced regexes; they must keep the regexes' exact
+// matches. The old patterns are the oracle, run over generated lines rich in
+// brackets, parens, separators and line-terminator characters.
+test("the linear link scanners match the old regexes exactly on generated input", () => {
+  const oracleLinks = (line) => [...line.matchAll(/\[([^\]]+)\]\(([^)\s]+)\)/g)]
+    .map((m) => ({ index: m.index, title: m[1], target: m[2] }));
+  const oracleWiki = (text) => [...text.matchAll(/\[\[([^\]\r\n]+)\]\]/g)].map((m) => m[1].trim());
+  let seed = 7;
+  const rand = (n) => { // mulberry32, so the run is reproducible
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) % n;
+  };
+  const ALPHA = ["[", "]", "(", ")", "[[", "]]", "](", ".md", " ", "\r", "\n", " ", "!", "/", "a", "x.md"];
+  let withLinks = 0;
+  for (let it = 0; it < 5_000; it++) {
+    let s = "";
+    for (let p = 1 + rand(4); p > 0; p--) {
+      for (let i = rand(6); i > 0; i--) s += ALPHA[rand(ALPHA.length)];
+      if (rand(2)) s += rand(3) ? `[${rand(2) ? "a" : "a ["}](${rand(4) ? "x" : "x y"}.md)` : "[[a]]";
+    }
+    const want = s.split(/\r?\n/).flatMap((line, i) => oracleLinks(line)
+      .filter((m) => !(m.index > 0 && line[m.index - 1] === "!"))
+      .filter((m) => /\.md$/i.test(m.target) && !/[/\\]|^[a-z]+:/i.test(m.target))
+      .map((m) => ({ title: m.title.trim(), target: m.target, line: i + 1 })));
+    if (want.length) withLinks++;
+    assert.deepEqual(extractIndexLinks(s), want, JSON.stringify(s));
+    assert.deepEqual(extractWikiLinks(s), oracleWiki(s), JSON.stringify(s));
+  }
+  assert.ok(withLinks > 100, `only ${withLinks} generated inputs held a link — the comparison is too weak`);
+});
+
+test("compactIndexLines splits head from tail exactly where the old regex did", () => {
+  const HEAD_RE = /^(\s*[-*]\s+.*?\[[^\]]+\]\([^)\s/\\]+\.md\)\s*(?:[—:·-]\s*)?)(.*)$/;
+  let seed = 11;
+  const rand = (n) => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) % n;
+  };
+  const ALPHA = ["[", "]", "(", ")", "](", ".md", ".md)", "-", " ", "\r", " ", ":", "—", "/", "a", "x"];
+  const link = () => `[${rand(2) ? "a" : "a\r"}](${rand(3) ? "x" : "x/y"}.md)`;
+  let changed = 0;
+  for (let it = 0; it < 5_000; it++) {
+    let s = rand(4) ? "- " : " * ";
+    for (let p = 1 + rand(3); p > 0; p--) {
+      for (let i = rand(5); i > 0; i--) s += ALPHA[rand(ALPHA.length)];
+      if (rand(3)) s += link() + (rand(2) ? " — " : " ");
+    }
+    s += "word ".repeat(10);
+    const m = HEAD_RE.exec(s);
+    const res = compactIndexLines(s, { maxLen: 40 });
+    if (!m || [...m[1]].length >= 39) {
+      assert.equal(res.changes.length, 0, JSON.stringify(s));
+      continue;
+    }
+    if (res.changes.length === 0) continue; // a tail that cannot be cut cleanly is left alone
+    const { after } = res.changes[0];
+    assert.ok(after.startsWith(m[1]), JSON.stringify(s));
+    assert.ok(m[2].startsWith(after.slice(m[1].length, -1)), JSON.stringify(s)); // the kept text is the regex's tail
+    changed++;
+  }
+  assert.ok(changed > 500, `only ${changed} lines compacted — the comparison is too weak`);
 });
 
 test("an async toolResolver throws instead of silently disabling the check", () => {

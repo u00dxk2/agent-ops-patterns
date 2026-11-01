@@ -85,6 +85,54 @@ test("entry gating: a non-entry module is a no-op even with unknown flags in arg
   assert.equal(exited, null);
 });
 
+// A security review found the refusal echoing the whole token: a secret passed
+// as `--<secret>` landed in stderr, which is a CI log. Sentinels are built at
+// run time so this file itself carries no secret shape.
+const SENTINEL = "ZQXJSENTINEL";
+const SECRET_TOKENS = [
+  `--${["sk", "live", SENTINEL, "a1b2c3d4e5"].join("-")}`, // known token prefix
+  `--${SENTINEL}${"0123456789abcdef".repeat(2)}`, // hex run
+  `--${SENTINEL}+a/b=c`, // base64 punctuation (the value after = is never printed anyway)
+  `--${SENTINEL}${"x".repeat(60)}`, // longer than any flag name
+  `--${["gh", "p"].join("")}_${SENTINEL}`, // GitHub token prefix
+];
+
+test("a secret-shaped --token is never echoed; it is counted and reported by position", () => {
+  const lines = [];
+  let exited = null;
+  const ok = assertKnownFlags(["--list", ...SECRET_TOKENS], KNOWN, "t", {
+    exit: (c) => { exited = c; },
+    log: (m) => lines.push(m),
+  });
+  assert.equal(ok, false);
+  assert.equal(exited, 2);
+  const out = lines.join("\n");
+  assert.ok(!out.includes(SENTINEL), `secret echoed:\n${out}`);
+  assert.equal(lines.filter((l) => l.includes("withheld (not printed")).length, SECRET_TOKENS.length);
+  assert.match(out, /unknown argument #2 withheld/);
+  assert.ok(lines.at(-1).includes(`${SECRET_TOKENS.length} unknown flag(s)`), lines.at(-1));
+});
+
+test("an ordinary typo is still named, with its suggestion, next to a withheld one", () => {
+  const msgs = findUnknownFlags(["--projct", SECRET_TOKENS[0]], KNOWN);
+  assert.equal(msgs.length, 2);
+  assert.match(msgs[0], /unknown flag --projct \(did you mean --project\?\)/);
+  assert.match(msgs[1], /unknown argument #2 withheld/);
+  assert.ok(!msgs[1].includes("did you mean"), msgs[1]);
+});
+
+test("LIMIT: a short secret shaped like a flag name is still printed", () => {
+  // Nothing in `hunter2`'s shape tells it from a typo; the rule withholds
+  // shapes, it cannot know intent.
+  assert.deepEqual(findUnknownFlags(["--hunter2"], KNOWN), ["unknown flag --hunter2"]);
+});
+
+test("LIMIT: the rule over-withholds — a real flag name with a token prefix is not printed", () => {
+  const [msg] = findUnknownFlags(["--sk-mode"], KNOWN);
+  assert.match(msg, /withheld/);
+  assert.ok(!msg.includes("sk-mode"), msg);
+});
+
 // LIMIT pinned: a KNOWN flag that is unimplemented passes — this guard checks
 // recognition, not implementation. Keeping known == implemented is the caller's contract.
 test("LIMIT: a known-but-unimplemented flag is not caught here", () => {
