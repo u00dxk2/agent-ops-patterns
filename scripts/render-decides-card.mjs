@@ -220,7 +220,7 @@ ${problems}
 <a class="full" href="${esc(card.fullMapUrl)}">See the full map →</a>
 
 <p class="meta">${esc(card.notChecked)}</p>
-<p class="meta">Map edition ${esc(card.provenance.mapEdition)} · ${esc(METHOD_LABELS[card.provenance.method])} · card data: <a href="https://github.com/u00dxk2/agent-ops-patterns/blob/main/gallery/cards/${esc(agent.slug)}.json"><code>gallery/cards/${esc(agent.slug)}.json</code></a>. Corrections are welcome as an <a href="https://github.com/u00dxk2/agent-ops-patterns/issues">issue</a>.</p>
+<p class="meta">Map: ${esc(card.provenance.mapEdition)} · ${esc(METHOD_LABELS[card.provenance.method])} · card data: <a href="https://github.com/u00dxk2/agent-ops-patterns/blob/main/gallery/cards/${esc(agent.slug)}.json"><code>gallery/cards/${esc(agent.slug)}.json</code></a>. Corrections are welcome as an <a href="https://github.com/u00dxk2/agent-ops-patterns/issues">issue</a>.</p>
 
 </main>
 </body>
