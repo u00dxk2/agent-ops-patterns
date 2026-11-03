@@ -10,7 +10,7 @@ Instructions for a coding agent working in this repository. Humans: [README.md](
 - `patterns/` — written protocols. Nothing executes them; they are held to accuracy and stated scope.
 - `skills/` — Agent Skills: `cs329a-self-improving-agents` (validated by
   `test/skill-references.test.mjs`) and `cog-ops-map` (validated by `test/cog-ops-map-skill.test.mjs`).
-- `gallery/` — published cognitive operations maps of OTHER projects' agent code (ten as of 2026-11-02; `gallery/README.md` has the table).
+- `gallery/` — published cognitive operations maps of OTHER projects' agent code (eleven as of 2026-11-03; `gallery/README.md` has the table).
   Every sentence there is a claim about someone else's code: change one only with a quoted `file:line`
   read on their current main and a cross-family claims pass, and keep the commit and date each map names.
   `gallery/cards/<slug>.json` is a short "How it decides" card (contract `aop-decides-card/v1`, which
