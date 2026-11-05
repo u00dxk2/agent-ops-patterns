@@ -308,7 +308,7 @@ Honest framing first, quoted from its upstream (qm): **a speed bump against mist
 
 ### strip-comments
 
-- **A lexer heuristic, not a parser.** Division-vs-regex is decided by the previous significant token plus a well-formedness lookahead, and the four shapes it misreads (ASI continuation, `/` after `}`, `/` after `)`, JSX text) are named in the header — every one copies verbatim, so a misread can leave a comment start unrecognized inside a regex body but can never strip real code. The ASI case is pinned in [`test/strip-comments.test.mjs`](./test/strip-comments.test.mjs) as a tested LIMIT, not just prose.
+- **A lexer heuristic, not a parser.** Division-vs-regex is decided by the previous significant token plus a well-formedness lookahead, and the header names where that guess goes wrong: a contextual keyword such as `of` used as a variable name, or an operator right after a regex literal's closing slash. A wrong guess can keep a comment, and in one pinned case it strips real code. Those shapes are pinned in [`test/strip-comments.test.mjs`](./test/strip-comments.test.mjs) as `LIMIT:` tests, not just prose; the further contexts the header lists are not all pinned. If a wrong answer costs your guard more than a false alarm, use a real parser.
 - **Template-literal text is opaque on purpose.** A needle between backticks is output the program emits, so a presence guard should find it. If your needle is in a comment inside a `${...}` substitution, that is code and it strips.
 - **Two languages.** JS/TS/JSX and POSIX-shell `#`. No HTML comments; shell heredoc bodies are scanned like code, which for a presence guard errs toward FOUND (pinned) — a false absence is the failure this lib exists to prevent, a false presence just makes you look.
 
