@@ -145,10 +145,10 @@
       }
     }
   ],
-  "notChecked": "This card was taken from the published AnythingLLM map at one commit and covers only decisions shown there; it did not look at the web frontend or the document collector except where they reach the server, or at the 11 decisions left out of that edition, and no AnythingLLM code was run to make it.",
+  "notChecked": "This card was taken from the published AnythingLLM map at one commit and covers only decisions shown there; it did not look at the web frontend or the document collector except where they reach the server, or at the 7 decisions left out of that edition, and no AnythingLLM code was run to make it.",
   "provenance": {
-    "mapEdition": "edition with 11 of 117 cards left out (published 2026-10-30)",
-    "cardCommit": "46c7e28729f100a3ebcebf59442494fdb1b1580a",
+    "mapEdition": "edition with 7 of 117 cards left out (published 2026-11-02)",
+    "cardCommit": "3f0b69564b6813b19d0b34e16ead1787c06ed602",
     "method": "derived-from-full-map"
   }
 }
