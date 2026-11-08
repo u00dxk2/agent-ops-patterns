@@ -1,0 +1,139 @@
+{
+  "schema": "aop-decides-card/v1",
+  "agent": {
+    "name": "Hermes Agent",
+    "slug": "hermes",
+    "repo": "https://github.com/NousResearch/hermes-agent",
+    "commit": "b200f5bc60e31588ba2cb60e288029c4a54ba5fa",
+    "mappedAt": "2026-11-03"
+  },
+  "fullMapUrl": "https://u00dxk2.github.io/agent-ops-patterns/gallery/hermes/",
+  "summary": "In Hermes Agent, on a normal step the configured main model proposes tool calls or a text answer; code checks an answer before accepting it and can send the model back, for example up to twice for a short reply that only announces a next step. Code applies the limits, among them a step allowance per turn, automatic compression as the prompt nears the window, and an optional time budget that can warn near the end but does not itself stop the run.",
+  "judgments": [
+    {
+      "id": "A1",
+      "stage": "gatekeeping",
+      "question": "May this sender's message dispatch agent work?",
+      "holder": "code",
+      "answer": "Code walks a fixed order of grants on every incoming gateway message. On a fresh install with no allowlist, an unknown sender is refused unless an operator approved their pairing code.",
+      "evidence": "gateway/authz_mixin.py:707-790"
+    },
+    {
+      "id": "G16",
+      "stage": "done",
+      "question": "The reply ends by announcing a next action but makes no tool call: is the model stalled?",
+      "holder": "code",
+      "answer": "On by default when tools are offered. A reply of at most 400 characters with no tool call that ends on an announced next step (\"I'll now\", \"next, I\") is treated as a stall and the model is nudged to act, at most twice per turn, a limit shared with two similar checks.",
+      "evidence": "agent/agent_runtime_helpers.py:3342-3357"
+    },
+    {
+      "id": "F1",
+      "stage": "limits-memory",
+      "question": "Has this turn used up its step allowance?",
+      "holder": "code",
+      "answer": "Code normally takes one step from the turn's allowance as each loop iteration starts. The cap is agent.max_turns: 500 in the config.yaml the installers seed, 150 after the recommended hermes setup, 90 after Blank Slate setup, and no cap with no finite value; a delegated child defaults to 250. At the cap the turn ends, apart from one granted grace call.",
+      "evidence": "agent/turn_iteration_prep.py:408-416"
+    },
+    {
+      "id": "F8",
+      "stage": "limits-memory",
+      "question": "Should the model be told to wrap up because the wall-clock budget is 80% gone?",
+      "holder": "code",
+      "answer": "Off by default. With a run budget set, after 80% of the time has passed code adds a one-time wrap-up notice to a tool result when it can. The setting does not itself stop the run when the time is up.",
+      "evidence": "agent/conversation_loop.py:126-158"
+    },
+    {
+      "id": "F13",
+      "stage": "limits-memory",
+      "question": "Should automatic compression run now?",
+      "holder": "code",
+      "answer": "On by default. Code compresses once the prompt passes a threshold worked out from the usable input window (by default starting from 50%, raised to at least 75% for windows under 512K tokens); floors, caps, deferral and failure safeguards can move or block it.",
+      "evidence": "agent/context_compressor.py:3007-3016"
+    },
+    {
+      "id": "F20",
+      "stage": "limits-memory",
+      "question": "Who writes the summary that replaces the middle of the conversation?",
+      "holder": "model",
+      "answer": "A language model, in one auxiliary compression request that sets no max_tokens. Empty, refused or cut-off replies count as failures.",
+      "evidence": "agent/context_compressor.py:3798-3815"
+    },
+    {
+      "id": "C1",
+      "stage": "other",
+      "question": "What should the agent do next: call which tools with which arguments, or answer?",
+      "holder": "model",
+      "answer": "On a normal model call, the main model proposes tool calls or a text answer. Before a call can run, code repairs or rejects a tool name it does not know and checks that the arguments are valid JSON; other guards can still stop a call.",
+      "evidence": "agent/turn_api_call.py:139-145"
+    },
+    {
+      "id": "E8",
+      "stage": "other",
+      "question": "Retries and fallbacks are spent on a passing outage: wait, or end the turn?",
+      "holder": "code",
+      "answer": "On by default. For an overload, server error or timeout, and only if no answer text has reached the user, code waits with a visible countdown, about 15, 30, then 60 seconds (or the provider's own Retry-After, up to 120 seconds), and stops after five cycles.",
+      "evidence": "agent/turn_recovery_autorecover.py:59-116"
+    }
+  ],
+  "problems": [
+    {
+      "title": "A run budget can warn near the end but does not enforce a deadline",
+      "plain": "With --run-budget or agent.run_budget_seconds set, once 80% of the time has passed Hermes adds a one-time wrap-up notice to a tool result when it can, and it can shorten a default wait on a silent model call. The setting does not itself stop the run when the time is up, although the option's help text says it is intended for runs with a hard ceiling. An open pull request proposes stopping the model at the deadline.",
+      "evidence": [
+        "agent/conversation_loop.py:126-158",
+        "agent/chat_completion_helpers.py:678-687",
+        "hermes_cli/_parser.py:300-306"
+      ],
+      "verified": {
+        "how": "re-read at pinned commit",
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in three rounds; every sentence it found too wide was narrowed or removed"
+      },
+      "upstream": {
+        "status": "fix-proposed",
+        "url": "https://github.com/NousResearch/hermes-agent/pull/127780",
+        "checkedAt": "2026-11-08"
+      }
+    },
+    {
+      "title": "Subagent calls over the limit in one reply are dropped without telling the model",
+      "plain": "When a model reply has passed Hermes' tool-call checks and asks for more delegate_task calls than delegation.max_concurrent_children (10 by default), Hermes drops the calls over the limit before the reply goes into the conversation. The cap itself only logs a warning, and the model gets no result for the dropped calls. An open report in Hermes' tracker describes this.",
+      "evidence": [
+        "run_agent.py:1182-1200",
+        "agent/turn_tool_round.py:96-113"
+      ],
+      "verified": {
+        "how": "re-read at pinned commit",
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in three rounds; every sentence it found too wide was narrowed or removed"
+      },
+      "upstream": {
+        "status": "already-tracked",
+        "url": "https://github.com/NousResearch/hermes-agent/issues/30405",
+        "checkedAt": "2026-11-08"
+      }
+    },
+    {
+      "title": "A /loop ends when its finishing line appears anywhere in a reply",
+      "plain": "A /loop ends as done when a reply has a line that is only LOOP_COMPLETE. The check matches such a line anywhere in the reply, not only at the end as the function's own description says, so a reply with that line in the middle also ends the loop.",
+      "evidence": [
+        "hermes_cli/loops.py:33-37",
+        "hermes_cli/loops.py:370-372",
+        "hermes_cli/loops.py:562-565"
+      ],
+      "verified": {
+        "how": "re-read at pinned commit",
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in three rounds; every sentence it found too wide was narrowed or removed"
+      },
+      "upstream": {
+        "status": "not-filed",
+        "url": null,
+        "checkedAt": "2026-11-08"
+      }
+    }
+  ],
+  "notChecked": "This card was taken from the published map of Hermes Agent at one commit and covers only decisions shown there; that map leaves out the desktop and terminal interfaces, packaging, and optional plugins that are off by default, except where they answer a question the agent asks, and no Hermes code was run to make this card.",
+  "provenance": {
+    "mapEdition": "edition without a gap list or coverage figure, all 276 cards shown (published 2026-11-03)",
+    "cardCommit": "f30224f0497d6741741e5e35fc3a7f3aac58dfdb",
+    "method": "derived-from-full-map"
+  }
+}

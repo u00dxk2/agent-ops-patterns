@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How Hermes Agent decides</title>
+<meta name="description" content="In Hermes Agent, on a normal step the configured main model proposes tool calls or a text answer; code checks an answer before accepting it and can send the model back, for example up to twice for a short reply that only announces a next step. Code applies the limits, among them a step allowance per turn, automatic compression as the prompt nears the window, and an optional time budget that can warn near the end but does not itself stop the run.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="agent-ops-patterns">
+<meta property="og:title" content="How Hermes Agent decides">
+<meta property="og:description" content="In Hermes Agent, on a normal step the configured main model proposes tool calls or a text answer; code checks an answer before accepting it and can send the model back, for example up to twice for a short reply that only announces a next step. Code applies the limits, among them a step allowance per turn, automatic compression as the prompt nears the window, and an optional time budget that can warn near the end but does not itself stop the run.">
+<meta property="og:url" content="https://u00dxk2.github.io/agent-ops-patterns/gallery/hermes/card.html">
+<meta name="twitter:card" content="summary">
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1d1b;--muted:#5d5b55;--line:#dedad0;--card:#ffffff;--code:#f2efe8;--link:#2f6f8f;
+  --model:#6b4fa0;--code-h:#2f6f8f;--human:#2e7d4f;--nobody:#a3452f}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--card:#1d1c19;--code:#262520;--link:#6fb3d4;
+  --model:#b9a2e6;--code-h:#6fb3d4;--human:#7fcf9f;--nobody:#f09a83}}
+:root[data-theme="dark"]{--bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--card:#1d1c19;--code:#262520;--link:#6fb3d4;
+  --model:#b9a2e6;--code-h:#6fb3d4;--human:#7fcf9f;--nobody:#f09a83}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:680px;margin:0 auto;padding:0 16px 56px}
+a{color:var(--link)}
+code{background:var(--code);padding:1px 4px;border-radius:4px;font-size:.86em;overflow-wrap:anywhere}
+.crumbs{font-size:.9rem;color:var(--muted);margin-top:18px}
+h1{font-size:1.6rem;line-height:1.2;margin:20px 0 10px}
+.summary{font-size:1.08rem}
+.meta{color:var(--muted);font-size:.88rem}
+h2{font-size:1.15rem;margin:32px 0 8px;padding-top:8px;border-top:1px solid var(--line)}
+ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
+.j,.p{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:10px 0}
+.j p,.p p{margin:4px 0}
+.q{font-weight:650}
+.holder{display:inline-block;font-size:.8rem;font-weight:650;border:1px solid currentColor;border-radius:999px;padding:0 8px;margin-right:4px}
+.holder-model{color:var(--model)}.holder-code{color:var(--code-h)}.holder-human{color:var(--human)}.holder-nobody{color:var(--nobody)}
+.ev{color:var(--muted);font-size:.85rem}
+.p h3{font-size:1.05rem;margin:2px 0 6px}
+.status{font-weight:600}
+.full{display:block;text-align:center;font-weight:650;border:1px solid var(--link);border-radius:8px;padding:12px;margin:28px 0 8px;text-decoration:none}
+</style>
+</head>
+<body>
+<main>
+
+<p class="crumbs"><a href="../../">agent-ops-patterns</a> / <a href="../">gallery</a> / <a href="./">Hermes Agent map</a> / how it decides</p>
+
+<h1>How Hermes Agent decides</h1>
+
+<p class="summary">In Hermes Agent, on a normal step the configured main model proposes tool calls or a text answer; code checks an answer before accepting it and can send the model back, for example up to twice for a short reply that only announces a next step. Code applies the limits, among them a step allowance per turn, automatic compression as the prompt nears the window, and an optional time budget that can warn near the end but does not itself stop the run.</p>
+
+<p class="meta">From <a href="https://github.com/NousResearch/hermes-agent"><code>NousResearch/hermes-agent</code></a> at source version <a href="https://github.com/NousResearch/hermes-agent/tree/b200f5bc60e31588ba2cb60e288029c4a54ba5fa"><code>b200f5bc</code></a>, mapped 2026-11-03. Each answer links the code where that decision is made.</p>
+
+<h2>What it does without asking you</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">May this sender's message dispatch agent work?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Code walks a fixed order of grants on every incoming gateway message. On a fresh install with no allowlist, an unknown sender is refused unless an operator approved their pairing code.</p>
+  <p class="ev"><a href="https://github.com/NousResearch/hermes-agent/blob/b200f5bc60e31588ba2cb60e288029c4a54ba5fa/gateway/authz_mixin.py#L707-L790" title="gateway/authz_mixin.py:707-790"><code>authz_mixin.py:707-790</code></a> · decision A1 in the full map</p>
+</li>
+</ul>
+
+<h2>How it decides it is done</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">The reply ends by announcing a next action but makes no tool call: is the model stalled?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> On by default when tools are offered. A reply of at most 400 characters with no tool call that ends on an announced next step (&quot;I'll now&quot;, &quot;next, I&quot;) is treated as a stall and the model is nudged to act, at most twice per turn, a limit shared with two similar checks.</p>
+  <p class="ev"><a href="https://github.com/NousResearch/hermes-agent/blob/b200f5bc60e31588ba2cb60e288029c4a54ba5fa/agent/agent_runtime_helpers.py#L3342-L3357" title="agent/agent_runtime_helpers.py:3342-3357"><code>agent_runtime_helpers.py:3342-3357</code></a> · decision G16 in the full map</p>
+</li>
+</ul>
+
+<h2>Limits and memory</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">Has this turn used up its step allowance?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Code normally takes one step from the turn's allowance as each loop iteration starts. The cap is agent.max_turns: 500 in the config.yaml the installers seed, 150 after the recommended hermes setup, 90 after Blank Slate setup, and no cap with no finite value; a delegated child defaults to 250. At the cap the turn ends, apart from one granted grace call.</p>
+  <p class="ev"><a href="https://github.com/NousResearch/hermes-agent/blob/b200f5bc60e31588ba2cb60e288029c4a54ba5fa/agent/turn_iteration_prep.py#L408-L416" title="agent/turn_iteration_prep.py:408-416"><code>turn_iteration_prep.py:408-416</code></a> · decision F1 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Should the model be told to wrap up because the wall-clock budget is 80% gone?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Off by default. With a run budget set, after 80% of the time has passed code adds a one-time wrap-up notice to a tool result when it can. The setting does not itself stop the run when the time is up.</p>
+  <p class="ev"><a href="https://github.com/NousResearch/hermes-agent/blob/b200f5bc60e31588ba2cb60e288029c4a54ba5fa/agent/conversation_loop.py#L126-L158" title="agent/conversation_loop.py:126-158"><code>conversation_loop.py:126-158</code></a> · decision F8 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Should automatic compression run now?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> On by default. Code compresses once the prompt passes a threshold worked out from the usable input window (by default starting from 50%, raised to at least 75% for windows under 512K tokens); floors, caps, deferral and failure safeguards can move or block it.</p>
+  <p class="ev"><a href="https://github.com/NousResearch/hermes-agent/blob/b200f5bc60e31588ba2cb60e288029c4a54ba5fa/agent/context_compressor.py#L3007-L3016" title="agent/context_compressor.py:3007-3016"><code>context_compressor.py:3007-3016</code></a> · decision F13 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Who writes the summary that replaces the middle of the conversation?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> A language model, in one auxiliary compression request that sets no max_tokens. Empty, refused or cut-off replies count as failures.</p>
+  <p class="ev"><a href="https://github.com/NousResearch/hermes-agent/blob/b200f5bc60e31588ba2cb60e288029c4a54ba5fa/agent/context_compressor.py#L3798-L3815" title="agent/context_compressor.py:3798-3815"><code>context_compressor.py:3798-3815</code></a> · decision F20 in the full map</p>
+</li>
+</ul>
+
+<h2>Other judgments</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">What should the agent do next: call which tools with which arguments, or answer?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> On a normal model call, the main model proposes tool calls or a text answer. Before a call can run, code repairs or rejects a tool name it does not know and checks that the arguments are valid JSON; other guards can still stop a call.</p>
+  <p class="ev"><a href="https://github.com/NousResearch/hermes-agent/blob/b200f5bc60e31588ba2cb60e288029c4a54ba5fa/agent/turn_api_call.py#L139-L145" title="agent/turn_api_call.py:139-145"><code>turn_api_call.py:139-145</code></a> · decision C1 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Retries and fallbacks are spent on a passing outage: wait, or end the turn?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> On by default. For an overload, server error or timeout, and only if no answer text has reached the user, code waits with a visible countdown, about 15, 30, then 60 seconds (or the provider's own Retry-After, up to 120 seconds), and stops after five cycles.</p>
+  <p class="ev"><a href="https://github.com/NousResearch/hermes-agent/blob/b200f5bc60e31588ba2cb60e288029c4a54ba5fa/agent/turn_recovery_autorecover.py#L59-L116" title="agent/turn_recovery_autorecover.py:59-116"><code>turn_recovery_autorecover.py:59-116</code></a> · decision E8 in the full map</p>
+</li>
+</ul>
+
+<h2>Three problems in the code</h2>
+<ol class="problems">
+<li class="p">
+  <h3>1. A run budget can warn near the end but does not enforce a deadline</h3>
+  <p>With --run-budget or agent.run_budget_seconds set, once 80% of the time has passed Hermes adds a one-time wrap-up notice to a tool result when it can, and it can shorten a default wait on a silent model call. The setting does not itself stop the run when the time is up, although the option's help text says it is intended for runs with a hard ceiling. An open pull request proposes stopping the model at the deadline.</p>
+  <p class="status">Reported; a fix is proposed, not merged (<a href="https://github.com/NousResearch/hermes-agent/pull/127780">#127780</a>), checked 2026-11-08.</p>
+  <p class="ev">Where: <a href="https://github.com/NousResearch/hermes-agent/blob/b200f5bc60e31588ba2cb60e288029c4a54ba5fa/agent/conversation_loop.py#L126-L158" title="agent/conversation_loop.py:126-158"><code>conversation_loop.py:126-158</code></a>, <a href="https://github.com/NousResearch/hermes-agent/blob/b200f5bc60e31588ba2cb60e288029c4a54ba5fa/agent/chat_completion_helpers.py#L678-L687" title="agent/chat_completion_helpers.py:678-687"><code>chat_completion_helpers.py:678-687</code></a>, <a href="https://github.com/NousResearch/hermes-agent/blob/b200f5bc60e31588ba2cb60e288029c4a54ba5fa/hermes_cli/_parser.py#L300-L306" title="hermes_cli/_parser.py:300-306"><code>_parser.py:300-306</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in three rounds; every sentence it found too wide was narrowed or removed.</p>
+</li>
+<li class="p">
+  <h3>2. Subagent calls over the limit in one reply are dropped without telling the model</h3>
+  <p>When a model reply has passed Hermes' tool-call checks and asks for more delegate_task calls than delegation.max_concurrent_children (10 by default), Hermes drops the calls over the limit before the reply goes into the conversation. The cap itself only logs a warning, and the model gets no result for the dropped calls. An open report in Hermes' tracker describes this.</p>
+  <p class="status">Already tracked upstream (<a href="https://github.com/NousResearch/hermes-agent/issues/30405">#30405</a>), checked 2026-11-08.</p>
+  <p class="ev">Where: <a href="https://github.com/NousResearch/hermes-agent/blob/b200f5bc60e31588ba2cb60e288029c4a54ba5fa/run_agent.py#L1182-L1200" title="run_agent.py:1182-1200"><code>run_agent.py:1182-1200</code></a>, <a href="https://github.com/NousResearch/hermes-agent/blob/b200f5bc60e31588ba2cb60e288029c4a54ba5fa/agent/turn_tool_round.py#L96-L113" title="agent/turn_tool_round.py:96-113"><code>turn_tool_round.py:96-113</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in three rounds; every sentence it found too wide was narrowed or removed.</p>
+</li>
+<li class="p">
+  <h3>3. A /loop ends when its finishing line appears anywhere in a reply</h3>
+  <p>A /loop ends as done when a reply has a line that is only LOOP_COMPLETE. The check matches such a line anywhere in the reply, not only at the end as the function's own description says, so a reply with that line in the middle also ends the loop.</p>
+  <p class="status">Not reported upstream, checked 2026-11-08.</p>
+  <p class="ev">Where: <a href="https://github.com/NousResearch/hermes-agent/blob/b200f5bc60e31588ba2cb60e288029c4a54ba5fa/hermes_cli/loops.py#L33-L37" title="hermes_cli/loops.py:33-37"><code>loops.py:33-37</code></a>, <a href="https://github.com/NousResearch/hermes-agent/blob/b200f5bc60e31588ba2cb60e288029c4a54ba5fa/hermes_cli/loops.py#L370-L372" title="hermes_cli/loops.py:370-372"><code>loops.py:370-372</code></a>, <a href="https://github.com/NousResearch/hermes-agent/blob/b200f5bc60e31588ba2cb60e288029c4a54ba5fa/hermes_cli/loops.py#L562-L565" title="hermes_cli/loops.py:562-565"><code>loops.py:562-565</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in three rounds; every sentence it found too wide was narrowed or removed.</p>
+</li>
+</ol>
+
+<a class="full" href="https://u00dxk2.github.io/agent-ops-patterns/gallery/hermes/">See the full map →</a>
+
+<p class="meta">This card was taken from the published map of Hermes Agent at one commit and covers only decisions shown there; that map leaves out the desktop and terminal interfaces, packaging, and optional plugins that are off by default, except where they answer a question the agent asks, and no Hermes code was run to make this card.</p>
+<p class="meta">Map: edition without a gap list or coverage figure, all 276 cards shown (published 2026-11-03) · taken from the full map · card data: <a href="https://github.com/u00dxk2/agent-ops-patterns/blob/main/gallery/cards/hermes.json"><code>gallery/cards/hermes.json</code></a>. Found something wrong? Use the <a href="https://github.com/u00dxk2/agent-ops-patterns/issues/new?template=map-correction.yml">correction form</a>.</p>
+
+</main>
+</body>
+</html>
