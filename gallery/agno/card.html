@@ -133,13 +133,13 @@ ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
 <li class="p">
   <h3>1. A reply cut off by the token limit is reported as completed</h3>
   <p>The run ends as soon as the model replies without asking for a tool, and the shared run loop does not look at why the model stopped (some provider adapters only log a warning). So an answer cut short by the output-token limit, or refused, comes back as the answer with the run marked completed, and the caller cannot tell it from a finished one. An open pull request proposes reporting the provider's stop reason.</p>
-  <p class="status">Reported; a fix is proposed, not merged (<a href="https://github.com/agno-agi/agno/pull/8630">#8630</a>), checked 2026-11-01.</p>
+  <p class="status">Reported; a fix is proposed, not merged (<a href="https://github.com/agno-agi/agno/pull/8630">#8630</a>), checked 2026-11-08.</p>
   <p class="ev">Where: <a href="https://github.com/agno-agi/agno/blob/9153aacd83edf116a32ccd104bdcbd7358defaf2/libs/agno/agno/models/base.py#L873-L874" title="libs/agno/agno/models/base.py:873-874"><code>base.py:873-874</code></a>, <a href="https://github.com/agno-agi/agno/blob/9153aacd83edf116a32ccd104bdcbd7358defaf2/libs/agno/agno/agent/_run.py#L665" title="libs/agno/agno/agent/_run.py:665"><code>_run.py:665</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again.</p>
 </li>
 <li class="p">
   <h3>2. A structured answer that does not parse still counts as success</h3>
   <p>When the developer asks for a structured answer and the model's text cannot be turned into it, agno keeps the raw text, logs a warning, and still marks the run completed. Code that expects the structured object gets plain text instead unless it checks the type itself. An open pull request proposes an opt-in way to report the failure.</p>
-  <p class="status">Reported; a fix is proposed, not merged (<a href="https://github.com/agno-agi/agno/pull/10782">#10782</a>), checked 2026-11-01.</p>
+  <p class="status">Reported; a fix is proposed, not merged (<a href="https://github.com/agno-agi/agno/pull/10782">#10782</a>), checked 2026-11-08.</p>
   <p class="ev">Where: <a href="https://github.com/agno-agi/agno/blob/9153aacd83edf116a32ccd104bdcbd7358defaf2/libs/agno/agno/agent/_response.py#L922-L936" title="libs/agno/agno/agent/_response.py:922-936"><code>_response.py:922-936</code></a>, <a href="https://github.com/agno-agi/agno/blob/9153aacd83edf116a32ccd104bdcbd7358defaf2/libs/agno/agno/agent/_run.py#L665" title="libs/agno/agno/agent/_run.py:665"><code>_run.py:665</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again.</p>
 </li>
 <li class="p">

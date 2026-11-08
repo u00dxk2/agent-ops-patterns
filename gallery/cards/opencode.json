@@ -154,8 +154,8 @@
       },
       "upstream": {
         "status": "fix-proposed",
-        "url": "https://github.com/anomalyco/opencode/pull/53032",
-        "checkedAt": "2026-11-01"
+        "url": "https://github.com/anomalyco/opencode/pull/61328",
+        "checkedAt": "2026-11-08"
       }
     }
   ],

@@ -49,6 +49,11 @@ system". That is itself a comparable finding.
 Seat ids are the stage letter plus an ordinal (`D3`). Give each card the HTML id `seat-D3` and
 each gap `gap-7`, so another page can link straight to one.
 
+These stages are the shape of an agent loop, and this schema and its checker assume them. A system
+of another shape, such as a batch pipeline, does not fit them yet. Do not invent seats to fill an
+empty stage: order its seats by the pipeline, say so at the top of the map, and expect that map not
+to pass the seats checker or line up with the agent-loop maps.
+
 ## S4. Quadrant from the QUESTION, holder kind from the CODE
 
 - **Quadrant** answers "what kind of question is this?" RULE: given the inputs there is one right

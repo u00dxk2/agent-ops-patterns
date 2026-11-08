@@ -121,24 +121,24 @@
       "upstream": {
         "status": "reported",
         "url": "https://github.com/earendil-works/pi/issues/7863",
-        "checkedAt": "2026-11-01"
+        "checkedAt": "2026-11-08"
       }
     },
     {
       "title": "Cut-down output from your own shell command can be marked as not cut",
-      "plain": "When you run a command yourself with !, pi keeps only the tail of a long output. After older output has been dropped, the flag that says the output was cut can still read false.",
+      "plain": "When you run a command yourself with !, pi keeps only the tail of a long output. After older output has been dropped, the flag that says the output was cut can still read false. A pull request merged on 2026-11-04, after the commit this card read, tracks the discarded output and includes that in the flag it returns.",
       "evidence": [
         "packages/coding-agent/src/core/bash-executor.ts:92-98",
         "packages/coding-agent/src/core/bash-executor.ts:131-143"
       ],
       "verified": {
         "how": "re-read at pinned commit",
-        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again"
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only), on 2026-11-01 for the original sentences, where every sentence it found too wide was rewritten or removed and every rewrite was checked again, and on 2026-11-08 for the sentence about the 2026-11-04 merge"
       },
       "upstream": {
-        "status": "fix-proposed",
+        "status": "fixed",
         "url": "https://github.com/earendil-works/pi/pull/10165",
-        "checkedAt": "2026-11-01"
+        "checkedAt": "2026-11-08"
       }
     },
     {
@@ -155,7 +155,7 @@
       "upstream": {
         "status": "already-tracked",
         "url": "https://github.com/earendil-works/pi/issues/10885",
-        "checkedAt": "2026-11-01"
+        "checkedAt": "2026-11-08"
       }
     }
   ],

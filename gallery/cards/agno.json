@@ -122,7 +122,7 @@
       "upstream": {
         "status": "fix-proposed",
         "url": "https://github.com/agno-agi/agno/pull/8630",
-        "checkedAt": "2026-11-01"
+        "checkedAt": "2026-11-08"
       }
     },
     {
@@ -139,7 +139,7 @@
       "upstream": {
         "status": "fix-proposed",
         "url": "https://github.com/agno-agi/agno/pull/10782",
-        "checkedAt": "2026-11-01"
+        "checkedAt": "2026-11-08"
       }
     },
     {

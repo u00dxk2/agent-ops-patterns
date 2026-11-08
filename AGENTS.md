@@ -9,7 +9,8 @@ Instructions for a coding agent working in this repository. Humans: [README.md](
   test in `test/`; the Python library carries its own self-check (`python lib/secret_redaction.py`).
 - `patterns/` — written protocols. Nothing executes them; they are held to accuracy and stated scope.
 - `skills/` — Agent Skills: `cs329a-self-improving-agents` (validated by
-  `test/skill-references.test.mjs`) and `cog-ops-map` (validated by `test/cog-ops-map-skill.test.mjs`).
+  `test/skill-references.test.mjs`) `cog-ops-map` (validated by `test/cog-ops-map-skill.test.mjs`) and `cog-ops-design` (validated by
+  `test/cog-ops-design-skill.test.mjs`).
 - `gallery/` — published cognitive operations maps of OTHER projects' agent code (twelve as of 2026-11-03; `gallery/README.md` has the table).
   Every sentence there is a claim about someone else's code: change one only with a quoted `file:line`
   read on their current main and a cross-family claims pass, and keep the commit and date each map names.
@@ -21,6 +22,7 @@ Instructions for a coding agent working in this repository. Humans: [README.md](
   `npm install` does this through `prepare`). `--history <days> --selftest` proves it can go red.
   CI also runs `--range <before>..<after>` on pushes to `main` and on pull requests: it reads the
   lines each commit in the range adds, and does not read merge-resolution diffs.
+- `LIMITS.md` — what each artifact does not do, moved out of the README whole.
 - `OPS-SNAPSHOT.md`, `SELF-AUDIT.md` — dated measurements. Do not edit a number in them without
   re-measuring it and saying how; a changed figure with no query behind it is the failure those files
   exist to avoid.

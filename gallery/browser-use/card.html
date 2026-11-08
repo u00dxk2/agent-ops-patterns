@@ -133,7 +133,7 @@ ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
 <li class="p">
   <h3>1. A run can be reported successful when the model never said so</h3>
   <p>A program reads the success flag in the model's done call at the end of a run. If the model leaves the flag out, code records success. When the developer asks for a structured result, that field is hidden from the model, so such a run normally reads as successful unless the model sets it anyway. An open pull request in browser-use's tracker proposes a fix.</p>
-  <p class="status">Reported; a fix is proposed, not merged (<a href="https://github.com/browser-use/browser-use/pull/6178">#6178</a>), checked 2026-11-01.</p>
+  <p class="status">Reported; a fix is proposed, not merged (<a href="https://github.com/browser-use/browser-use/pull/6178">#6178</a>), checked 2026-11-08.</p>
   <p class="ev">Where: <a href="https://github.com/browser-use/browser-use/blob/b49a68e4060acb226da8f784194fef301c53a6d7/browser_use/tools/views.py#L100" title="browser_use/tools/views.py:100"><code>views.py:100</code></a>, <a href="https://github.com/browser-use/browser-use/blob/b49a68e4060acb226da8f784194fef301c53a6d7/browser_use/tools/views.py#L107-L117" title="browser_use/tools/views.py:107-117"><code>views.py:107-117</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again.</p>
 </li>
 <li class="p">

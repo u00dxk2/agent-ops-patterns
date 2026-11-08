@@ -224,7 +224,7 @@ dependencies, no framework, and no illusion that the file is the fix:
 | Question 4 | [`lib/capability-grant.mjs`](./lib/capability-grant.mjs) and [`patterns/durability-tiered-write-governance.md`](./patterns/durability-tiered-write-governance.md) | One action, byte-matched, single-use, expiring - and gate by how hard the write is to undo |
 | Question 5 | [`lib/memory-integrity.mjs`](./lib/memory-integrity.mjs) and [`lib/memory-usage-ledger.mjs`](./lib/memory-usage-ledger.mjs) | Lint memory for dead links, orphaned files, duplicate targets and a blown load budget; score entries by whether anything ever reads them. Presence and references only - whether a memory is *true* stays human, so contradictions are not detected |
 
-Read the [limits section in the README](./README.md#coverage-and-limits) before you trust
+Read the [limits file](./LIMITS.md) before you trust
 any of it. Every library here says where it stops working, and those sentences are the
 ones I'd read first if I were you.
 

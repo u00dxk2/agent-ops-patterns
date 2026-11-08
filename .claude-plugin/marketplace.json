@@ -1,6 +1,6 @@
 {
   "name": "agent-ops-patterns",
-  "description": "Operational patterns for running LLM agents in production - and skills for assessing the ideas of Stanford CS329A against your repo or mapping a system's recurring judgments and validation gaps.",
+  "description": "Operational patterns for running LLM agents in production - and skills for assessing the ideas of Stanford CS329A against your repo mapping a system's recurring judgments and validation gaps, or designing those judgments before the code exists.",
   "owner": {
     "name": "David Kooi",
     "url": "https://github.com/u00dxk2"
@@ -9,8 +9,8 @@
     {
       "name": "agent-ops-skills",
       "source": "./",
-      "description": "Skills from agent-ops-patterns: assess the ideas of Stanford CS329A \"Self-Improving AI Agents\" against your repo (a disposition record with a quoted file:line or a scoped command with its exit code and output per verdict), or map a system's recurring judgments and their validation gaps (cog-ops-map).",
-      "version": "0.2.0"
+      "description": "Skills from agent-ops-patterns: assess the ideas of Stanford CS329A \"Self-Improving AI Agents\" against your repo (a disposition record with a quoted file:line or a scoped command with its exit code and output per verdict), map a system's recurring judgments and their validation gaps (cog-ops-map), or design those judgments before the code exists (cog-ops-design).",
+      "version": "0.3.0"
     }
   ]
 }

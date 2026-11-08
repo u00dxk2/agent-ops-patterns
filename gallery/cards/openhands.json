@@ -98,7 +98,7 @@
       "upstream": {
         "status": "fix-proposed",
         "url": "https://github.com/OpenHands/software-agent-sdk/issues/5092",
-        "checkedAt": "2026-10-18"
+        "checkedAt": "2026-11-08"
       }
     },
     {
@@ -114,7 +114,7 @@
       "upstream": {
         "status": "fix-proposed",
         "url": "https://github.com/OpenHands/software-agent-sdk/issues/5492",
-        "checkedAt": "2026-10-18"
+        "checkedAt": "2026-11-08"
       }
     },
     {
@@ -131,7 +131,7 @@
       "upstream": {
         "status": "reported",
         "url": "https://github.com/OpenHands/software-agent-sdk/issues/5525",
-        "checkedAt": "2026-10-18"
+        "checkedAt": "2026-11-08"
       }
     }
   ],

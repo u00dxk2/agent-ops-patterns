@@ -18,6 +18,18 @@ These changed after the 2026-11-01 entry was written and were not logged until n
 
 Since the 2026-10-31 entry the gallery has added maps of OpenAI Codex, goose, DeerFlow, LangChain and Hermes Agent, for twelve in all. Like the six before them, each is a shorter edition than the OpenHands map, with no gap report, and says what it leaves out. Eight of the twelve now have a "How it decides" card, linked from the README and the gallery page. The README's line saying the maps used a later method than the skill describes is gone, because the 2026-11-01 entry below closed that gap.
 
+### A third skill, and the plugin at 0.3.0
+
+**Re-pull:** `skills/cog-ops-design/` (new), `skills/cog-ops-map/SKILL.md`, `skills/cog-ops-map/references/shared-schema.md`, `.claude-plugin/`.
+
+`skills/cog-ops-design/` fills in the map's seat card before a system exists. `shared-schema.md` S3 now says its nine stages are the shape of an agent loop, and that a system of another shape does not fit them or the seats checker yet. The plugin version is now 0.3.0, which also carries the CS329A skill change above, made after 0.2.0 without a version bump.
+
+### README and cards
+
+**Re-pull:** `gallery/cards/` and the matching `gallery/<slug>/card.html` pages if you vendor them (six cards have new upstream dates or states), and `LIMITS.md` if you vendor the limits text. A pi fix merged on 2026-11-04 (status now `fixed`), and an opencode pull request closed unmerged, so that card now links its open successor. Open or closed items were re-read on 2026-11-08; `not-filed` rows keep their old dates because no tracker search was re-run.
+
+The library limits moved whole from the README to [`LIMITS.md`](./LIMITS.md), so links to the README's `#coverage-and-limits` section now land on a short pointer. The README gained a section for people designing a new system, and "Make your own" is now "Map a system you already run". `OPS-SNAPSHOT.md` was re-measured.
+
 ## 2026-11-01
 
 ### cog-ops-map skill v2: the method developed for the gallery

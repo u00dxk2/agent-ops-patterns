@@ -99,7 +99,7 @@ modes differ in what else you may do:
 **One map, or one of several.** If the map may ever sit beside another map, including a later
 edition of itself, follow the shared schema in `references/shared-schema.md` from the first
 step. It fixes the choices that otherwise make two maps' counts measure their authors: what
-counts as a seat (S2), nine fixed stages A-I (S3), quadrant from the question and holder kind
+counts as a seat (S2), nine fixed stages A-I for an agent loop (S3), quadrant from the question and holder kind
 from the code (S4), every card field with an explicit "none" (S5), gap evidence tags and
 severities (S6), one citation commit and a mechanical denominator (S7), the seats as data
 beside the page (S8, `references/seats-json.md`), one brief for every census
