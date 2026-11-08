@@ -233,7 +233,7 @@ ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
 
 <p class="summary">${esc(card.summary)}</p>
 
-<p class="meta">From <a href="${esc(agent.repo)}"><code>${esc(agent.repo.replace("https://github.com/", ""))}</code></a> at source version <a href="${esc(agent.repo)}/tree/${esc(agent.commit)}"><code>${esc(short)}</code></a>, mapped ${esc(agent.mappedAt)}. Each answer links the code where that decision is made.</p>
+<p class="meta">From <a href="${esc(agent.repo)}"><code>${esc(agent.repo.replace("https://github.com/", ""))}</code></a> at source version <a href="${esc(agent.repo)}/tree/${esc(agent.commit)}"><code>${esc(short)}</code></a>, mapped ${esc(agent.mappedAt)}. Each answer links the place in the code where that decision is made; the full map has the rest.</p>
 
 ${judgmentSections}
 
