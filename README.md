@@ -6,7 +6,7 @@ Maps of who decides what inside open-source agent systems, and the skill to make
 
 ## The maps
 
-Each map takes one open-source agent system and lists the recurring judgments it found there, each as a *seat*: the question it answers and who holds it (code, a model, or a person). Each map is one self-contained HTML page that makes no external requests, read at one named commit. How to read one, and what a map is not: [`gallery/`](./gallery/README.md).
+Each map takes one open-source agent system and lists the recurring judgments it found there, each as a *seat*: the question it answers and who holds it (code, a model, or a person). Each map is one self-contained HTML page that makes no external requests, read at a named commit (two for LangChain, which spans two repositories). How to read one, and what a map is not: [`gallery/`](./gallery/README.md).
 
 | Map | Short version | One thing it shows | Seats shown | Read at |
 |---|---|---|---|---|
@@ -14,14 +14,14 @@ Each map takes one open-source agent system and lists the recurring judgments it
 | [Cline](https://u00dxk2.github.io/agent-ops-patterns/gallery/cline/) | [How it decides](https://u00dxk2.github.io/agent-ops-patterns/gallery/cline/card.html) | 114 of its recurring judgments, each with its question, how it is answered and where in the code it is held. | 114 | `d19f176b`, 2026-11-02 |
 | [opencode](https://u00dxk2.github.io/agent-ops-patterns/gallery/opencode/) | [How it decides](https://u00dxk2.github.io/agent-ops-patterns/gallery/opencode/card.html) | Its Plan agent is described in code as a "Read-only agent", but the one rule it adds blocks only file edits outside its plan folder. | 123 | `0093fe57`, 2026-10-24 |
 | [pi](https://u00dxk2.github.io/agent-ops-patterns/gallery/pi/) | [How it decides](https://u00dxk2.github.io/agent-ops-patterns/gallery/pi/card.html) | pi ships no approval prompt for tool calls: out of the box, no one is asked before a tool runs. | 111 | `1ce44bed`, 2026-10-28 |
-| [agno](https://u00dxk2.github.io/agent-ops-patterns/gallery/agno/) | [How it decides](https://u00dxk2.github.io/agent-ops-patterns/gallery/agno/card.html) | agno runs every tool call the model makes without asking anyone, unless the developer sets that tool to pause the run or adds agno's ask-the-person tools. | 115 | `9153aacd`, 2026-10-29 |
+| [agno](https://u00dxk2.github.io/agent-ops-patterns/gallery/agno/) | [How it decides](https://u00dxk2.github.io/agent-ops-patterns/gallery/agno/card.html) | By default, an ordinary agno agent runs valid tool calls without asking anyone, unless the developer sets that tool to pause the run or adds agno's ask-the-person tools. | 115 | `9153aacd`, 2026-10-29 |
 | [AnythingLLM](https://u00dxk2.github.io/agent-ops-patterns/gallery/anythingllm/) | [How it decides](https://u00dxk2.github.io/agent-ops-patterns/gallery/anythingllm/card.html) | In the web chat, the person sees an approval card for an agent tool only if neither an operator's pre-approved list nor their own "always allow" list covers the skill. | 110 | `d7d68e75`, 2026-10-15 |
 | [browser-use](https://u00dxk2.github.io/agent-ops-patterns/gallery/browser-use/) | [How it decides](https://u00dxk2.github.io/agent-ops-patterns/gallery/browser-use/card.html) | browser-use runs the actions the model picks as soon as they are parsed: nobody approves a form submit, a purchase or a page script unless the developer adds a check in their own code. | 85 | `b49a68e4`, 2026-10-29 |
 | [OpenAI Codex](https://u00dxk2.github.io/agent-ops-patterns/gallery/codex/) | — | Of the 157 judgments shown, 10 are held by a person, and six of those are approval questions: run this command, reach this network host, apply these file changes, grant extra permissions, run again without the sandbox, or install a skill's MCP servers. | 157 | `a5c40924`, 2026-11-02 |
 | [goose](https://u00dxk2.github.io/agent-ops-patterns/gallery/goose/) | — | Of the 87 judgments shown, 6 are held by a person, and three of those are the person's answer to "may this tool call run?": in the desktop app, in the terminal and in a paired chat. | 87 | `cfb67d72`, 2026-11-02 |
 | [DeerFlow](https://u00dxk2.github.io/agent-ops-patterns/gallery/deer-flow/) | — | Of the 116 judgments shown, 4 are held by a person: whether the sandbox may reach a host outside its allowlist, the answer to the agent's own questions, a thumbs up or down on a run, and which saved memories are right. | 116 | `14abd9a2`, 2026-11-02 |
 | [LangChain](https://u00dxk2.github.io/agent-ops-patterns/gallery/langchain/) | — | By default, nobody is asked before an agent built with LangChain's create_agent runs a tool the model called; review happens only if the developer adds a stop, such as the human-in-the-loop middleware. | 89 | `efebcf50`, 2026-11-02 + `ee3c043b`, 2026-11-01 |
-| [Hermes Agent](https://u00dxk2.github.io/agent-ops-patterns/gallery/hermes/) | — | Of the 276 judgments shown, 26 are held by a person. | 276 | `b200f5bc`, 2026-11-03 |
+| [Hermes Agent](https://u00dxk2.github.io/agent-ops-patterns/gallery/hermes/) | [How it decides](https://u00dxk2.github.io/agent-ops-patterns/gallery/hermes/card.html) | With a run budget set, Hermes can warn near the end, but the setting does not itself stop the run when the time is up. | 276 | `b200f5bc`, 2026-11-03 |
 
 The OpenHands map also has a gap report; the other eleven are shorter editions without one, and each says what it leaves out. A wrong sentence about someone else's code is the worst bug a map can have: corrections are welcome through the [correction form](https://github.com/u00dxk2/agent-ops-patterns/issues/new?template=map-correction.yml).
 
@@ -34,7 +34,7 @@ claude plugin marketplace add u00dxk2/agent-ops-patterns
 claude plugin install agent-ops-skills@agent-ops-patterns
 ```
 
-Then say "build a cognitive operations map of <system>". Or copy the folder into any harness that reads the Agent Skills format. The method is ["Cognitive Operations Maps"](https://uncagedminds.substack.com/p/cognitive-operations-maps). The maps above were built with a later, fuller version of the method than the skill describes yet.
+Then say "build a cognitive operations map of <system>". Or copy the folder into any harness that reads the Agent Skills format. The method is ["Cognitive Operations Maps"](https://uncagedminds.substack.com/p/cognitive-operations-maps). The skill carries a general version of the method developed while building these maps.
 
 ## Also here
 

@@ -46,11 +46,11 @@ pre{background:var(--code);padding:10px 12px;border-radius:6px;overflow-x:auto;f
 
 <h2>The gallery</h2>
 
-<p>Each map lists the recurring judgments in one system and who holds each (code, a model, or a person). The OpenHands map also records how each has failed and what checks it where the mapping found them, the prompt pieces and assembly paths identified in the mapped source for the seats a model holds, and a report of what the mapping exposed, and it quotes prompt source text on 14 of its cards, each quote linked to the lines it came from. The Cline map is a shorter edition with no gap report.</p>
+<p>Each map lists the recurring judgments in one system and who holds each (code, a model, or a person). The OpenHands map also records how each has failed and what checks it where the mapping found them, the prompt pieces and assembly paths identified in the mapped source for the seats a model holds, and a report of what the mapping exposed, and it quotes prompt source text on 14 of its cards, each quote linked to the lines it came from. The other eleven are shorter editions with no gap report.</p>
 
 <div class="map">
   <a class="name" href="./gallery/openhands/">OpenHands</a>
-  <p class="finding">Its goal judge reads <code>"complete": "false"</code> as complete, because in Python <code>bool("false")</code> is <code>True</code>. We reproduced it with a failing test and reported it as <a href="https://github.com/OpenHands/software-agent-sdk/issues/5492">#5492</a>, which the project has labelled ready-for-dev. Two outside contributors have since opened fix PRs, <a href="https://github.com/OpenHands/software-agent-sdk/pull/5493">#5493</a> and <a href="https://github.com/OpenHands/software-agent-sdk/pull/5563">#5563</a> (one a draft); neither is merged yet (checked 2026-10-12). <a href="./gallery/openhands/#gaps">All the gaps →</a></p>
+  <p class="finding">Its goal judge reads <code>"complete": "false"</code> as complete, because in Python <code>bool("false")</code> is <code>True</code>. We reproduced it with a failing test and reported it as <a href="https://github.com/OpenHands/software-agent-sdk/issues/5492">#5492</a>, which the project has labelled ready-for-dev. Two outside contributors have since opened fix PRs, <a href="https://github.com/OpenHands/software-agent-sdk/pull/5493">#5493</a> and <a href="https://github.com/OpenHands/software-agent-sdk/pull/5563">#5563</a> (one a draft); neither is merged yet (checked 2026-11-08). <a href="./gallery/openhands/#gaps">All the gaps →</a></p>
   <div class="facts">171 seats and 70 gap entries (12 flagged as stated design) in its agent SDK, read at one commit from 2026-10-06</div>
 </div>
 
@@ -74,7 +74,7 @@ pre{background:var(--code);padding:10px 12px;border-radius:6px;overflow-x:auto;f
 
 <div class="map">
   <a class="name" href="./gallery/agno/">agno</a>
-  <p class="finding">agno runs every tool call the model makes without asking anyone, unless the developer sets that tool to pause the run or adds agno's ask-the-person tools. Three decisions are left out of this edition, and there is no list of gaps. <a href="./gallery/agno/#edition">What this edition does not have →</a></p>
+  <p class="finding">By default, an ordinary agno agent runs valid tool calls without asking anyone, unless the developer sets that tool to pause the run or adds agno's ask-the-person tools. Three decisions are left out of this edition, and there is no list of gaps. <a href="./gallery/agno/#edition">What this edition does not have →</a></p>
   <div class="facts">115 seats shown in its Agent, tools, model layer, hooks, memory and learning, teams and workflows, read at one commit from 2026-10-29</div>
 </div>
 
@@ -116,7 +116,7 @@ pre{background:var(--code);padding:10px 12px;border-radius:6px;overflow-x:auto;f
 
 <div class="map">
   <a class="name" href="./gallery/hermes/">Hermes Agent</a>
-  <p class="finding">Of the 276 judgments shown, 26 are held by a person. Nothing is left out of this edition, and there is no list of gaps. <a href="./gallery/hermes/#edition">What this edition does not have →</a></p>
+  <p class="finding">With a run budget set, Hermes can warn near the end, but the setting does not itself stop the run when the time is up. All 276 cards are shown, and there is no list of gaps. <a href="./gallery/hermes/#edition">What this edition does not have →</a></p>
   <div class="facts">276 seats shown in its agent loop, tools, gateway and messaging adapters, read at one commit from 2026-11-03</div>
 </div>
 
