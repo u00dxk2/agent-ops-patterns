@@ -19,7 +19,8 @@ Instructions for a coding agent working in this repository. Humans: [README.md](
 - `scripts/check-staged-secrets.mjs` + `.githooks/pre-commit` — refuses a commit whose staged lines
   carry a secret shape. Turn it on in your clone with `git config core.hooksPath .githooks` (running
   `npm install` does this through `prepare`). `--history <days> --selftest` proves it can go red.
-  CI runs `--range <before>..<after>` over every push and PR, so the hook being off is not a gap.
+  CI also runs `--range <before>..<after>` on pushes to `main` and on pull requests: it reads the
+  lines each commit in the range adds, and does not read merge-resolution diffs.
 - `OPS-SNAPSHOT.md`, `SELF-AUDIT.md` — dated measurements. Do not edit a number in them without
   re-measuring it and saying how; a changed figure with no query behind it is the failure those files
   exist to avoid.
