@@ -22,7 +22,7 @@ What is welcome as a direct PR, no intent doc needed:
 
 ## Before this repo accepts outside PRs into CI with any privileges
 
-Current state, honestly: the [tests workflow](./.github/workflows/tests.yml) references no repository secrets, installs no dependencies, and runs `node --test` plus a stdlib Python self-check. It now pins `permissions: contents: read` explicitly rather than inheriting whatever the repository default happens to be - that was a real gap, caught by an adversarial review of this file. A fork PR still executes fork-controlled code, so treat it as untrusted execution with a minimal token, not as safe. That is a property to preserve, not an accident to outgrow.
+Current state, honestly: the [tests workflow](./.github/workflows/tests.yml) references no repository secrets, installs no dependencies, and runs four jobs: `node --test`, a check that every URL in the CS329A skill's `papers.md` and `lectures.md` resolves, a secret-shape scan of the lines each non-merge commit in the push or PR adds, and a stdlib Python self-check. It now pins `permissions: contents: read` explicitly rather than inheriting whatever the repository default happens to be - that was a real gap, caught by an adversarial review of this file. A fork PR still executes fork-controlled code, so treat it as untrusted execution with a minimal token, not as safe. That is a property to preserve, not an accident to outgrow.
 
 The moment any workflow here gains a secret, a write-capable token, or a job that executes contributed *content* (not just contributed code under `pull_request`'s read-only default), install a fork-PR boundary FIRST. It has three parts:
 
