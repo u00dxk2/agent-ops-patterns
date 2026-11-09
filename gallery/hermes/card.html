@@ -125,7 +125,7 @@ ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
 <li class="p">
   <h3>3. A /loop ends when its finishing line appears anywhere in a reply</h3>
   <p>A /loop ends as done when a reply has a line that is only LOOP_COMPLETE. The check matches such a line anywhere in the reply, not only at the end as the function's own description says, so a reply with that line in the middle also ends the loop.</p>
-  <p class="status">Not reported upstream, checked 2026-11-08.</p>
+  <p class="status">No tracker issue found, checked 2026-11-08.</p>
   <p class="ev">Where: <a href="https://github.com/NousResearch/hermes-agent/blob/b200f5bc60e31588ba2cb60e288029c4a54ba5fa/hermes_cli/loops.py#L33-L37" title="hermes_cli/loops.py:33-37"><code>loops.py:33-37</code></a>, <a href="https://github.com/NousResearch/hermes-agent/blob/b200f5bc60e31588ba2cb60e288029c4a54ba5fa/hermes_cli/loops.py#L370-L372" title="hermes_cli/loops.py:370-372"><code>loops.py:370-372</code></a>, <a href="https://github.com/NousResearch/hermes-agent/blob/b200f5bc60e31588ba2cb60e288029c4a54ba5fa/hermes_cli/loops.py#L562-L565" title="hermes_cli/loops.py:562-565"><code>loops.py:562-565</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in three rounds; every sentence it found too wide was narrowed or removed.</p>
 </li>
 </ol>

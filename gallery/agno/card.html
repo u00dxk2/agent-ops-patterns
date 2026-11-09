@@ -145,7 +145,7 @@ ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
 <li class="p">
   <h3>3. Later workflow steps can lose the user's original request</h3>
   <p>From the second step of a workflow on, an agent or team step receives only the previous step's output, not what the user first asked; the original request reaches it only when the previous step produced nothing. The function's own description says it combines the two, so a step can end up working without the user's question in front of it.</p>
-  <p class="status">Not reported upstream, checked 2026-11-08.</p>
+  <p class="status">No tracker issue found, checked 2026-11-08.</p>
   <p class="ev">Where: <a href="https://github.com/agno-agi/agno/blob/9153aacd83edf116a32ccd104bdcbd7358defaf2/libs/agno/agno/workflow/step.py#L2727-L2737" title="libs/agno/agno/workflow/step.py:2727-2737"><code>step.py:2727-2737</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again.</p>
 </li>
 </ol>

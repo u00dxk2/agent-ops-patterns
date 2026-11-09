@@ -95,6 +95,24 @@ describe("How-it-decides cards", () => {
     assert.throws(() => renderCard({ ...clone(good), problems: [] }), /card refused/);
   });
 
+  // David, card 6ed94fb0. The search is the fact: "Not reported" claimed that nobody ever had, and one
+  // card's own text cites a 2025 pull request comment reporting the same symptom.
+  it("a not-filed row says what was done (a tracker search on a date), not that nobody ever reported it", () => {
+    const c = clone(load(cardFiles()[0]));
+    c.problems[0].upstream = { status: "not-filed", url: null, checkedAt: "2026-11-08" };
+    const html = renderCard(c);
+    assert.ok(html.includes(`<p class="status">No tracker issue found, checked 2026-11-08.</p>`));
+    assert.ok(!/Not reported/.test(html));
+  });
+
+  it("LIMIT: the badge is one label per status; a card's own sentences are not read against it", () => {
+    const c = clone(load(cardFiles()[0]));
+    c.problems[0].upstream = { status: "not-filed", url: null, checkedAt: "2026-11-08" };
+    c.problems[0].plain = "Issue #1 reports exactly this.";
+    assert.deepEqual(validateCard(c), []);
+    assert.ok(renderCard(c).includes("No tracker issue found"));
+  });
+
   it("LIMIT: text fields are not checked for HTML; the renderer escapes them, and a downstream site must too", () => {
     const c = clone(load(cardFiles()[0]));
     c.summary = "<img src=x onerror=alert(1)>";

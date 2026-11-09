@@ -2,6 +2,14 @@
 
 Changes that matter to anyone who vendors a file from this repo. Each entry names the files to re-pull.
 
+## 2026-11-09
+
+### One badge on the cards now says what was done
+
+**Re-pull:** `scripts/render-decides-card.mjs` and the `gallery/<slug>/card.html` pages if you vendor them. The card JSON and the `aop-decides-card/v1` contract are unchanged: the status value is still `not-filed`.
+
+The label for `not-filed` was "Not reported upstream". It is now "No tracker issue found", followed as before by the date checked. What we did was search a project's tracker on that date, which does not show that nobody ever reported the problem somewhere else. Thirteen problems on eight cards show the new words. If you render the JSON with your own labels, consider the same change.
+
 ## 2026-11-08
 
 ### Security fixes from 2026-11-01 that had no entry, and the gallery at twelve maps

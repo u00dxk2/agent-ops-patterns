@@ -139,13 +139,13 @@ ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
 <li class="p">
   <h3>2. After a step times out, the model is not told which of its actions already ran</h3>
   <p>A whole step gets 180 seconds by default. If it runs over, it is cut off, the record of which of the step's actions finished is dropped, and the step's result is only a timeout error. If the run takes another step, the model sees the page as it now is, which may show some effects, but it is not told which of its actions already ran. We found no report of this in browser-use's tracker.</p>
-  <p class="status">Not reported upstream, checked 2026-11-08.</p>
+  <p class="status">No tracker issue found, checked 2026-11-08.</p>
   <p class="ev">Where: <a href="https://github.com/browser-use/browser-use/blob/b49a68e4060acb226da8f784194fef301c53a6d7/browser_use/agent/service.py#L2487-L2493" title="browser_use/agent/service.py:2487-2493"><code>service.py:2487-2493</code></a>, <a href="https://github.com/browser-use/browser-use/blob/b49a68e4060acb226da8f784194fef301c53a6d7/browser_use/agent/service.py#L1217-L1218" title="browser_use/agent/service.py:1217-1218"><code>service.py:1217-1218</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again.</p>
 </li>
 <li class="p">
   <h3>3. Pressing Enter does not resume a paused run, though the message says it will</h3>
   <p>On Mac and Linux, pressing Ctrl+C pauses the run and prints &quot;Press [Enter] to resume or [Ctrl+C] again to quit&quot;. Pressing Enter does not resume it; only code that calls agent.resume() does, so a person at the terminal can quit with a second Ctrl+C but cannot continue the run from there. In tracker searches on 2026-11-08 we found no issue tracking this; a 2025 pull request comment reported the same symptom.</p>
-  <p class="status">Not reported upstream, checked 2026-11-08.</p>
+  <p class="status">No tracker issue found, checked 2026-11-08.</p>
   <p class="ev">Where: <a href="https://github.com/browser-use/browser-use/blob/b49a68e4060acb226da8f784194fef301c53a6d7/browser_use/agent/service.py#L3942-L3946" title="browser_use/agent/service.py:3942-3946"><code>service.py:3942-3946</code></a>, <a href="https://github.com/browser-use/browser-use/blob/b49a68e4060acb226da8f784194fef301c53a6d7/browser_use/utils.py#L399-L437" title="browser_use/utils.py:399-437"><code>utils.py:399-437</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again, and on 2026-11-08 for the sentence changed after a tracker search.</p>
 </li>
 </ol>

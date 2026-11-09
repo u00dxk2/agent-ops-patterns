@@ -143,7 +143,7 @@ const STATUS_LABELS = {
   "fix-proposed": "Reported; a fix is proposed, not merged",
   reported: "Reported; no linked fix found",
   "already-tracked": "Already tracked upstream",
-  "not-filed": "Not reported upstream",
+  "not-filed": "No tracker issue found",
 };
 const HOW_LABELS = {
   "re-read at pinned commit": "the code was re-read at the source version named above",
