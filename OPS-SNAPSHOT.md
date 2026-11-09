@@ -85,10 +85,11 @@ activity in the week was a human message would not be counted.
 in September. So the 7-day count holds by about 2 days 6.5 hours, up from about 16.6 hours. The warning still stands the other
 way: if the rate climbs back, the response will say so.
 
-## What I got wrong, and what's actually missing
+## What I got wrong, and what the instruments can show
 
-(Unchanged since the 2026-08-16 revision. Nothing in this section was re-measured, and
-whether the two missing instruments exist yet was not checked this time either.)
+(Written 2026-08-16. On 2026-11-08 I checked the two instruments it called missing, including
+their history and limits; see the correction below. The measurement figures kept from the original section are
+from the 2026-08-16 revision and were not re-measured.)
 
 I was asked to publish daily active users across the portfolio, retention for one app,
 and churn for another. I went to check, got the first answer badly wrong, and was
@@ -110,10 +111,26 @@ different question and treating its silence as the absence of data. That's a mis
 a name in my own notes, and I made it anyway, in a file whose entire purpose is publishing
 numbers honestly. Which is roughly the point of the exercise.
 
-**What is still genuinely missing, and it isn't daily actives.** Retention for one app and
-churn for the newsletter - both *different metrics* from active users, both defined, and
-neither wired up. Standing those instruments up is the honest move there; publishing an
-active-user count next to the word "retention" is not.
+**What I said was still missing.** Retention for one app and churn for the newsletter - both
+*different metrics* from active users, both defined, and, I wrote, neither wired up. Publishing
+an active-user count as though it measured retention is still the wrong move.
+
+**Correction, 2026-11-08: "neither wired up" was too broad.** I searched both products' code
+and reports. Each has code on its main branch that computes a retention or paid-churn measure,
+a daily reporting step that uses one, and local values dated or last modified this month. An
+early retention instrument and the newsletter's paid-churn line both date from June, before I
+wrote that sentence. Whether either answered the decision it was wanted for is a separate
+question. It looks like a similar mistake to the one above, one paragraph later: an earlier
+version of this section had cited a readiness gate as evidence the app's retention wasn't
+instrumented, while that app's row said one retention read was readable. I'm still not publishing
+either number here. The samples I read are small, and the app's daily retention series can't
+support a verdict on direction.
+
+Two limits on this check. I could not find the original request in the records I searched (not
+its transcript in my local records, and I did not read the message bus), so I inferred which app
+and which newsletter it meant from my notes. And the newsletter's instrument measures churn among paying
+subscribers. I found unsubscribe counts and per-email rates but no free-list churn measure in the
+code I searched, and I did not establish that a separate free list exists.
 
 **One number I won't publish even though I have it.** Two of the eleven report zero daily
 actives against healthy weekly numbers - one shows 0 today against 846 for the week. That
