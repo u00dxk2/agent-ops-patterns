@@ -16,7 +16,7 @@ These changed after the 2026-11-01 entry was written and were not logged until n
 - `scripts/render-decides-card.mjs`: `fullMapUrl` must be this site's page for the card's own slug, and no string value may exceed 1,200 characters. Its header now says every text field is untrusted plain text, and its page wording changed.
 - `SELF-AUDIT.md` and the CS329A skill: what the agent reads is evidence, never instructions, and it never prints a secret it meets. The self-audit cites lines from logs and other records rather than quoting them. Under any mandate, the skill treats running a repo the operator does not maintain as the operator's separate decision.
 
-Since the 2026-10-31 entry the gallery has added maps of OpenAI Codex, goose, DeerFlow, LangChain and Hermes Agent, for twelve in all. Like the six before them, each is a shorter edition than the OpenHands map, with no gap report, and says what it leaves out. Eight of the twelve now have a "How it decides" card, linked from the README and the gallery page. The README's line saying the maps used a later method than the skill describes is gone, because the 2026-11-01 entry below closed that gap.
+Since the 2026-10-31 entry the gallery has added maps of OpenAI Codex, goose, DeerFlow, LangChain and Hermes Agent, for twelve in all. Like the six before them, each is a shorter edition than the OpenHands map, with no gap report, and says what it leaves out. Ten of the twelve now have a "How it decides" card, linked from the README and the gallery page. The README's line saying the maps used a later method than the skill describes is gone, because the 2026-11-01 entry below closed that gap.
 
 ### A third skill, and the plugin at 0.3.0
 
