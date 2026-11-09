@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How goose decides</title>
+<meta name="description" content="In an ordinary goose session, plain code runs a fixed list of steps around the AI model's calls, and a plain text reply with no tool request ends the turn when nothing else is set up. A goal (/goal or /grind), a recipe's checks or required output, or a plugin's stop hook can each cause more work before the turn ends.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="agent-ops-patterns">
+<meta property="og:title" content="How goose decides">
+<meta property="og:description" content="In an ordinary goose session, plain code runs a fixed list of steps around the AI model's calls, and a plain text reply with no tool request ends the turn when nothing else is set up. A goal (/goal or /grind), a recipe's checks or required output, or a plugin's stop hook can each cause more work before the turn ends.">
+<meta property="og:url" content="https://u00dxk2.github.io/agent-ops-patterns/gallery/goose/card.html">
+<meta name="twitter:card" content="summary">
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1d1b;--muted:#5d5b55;--line:#dedad0;--card:#ffffff;--code:#f2efe8;--link:#2f6f8f;
+  --model:#6b4fa0;--code-h:#2f6f8f;--human:#2e7d4f;--nobody:#a3452f}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--card:#1d1c19;--code:#262520;--link:#6fb3d4;
+  --model:#b9a2e6;--code-h:#6fb3d4;--human:#7fcf9f;--nobody:#f09a83}}
+:root[data-theme="dark"]{--bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--card:#1d1c19;--code:#262520;--link:#6fb3d4;
+  --model:#b9a2e6;--code-h:#6fb3d4;--human:#7fcf9f;--nobody:#f09a83}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:680px;margin:0 auto;padding:0 16px 56px}
+a{color:var(--link)}
+code{background:var(--code);padding:1px 4px;border-radius:4px;font-size:.86em;overflow-wrap:anywhere}
+.crumbs{font-size:.9rem;color:var(--muted);margin-top:18px}
+h1{font-size:1.6rem;line-height:1.2;margin:20px 0 10px}
+.summary{font-size:1.08rem}
+.meta{color:var(--muted);font-size:.88rem}
+h2{font-size:1.15rem;margin:32px 0 8px;padding-top:8px;border-top:1px solid var(--line)}
+ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
+.j,.p{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:10px 0}
+.j p,.p p{margin:4px 0}
+.q{font-weight:650}
+.holder{display:inline-block;font-size:.8rem;font-weight:650;border:1px solid currentColor;border-radius:999px;padding:0 8px;margin-right:4px}
+.holder-model{color:var(--model)}.holder-code{color:var(--code-h)}.holder-human{color:var(--human)}.holder-nobody{color:var(--nobody)}
+.ev{color:var(--muted);font-size:.85rem}
+.p h3{font-size:1.05rem;margin:2px 0 6px}
+.status{font-weight:600}
+.full{display:block;text-align:center;font-weight:650;border:1px solid var(--link);border-radius:8px;padding:12px;margin:28px 0 8px;text-decoration:none}
+</style>
+</head>
+<body>
+<main>
+
+<p class="crumbs"><a href="../../">agent-ops-patterns</a> / <a href="../">gallery</a> / <a href="./">goose map</a> / how it decides</p>
+
+<h1>How goose decides</h1>
+
+<p class="summary">In an ordinary goose session, plain code runs a fixed list of steps around the AI model's calls, and a plain text reply with no tool request ends the turn when nothing else is set up. A goal (/goal or /grind), a recipe's checks or required output, or a plugin's stop hook can each cause more work before the turn ends.</p>
+
+<p class="meta">From <a href="https://github.com/aaif-goose/goose"><code>aaif-goose/goose</code></a> at source version <a href="https://github.com/aaif-goose/goose/tree/cfb67d72f6129ba3c9f68d4c225d8dfcaba18a87"><code>cfb67d72</code></a>, mapped 2026-11-02. Each answer links the place in the code where that decision is made; the full map has the rest.</p>
+
+<h2>How it decides it is done</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">The model stopped; has it delivered the recipe's final output, or must it be told to?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Only for a recipe with a response schema: code looks since your kickoff message for a final-output call that succeeded. If there is one the turn may end; otherwise it adds a model-only message saying to call that tool now, and the agent continues.</p>
+  <p class="ev"><a href="https://github.com/aaif-goose/goose/blob/cfb67d72f6129ba3c9f68d4c225d8dfcaba18a87/crates/goose/src/agents/final_output_tool.rs#L55-L95" title="crates/goose/src/agents/final_output_tool.rs:55-95"><code>final_output_tool.rs:55-95</code></a> · decision G7 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">If a review pass or check crashed or returned garbage, does the review say so?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> On goose review's default path, a failed check or per-file pass adds no findings and a warning on stderr. If the review otherwise completes, it prints the findings that pass the severity floor and exits successfully.</p>
+  <p class="ev"><a href="https://github.com/aaif-goose/goose/blob/cfb67d72f6129ba3c9f68d4c225d8dfcaba18a87/crates/goose-cli/src/commands/review/orchestrator.rs#L133-L150" title="crates/goose-cli/src/commands/review/orchestrator.rs:133-150"><code>orchestrator.rs:133-150</code></a> · decision G10 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">When a subagent stops, did it complete, fail or get cancelled?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> After reloading its session, code checks in a fixed order: a successful final-output call means Completed, even if the run was cancelled or errored afterwards; else a cancelled run is Cancelled; anything else is Failed.</p>
+  <p class="ev"><a href="https://github.com/aaif-goose/goose/blob/cfb67d72f6129ba3c9f68d4c225d8dfcaba18a87/crates/goose/src/agents/subagent_handler.rs#L140-L176" title="crates/goose/src/agents/subagent_handler.rs:140-176"><code>subagent_handler.rs:140-176</code></a> · decision H4 in the full map</p>
+</li>
+</ul>
+
+<h2>Limits and memory</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">Has the agent taken as many steps as it may without coming back to you?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> When this step is reached, code counts the assistant turns kept since your kickoff message; at the budget it ends the turn with a fixed &quot;Would you like me to continue?&quot; message. In an ordinary session the budget is the session's max_turns, else GOOSE_MAX_TURNS, else 1000.</p>
+  <p class="ev"><a href="https://github.com/aaif-goose/goose/blob/cfb67d72f6129ba3c9f68d4c225d8dfcaba18a87/crates/goose/src/agents/state_machine/ops_maxturns.rs#L53-L67" title="crates/goose/src/agents/state_machine/ops_maxturns.rs:53-67"><code>ops_maxturns.rs:53-67</code></a> · decision F8 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Has the conversation grown big enough to summarise before the next model call?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Code compares the conversation's tokens with the context limit and compacts above a threshold: by default 0.8 of the limit, or 225,000 tokens if that is less, and both are settings. A threshold of 0 or less, or 1 or more, turns this trigger off, and it is not built when the provider manages its own context.</p>
+  <p class="ev"><a href="https://github.com/aaif-goose/goose/blob/cfb67d72f6129ba3c9f68d4c225d8dfcaba18a87/crates/goose/src/agents/state_machine/ops_compaction.rs#L218-L227" title="crates/goose/src/agents/state_machine/ops_compaction.rs:218-227"><code>ops_compaction.rs:218-227</code></a> · decision F1 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">When the conversation is compacted, what is carried forward?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> The session's own model writes the summary. If its reply parses as the structured summary and renders to non-empty text, that rendering is used; otherwise the raw reply is kept unchanged.</p>
+  <p class="ev"><a href="https://github.com/aaif-goose/goose/blob/cfb67d72f6129ba3c9f68d4c225d8dfcaba18a87/crates/goose-context-management/src/summarize.rs#L124-L182" title="crates/goose-context-management/src/summarize.rs:124-182"><code>summarize.rs:124-182</code></a> · decision F3 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">How long may a command from the developer shell tool run?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> The model may pass a timeout with each call; if it does not, code uses a setting, else 300 seconds. A value of 0 means that tool sets no deadline.</p>
+  <p class="ev"><a href="https://github.com/aaif-goose/goose/blob/cfb67d72f6129ba3c9f68d4c225d8dfcaba18a87/crates/goose/src/agents/platform_extensions/developer/shell.rs#L408-L440" title="crates/goose/src/agents/platform_extensions/developer/shell.rs:408-440"><code>shell.rs:408-440</code></a> · decision E4 in the full map</p>
+</li>
+</ul>
+
+<h2>Other judgments</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">When a resumed command-line session's original provider cannot start, what runs instead?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Only on resume with no --provider flag, and only when the provider's error text contains one of three fixed phrases, code switches to the globally configured provider and model and prints a yellow warning. Any other provider error, or a failed fallback, exits.</p>
+  <p class="ev"><a href="https://github.com/aaif-goose/goose/blob/cfb67d72f6129ba3c9f68d4c225d8dfcaba18a87/crates/goose-cli/src/session/builder.rs#L908-L913" title="crates/goose-cli/src/session/builder.rs:908-913"><code>builder.rs:908-913</code></a> · decision A5 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Can a subagent start subagents of its own?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> No. Code refuses a delegate call from a subagent session and does not list the tool to a session it identifies as a subagent, so delegation depth is fixed at one.</p>
+  <p class="ev"><a href="https://github.com/aaif-goose/goose/blob/cfb67d72f6129ba3c9f68d4c225d8dfcaba18a87/crates/goose/src/agents/platform_extensions/summon.rs#L874-L876" title="crates/goose/src/agents/platform_extensions/summon.rs:874-876"><code>summon.rs:874-876</code></a> · decision H3 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Did a file edit find exactly the text the model meant to replace?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Code counts exact occurrences of the model's before text: exactly one goes on to be replaced and written; zero or more than one returns an error and writes nothing. There is no fuzzy or whitespace-tolerant matching.</p>
+  <p class="ev"><a href="https://github.com/aaif-goose/goose/blob/cfb67d72f6129ba3c9f68d4c225d8dfcaba18a87/crates/goose/src/agents/platform_extensions/developer/edit.rs#L129-L168" title="crates/goose/src/agents/platform_extensions/developer/edit.rs:129-168"><code>edit.rs:129-168</code></a> · decision E12 in the full map</p>
+</li>
+</ul>
+
+<h2>Three problems in the code</h2>
+<ol class="problems">
+<li class="p">
+  <h3>1. The --max-tool-repetitions flag has no effect</h3>
+  <p>goose's help says this flag limits consecutive identical tool calls. At this commit it does not: the command line accepts the value but never passes it to the repetition check, and the agent's standard setup gives that check no limit, so it never refuses a repeated call. goose's tracker has an open issue about how this limit should work, where contributors discuss wiring it up or removing it.</p>
+  <p class="status">Already tracked upstream (<a href="https://github.com/aaif-goose/goose/issues/12150">#12150</a>), checked 2026-11-08.</p>
+  <p class="ev">Where: <a href="https://github.com/aaif-goose/goose/blob/cfb67d72f6129ba3c9f68d4c225d8dfcaba18a87/crates/goose-cli/src/cli.rs#L126-L132" title="crates/goose-cli/src/cli.rs:126-132"><code>cli.rs:126-132</code></a>, <a href="https://github.com/aaif-goose/goose/blob/cfb67d72f6129ba3c9f68d4c225d8dfcaba18a87/crates/goose/src/agents/services.rs#L572" title="crates/goose/src/agents/services.rs:572"><code>services.rs:572</code></a>, <a href="https://github.com/aaif-goose/goose/blob/cfb67d72f6129ba3c9f68d4c225d8dfcaba18a87/crates/goose/src/tool_monitor.rs#L59-L63" title="crates/goose/src/tool_monitor.rs:59-63"><code>tool_monitor.rs:59-63</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in four rounds; each sentence it questioned was narrowed, removed or kept with the reason recorded.</p>
+</li>
+<li class="p">
+  <h3>2. By default, a failed review check still exits successfully</h3>
+  <p>On goose review's default path, a check or per-file pass that fails, panics or returns output that cannot be parsed adds no findings and prints a warning on stderr. If the review otherwise completes it exits successfully, with nothing on stdout or in the exit status to mark the failed check.</p>
+  <p class="status">Not reported upstream, checked 2026-11-08.</p>
+  <p class="ev">Where: <a href="https://github.com/aaif-goose/goose/blob/cfb67d72f6129ba3c9f68d4c225d8dfcaba18a87/crates/goose-cli/src/commands/review/orchestrator.rs#L124-L150" title="crates/goose-cli/src/commands/review/orchestrator.rs:124-150"><code>orchestrator.rs:124-150</code></a>, <a href="https://github.com/aaif-goose/goose/blob/cfb67d72f6129ba3c9f68d4c225d8dfcaba18a87/crates/goose-cli/src/commands/review/orchestrator.rs#L353-L389" title="crates/goose-cli/src/commands/review/orchestrator.rs:353-389"><code>orchestrator.rs:353-389</code></a>, <a href="https://github.com/aaif-goose/goose/blob/cfb67d72f6129ba3c9f68d4c225d8dfcaba18a87/crates/goose-cli/src/commands/review/handler.rs#L246-L272" title="crates/goose-cli/src/commands/review/handler.rs:246-272"><code>handler.rs:246-272</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in four rounds; each sentence it questioned was narrowed, removed or kept with the reason recorded.</p>
+</li>
+<li class="p">
+  <h3>3. No code reads a verdict on a /goal</h3>
+  <p>After /goal, goose says the agent will verify the goal before finishing. That check is left to the model: when code later clears the goal, it reads no verdict from the reply.</p>
+  <p class="status">Not reported upstream, checked 2026-11-08.</p>
+  <p class="ev">Where: <a href="https://github.com/aaif-goose/goose/blob/cfb67d72f6129ba3c9f68d4c225d8dfcaba18a87/crates/goose/src/agents/state_machine/ops_retry.rs#L120-L123" title="crates/goose/src/agents/state_machine/ops_retry.rs:120-123"><code>ops_retry.rs:120-123</code></a>, <a href="https://github.com/aaif-goose/goose/blob/cfb67d72f6129ba3c9f68d4c225d8dfcaba18a87/crates/goose/src/agents/state_machine/ops_retry.rs#L183-L201" title="crates/goose/src/agents/state_machine/ops_retry.rs:183-201"><code>ops_retry.rs:183-201</code></a>, <a href="https://github.com/aaif-goose/goose/blob/cfb67d72f6129ba3c9f68d4c225d8dfcaba18a87/crates/goose/src/agents/state_machine/ops_retry.rs#L219-L221" title="crates/goose/src/agents/state_machine/ops_retry.rs:219-221"><code>ops_retry.rs:219-221</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in four rounds; each sentence it questioned was narrowed, removed or kept with the reason recorded.</p>
+</li>
+</ol>
+
+<a class="full" href="https://u00dxk2.github.io/agent-ops-patterns/gallery/goose/">See the full map →</a>
+
+<p class="meta">This card was taken from the published map of goose at one commit and covers only decisions shown there; it did not look at code outside the map's scope (goose's core crates, command line, built-in extensions and desktop app) or at the 15 decisions left out of that edition, and no goose code was run to make it.</p>
+<p class="meta">Map: edition with 15 of 102 cards left out (published 2026-11-03) · taken from the full map · card data: <a href="https://github.com/u00dxk2/agent-ops-patterns/blob/main/gallery/cards/goose.json"><code>gallery/cards/goose.json</code></a>. Found something wrong? Use the <a href="https://github.com/u00dxk2/agent-ops-patterns/issues/new?template=map-correction.yml">correction form</a>.</p>
+
+</main>
+</body>
+</html>
