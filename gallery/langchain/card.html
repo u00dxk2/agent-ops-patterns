@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How LangChain decides</title>
+<meta name="description" content="In the ordinary tool loop of an agent built with LangChain's create_agent, the model decides when it is finished: a reply that asks for no tool ends the run, and nothing checks that reply. By default nothing trims the conversation; call limits and summarization are middleware the developer adds.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="agent-ops-patterns">
+<meta property="og:title" content="How LangChain decides">
+<meta property="og:description" content="In the ordinary tool loop of an agent built with LangChain's create_agent, the model decides when it is finished: a reply that asks for no tool ends the run, and nothing checks that reply. By default nothing trims the conversation; call limits and summarization are middleware the developer adds.">
+<meta property="og:url" content="https://u00dxk2.github.io/agent-ops-patterns/gallery/langchain/card.html">
+<meta name="twitter:card" content="summary">
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1d1b;--muted:#5d5b55;--line:#dedad0;--card:#ffffff;--code:#f2efe8;--link:#2f6f8f;
+  --model:#6b4fa0;--code-h:#2f6f8f;--human:#2e7d4f;--nobody:#a3452f}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--card:#1d1c19;--code:#262520;--link:#6fb3d4;
+  --model:#b9a2e6;--code-h:#6fb3d4;--human:#7fcf9f;--nobody:#f09a83}}
+:root[data-theme="dark"]{--bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--card:#1d1c19;--code:#262520;--link:#6fb3d4;
+  --model:#b9a2e6;--code-h:#6fb3d4;--human:#7fcf9f;--nobody:#f09a83}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:680px;margin:0 auto;padding:0 16px 56px}
+a{color:var(--link)}
+code{background:var(--code);padding:1px 4px;border-radius:4px;font-size:.86em;overflow-wrap:anywhere}
+.crumbs{font-size:.9rem;color:var(--muted);margin-top:18px}
+h1{font-size:1.6rem;line-height:1.2;margin:20px 0 10px}
+.summary{font-size:1.08rem}
+.meta{color:var(--muted);font-size:.88rem}
+h2{font-size:1.15rem;margin:32px 0 8px;padding-top:8px;border-top:1px solid var(--line)}
+ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
+.j,.p{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:10px 0}
+.j p,.p p{margin:4px 0}
+.q{font-weight:650}
+.holder{display:inline-block;font-size:.8rem;font-weight:650;border:1px solid currentColor;border-radius:999px;padding:0 8px;margin-right:4px}
+.holder-model{color:var(--model)}.holder-code{color:var(--code-h)}.holder-human{color:var(--human)}.holder-nobody{color:var(--nobody)}
+.ev{color:var(--muted);font-size:.85rem}
+.p h3{font-size:1.05rem;margin:2px 0 6px}
+.status{font-weight:600}
+.full{display:block;text-align:center;font-weight:650;border:1px solid var(--link);border-radius:8px;padding:12px;margin:28px 0 8px;text-decoration:none}
+</style>
+</head>
+<body>
+<main>
+
+<p class="crumbs"><a href="../../">agent-ops-patterns</a> / <a href="../">gallery</a> / <a href="./">LangChain map</a> / how it decides</p>
+
+<h1>How LangChain decides</h1>
+
+<p class="summary">In the ordinary tool loop of an agent built with LangChain's create_agent, the model decides when it is finished: a reply that asks for no tool ends the run, and nothing checks that reply. By default nothing trims the conversation; call limits and summarization are middleware the developer adds.</p>
+
+<p class="meta">From <a href="https://github.com/langchain-ai/langchain"><code>langchain-ai/langchain</code></a> at source version <a href="https://github.com/langchain-ai/langchain/tree/efebcf50fb72d2502415f67297bc183633e378db"><code>efebcf50</code></a>, mapped 2026-11-02. Each answer links the place in the code where that decision is made; the full map has the rest.</p>
+
+<h2>How it decides it is done</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">Is the agent finished with the task?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> The model decides: in the ordinary tool loop, a reply that asks for no tool ends the run and is the answer, unchecked. Structured output adds its own exits.</p>
+  <p class="ev"><a href="https://github.com/langchain-ai/langchain/blob/efebcf50fb72d2502415f67297bc183633e378db/libs/langchain_v1/langchain/agents/factory.py#L2016-L2019" title="libs/langchain_v1/langchain/agents/factory.py:2016-2019"><code>factory.py:2016-2019</code></a> · decision G1 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Does a tool's result end the run without the model reading it?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> When every client-side tool in that batch is marked return_direct by the developer, the run ends on the tool output and the model does not see it; the tool's status is not looked at.</p>
+  <p class="ev"><a href="https://github.com/langchain-ai/langchain/blob/efebcf50fb72d2502415f67297bc183633e378db/libs/langchain_v1/langchain/agents/factory.py#L2086-L2100" title="libs/langchain_v1/langchain/agents/factory.py:2086-2100"><code>factory.py:2086-2100</code></a> · decision G2 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">When the provider's native structured answer fails to parse, is the model asked again?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> No: a native structured answer that is not valid JSON or does not match the schema raises straight away, and the run fails unless a middleware around the model call catches it.</p>
+  <p class="ev"><a href="https://github.com/langchain-ai/langchain/blob/efebcf50fb72d2502415f67297bc183633e378db/libs/langchain_v1/langchain/agents/factory.py#L1262-L1269" title="libs/langchain_v1/langchain/agents/factory.py:1262-1269"><code>factory.py:1262-1269</code></a> · decision G6 in the full map</p>
+</li>
+</ul>
+
+<h2>Limits and memory</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">How many steps may one agent run take before it is stopped?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> create_agent sets a limit of 9,999 agent steps; the run is then stopped with a GraphRecursionError and no answer, even if it finished exactly on the last step. The caller can change the number per run with config={&quot;recursion_limit&quot;: n}.</p>
+  <p class="ev"><a href="https://github.com/langchain-ai/langchain/blob/efebcf50fb72d2502415f67297bc183633e378db/libs/langchain_v1/langchain/agents/factory.py#L1899" title="libs/langchain_v1/langchain/agents/factory.py:1899"><code>factory.py:1899</code></a> · decision F1 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">What happens when the conversation grows past what the model can read in one call?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Nothing trims it by default: every model call sends the whole message list. What happens when it no longer fits is the provider's; where the provider raises, the run fails, unless summarization or context-editing middleware was added.</p>
+  <p class="ev"><a href="https://github.com/langchain-ai/langchain/blob/efebcf50fb72d2502415f67297bc183633e378db/libs/langchain_v1/langchain/agents/factory.py#L1502-L1506" title="libs/langchain_v1/langchain/agents/factory.py:1502-1506"><code>factory.py:1502-1506</code></a> · decision F3 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">When should older conversation be summarized away?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Only if the developer adds summarization middleware and gives it a trigger: a token count, a message count or a share of the model's context window. Code checks before each model call; with no trigger it never summarizes.</p>
+  <p class="ev"><a href="https://github.com/langchain-ai/langchain/blob/efebcf50fb72d2502415f67297bc183633e378db/libs/langchain_v1/langchain/agents/middleware/summarization.py#L704-L744" title="libs/langchain_v1/langchain/agents/middleware/summarization.py:704-744"><code>summarization.py:704-744</code></a> · decision F4 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">How many model calls may one run, or one conversation thread, make?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Unlimited by default, apart from the step limit. With model-call-limit middleware, code compares the counts before each model call and by default ends the run with a &quot;limits exceeded&quot; message; a thread limit counts across runs only with a checkpointer.</p>
+  <p class="ev"><a href="https://github.com/langchain-ai/langchain/blob/efebcf50fb72d2502415f67297bc183633e378db/libs/langchain_v1/langchain/agents/middleware/model_call_limit.py#L186-L210" title="libs/langchain_v1/langchain/agents/middleware/model_call_limit.py:186-210"><code>model_call_limit.py:186-210</code></a> · decision F8 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Does a new run pick up where an earlier conversation left off?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> No by default: every run starts from only the messages passed in. With a checkpointer, the caller's checkpoint coordinates (normally thread_id) decide which saved conversation the run continues.</p>
+  <p class="ev"><a href="https://github.com/langchain-ai/langchain/blob/efebcf50fb72d2502415f67297bc183633e378db/libs/langchain_v1/langchain/agents/factory.py#L833" title="libs/langchain_v1/langchain/agents/factory.py:833"><code>factory.py:833</code></a> · decision F10 in the full map</p>
+</li>
+</ul>
+
+<h2>Other judgments</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">Given just &quot;gemini-2.5-pro&quot; or &quot;gpt-oss-20b&quot;, which provider does the agent decide to call?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> With no recognised prefix, code walks an ordered table of name prefixes; a name that matches nothing raises at construction. The match reads the name only, so gpt-oss-20b goes to OpenAI and o4-mini matches nothing.</p>
+  <p class="ev"><a href="https://github.com/langchain-ai/langchain/blob/efebcf50fb72d2502415f67297bc183633e378db/libs/langchain_v1/langchain/chat_models/base.py#L547-L620" title="libs/langchain_v1/langchain/chat_models/base.py:547-620"><code>base.py:547-620</code></a> · decision A2 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">What standing instructions does the model get each step, and are they saved with the history?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> LangChain adds no system prompt of its own. On the default path, a system_prompt from the caller is kept outside state and put in front of the conversation on each model call, so it is not saved into the history; middleware can replace it per call.</p>
+  <p class="ev"><a href="https://github.com/langchain-ai/langchain/blob/efebcf50fb72d2502415f67297bc183633e378db/libs/langchain_v1/langchain/agents/factory.py#L1050-L1056" title="libs/langchain_v1/langchain/agents/factory.py:1050-1056"><code>factory.py:1050-1056</code></a> · decision B1 in the full map</p>
+</li>
+</ul>
+
+<h2>Three problems in the code</h2>
+<ol class="problems">
+<li class="p">
+  <h3>1. In an agent with tools, a reply with only invalid_tool_calls ends the run</h3>
+  <p>In an agent with a tools step, if a reply's calls are all recorded as invalid_tool_calls (on ChatOpenAI's chat-completions path, arguments that are not valid JSON) and its tool_calls list is empty, the run ends there, without retrying them and without an exception. On that route, the model is told about such a call only on a later invocation that carries that history, and only if the call has an ID.</p>
+  <p class="status">Already tracked upstream (<a href="https://github.com/langchain-ai/langchain/issues/33504">#33504</a>), checked 2026-11-08.</p>
+  <p class="ev">Where: <a href="https://github.com/langchain-ai/langchain/blob/efebcf50fb72d2502415f67297bc183633e378db/libs/langchain_v1/langchain/agents/factory.py#L2016-L2019" title="libs/langchain_v1/langchain/agents/factory.py:2016-2019"><code>factory.py:2016-2019</code></a>, <a href="https://github.com/langchain-ai/langchain/blob/efebcf50fb72d2502415f67297bc183633e378db/libs/langchain_v1/langchain/agents/factory.py#L692-L707" title="libs/langchain_v1/langchain/agents/factory.py:692-707"><code>factory.py:692-707</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in four rounds; each sentence it questioned was narrowed, removed or kept with the reason recorded.</p>
+</li>
+<li class="p">
+  <h3>2. An invalid structured answer beside another tool call can end the run without a structured response</h3>
+  <p>With a tool-based response format and the default error handling, one reply can hold a structured answer that fails to parse and also an ordinary tool call. The ordinary tool can then run and the run can end with no structured response and no exception, before the model reads the retry message.</p>
+  <p class="status">Already tracked upstream (<a href="https://github.com/langchain-ai/langchain/issues/40423">#40423</a>), checked 2026-11-08.</p>
+  <p class="ev">Where: <a href="https://github.com/langchain-ai/langchain/blob/efebcf50fb72d2502415f67297bc183633e378db/libs/langchain_v1/langchain/agents/factory.py#L1329-L1346" title="libs/langchain_v1/langchain/agents/factory.py:1329-1346"><code>factory.py:1329-1346</code></a>, <a href="https://github.com/langchain-ai/langchain/blob/efebcf50fb72d2502415f67297bc183633e378db/libs/langchain_v1/langchain/agents/factory.py#L2021-L2032" title="libs/langchain_v1/langchain/agents/factory.py:2021-2032"><code>factory.py:2021-2032</code></a>, <a href="https://github.com/langchain-ai/langchain/blob/efebcf50fb72d2502415f67297bc183633e378db/libs/langchain_v1/langchain/agents/factory.py#L2102-L2104" title="libs/langchain_v1/langchain/agents/factory.py:2102-2104"><code>factory.py:2102-2104</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in four rounds; each sentence it questioned was narrowed, removed or kept with the reason recorded.</p>
+</li>
+<li class="p">
+  <h3>3. A long tool loop can turn summarized history into a fixed placeholder</h3>
+  <p>By default, summarization middleware tries to trim the older messages to a 4,000-token window that starts at a human message. If nothing is left, as can happen in a long run of tool calls after one request, the summary model is not called and the older messages are replaced by the text &quot;Previous conversation was too long to summarize.&quot;</p>
+  <p class="status">Already tracked upstream (<a href="https://github.com/langchain-ai/langchain/issues/41146">#41146</a>), checked 2026-11-08.</p>
+  <p class="ev">Where: <a href="https://github.com/langchain-ai/langchain/blob/efebcf50fb72d2502415f67297bc183633e378db/libs/langchain_v1/langchain/agents/middleware/summarization.py#L1028-L1046" title="libs/langchain_v1/langchain/agents/middleware/summarization.py:1028-1046"><code>summarization.py:1028-1046</code></a>, <a href="https://github.com/langchain-ai/langchain/blob/efebcf50fb72d2502415f67297bc183633e378db/libs/langchain_v1/langchain/agents/middleware/summarization.py#L935-L937" title="libs/langchain_v1/langchain/agents/middleware/summarization.py:935-937"><code>summarization.py:935-937</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in four rounds; each sentence it questioned was narrowed, removed or kept with the reason recorded.</p>
+</li>
+</ol>
+
+<a class="full" href="https://u00dxk2.github.io/agent-ops-patterns/gallery/langchain/">See the full map →</a>
+
+<p class="meta">This card was taken from the published map of LangChain, which read langchain-ai/langchain and langchain-ai/langgraph at one commit each; its code pointers cover the langchain repository only, it covers only decisions shown there, it did not look at code outside the map's scope (an agent built with create_agent, its opt-in middleware and the LangGraph runtime) or at the 3 decisions left out of that edition, and no LangChain code was run to make it.</p>
+<p class="meta">Map: edition with 3 of 92 cards left out (published 2026-11-03) · taken from the full map · card data: <a href="https://github.com/u00dxk2/agent-ops-patterns/blob/main/gallery/cards/langchain.json"><code>gallery/cards/langchain.json</code></a>. Found something wrong? Use the <a href="https://github.com/u00dxk2/agent-ops-patterns/issues/new?template=map-correction.yml">correction form</a>.</p>
+
+</main>
+</body>
+</html>

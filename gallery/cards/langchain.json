@@ -1,0 +1,154 @@
+{
+  "schema": "aop-decides-card/v1",
+  "agent": {
+    "name": "LangChain",
+    "slug": "langchain",
+    "repo": "https://github.com/langchain-ai/langchain",
+    "commit": "efebcf50fb72d2502415f67297bc183633e378db",
+    "mappedAt": "2026-11-02"
+  },
+  "fullMapUrl": "https://u00dxk2.github.io/agent-ops-patterns/gallery/langchain/",
+  "summary": "In the ordinary tool loop of an agent built with LangChain's create_agent, the model decides when it is finished: a reply that asks for no tool ends the run, and nothing checks that reply. By default nothing trims the conversation; call limits and summarization are middleware the developer adds.",
+  "judgments": [
+    {
+      "id": "G1",
+      "stage": "done",
+      "question": "Is the agent finished with the task?",
+      "holder": "model",
+      "answer": "The model decides: in the ordinary tool loop, a reply that asks for no tool ends the run and is the answer, unchecked. Structured output adds its own exits.",
+      "evidence": "libs/langchain_v1/langchain/agents/factory.py:2016-2019"
+    },
+    {
+      "id": "G2",
+      "stage": "done",
+      "question": "Does a tool's result end the run without the model reading it?",
+      "holder": "code",
+      "answer": "When every client-side tool in that batch is marked return_direct by the developer, the run ends on the tool output and the model does not see it; the tool's status is not looked at.",
+      "evidence": "libs/langchain_v1/langchain/agents/factory.py:2086-2100"
+    },
+    {
+      "id": "G6",
+      "stage": "done",
+      "question": "When the provider's native structured answer fails to parse, is the model asked again?",
+      "holder": "code",
+      "answer": "No: a native structured answer that is not valid JSON or does not match the schema raises straight away, and the run fails unless a middleware around the model call catches it.",
+      "evidence": "libs/langchain_v1/langchain/agents/factory.py:1262-1269"
+    },
+    {
+      "id": "F1",
+      "stage": "limits-memory",
+      "question": "How many steps may one agent run take before it is stopped?",
+      "holder": "code",
+      "answer": "create_agent sets a limit of 9,999 agent steps; the run is then stopped with a GraphRecursionError and no answer, even if it finished exactly on the last step. The caller can change the number per run with config={\"recursion_limit\": n}.",
+      "evidence": "libs/langchain_v1/langchain/agents/factory.py:1899"
+    },
+    {
+      "id": "F3",
+      "stage": "limits-memory",
+      "question": "What happens when the conversation grows past what the model can read in one call?",
+      "holder": "code",
+      "answer": "Nothing trims it by default: every model call sends the whole message list. What happens when it no longer fits is the provider's; where the provider raises, the run fails, unless summarization or context-editing middleware was added.",
+      "evidence": "libs/langchain_v1/langchain/agents/factory.py:1502-1506"
+    },
+    {
+      "id": "F4",
+      "stage": "limits-memory",
+      "question": "When should older conversation be summarized away?",
+      "holder": "code",
+      "answer": "Only if the developer adds summarization middleware and gives it a trigger: a token count, a message count or a share of the model's context window. Code checks before each model call; with no trigger it never summarizes.",
+      "evidence": "libs/langchain_v1/langchain/agents/middleware/summarization.py:704-744"
+    },
+    {
+      "id": "F8",
+      "stage": "limits-memory",
+      "question": "How many model calls may one run, or one conversation thread, make?",
+      "holder": "code",
+      "answer": "Unlimited by default, apart from the step limit. With model-call-limit middleware, code compares the counts before each model call and by default ends the run with a \"limits exceeded\" message; a thread limit counts across runs only with a checkpointer.",
+      "evidence": "libs/langchain_v1/langchain/agents/middleware/model_call_limit.py:186-210"
+    },
+    {
+      "id": "F10",
+      "stage": "limits-memory",
+      "question": "Does a new run pick up where an earlier conversation left off?",
+      "holder": "code",
+      "answer": "No by default: every run starts from only the messages passed in. With a checkpointer, the caller's checkpoint coordinates (normally thread_id) decide which saved conversation the run continues.",
+      "evidence": "libs/langchain_v1/langchain/agents/factory.py:833"
+    },
+    {
+      "id": "A2",
+      "stage": "other",
+      "question": "Given just \"gemini-2.5-pro\" or \"gpt-oss-20b\", which provider does the agent decide to call?",
+      "holder": "code",
+      "answer": "With no recognised prefix, code walks an ordered table of name prefixes; a name that matches nothing raises at construction. The match reads the name only, so gpt-oss-20b goes to OpenAI and o4-mini matches nothing.",
+      "evidence": "libs/langchain_v1/langchain/chat_models/base.py:547-620"
+    },
+    {
+      "id": "B1",
+      "stage": "other",
+      "question": "What standing instructions does the model get each step, and are they saved with the history?",
+      "holder": "code",
+      "answer": "LangChain adds no system prompt of its own. On the default path, a system_prompt from the caller is kept outside state and put in front of the conversation on each model call, so it is not saved into the history; middleware can replace it per call.",
+      "evidence": "libs/langchain_v1/langchain/agents/factory.py:1050-1056"
+    }
+  ],
+  "problems": [
+    {
+      "title": "In an agent with tools, a reply with only invalid_tool_calls ends the run",
+      "plain": "In an agent with a tools step, if a reply's calls are all recorded as invalid_tool_calls (on ChatOpenAI's chat-completions path, arguments that are not valid JSON) and its tool_calls list is empty, the run ends there, without retrying them and without an exception. On that route, the model is told about such a call only on a later invocation that carries that history, and only if the call has an ID.",
+      "evidence": [
+        "libs/langchain_v1/langchain/agents/factory.py:2016-2019",
+        "libs/langchain_v1/langchain/agents/factory.py:692-707"
+      ],
+      "verified": {
+        "how": "re-read at pinned commit",
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in four rounds; each sentence it questioned was narrowed, removed or kept with the reason recorded"
+      },
+      "upstream": {
+        "status": "already-tracked",
+        "url": "https://github.com/langchain-ai/langchain/issues/33504",
+        "checkedAt": "2026-11-08"
+      }
+    },
+    {
+      "title": "An invalid structured answer beside another tool call can end the run without a structured response",
+      "plain": "With a tool-based response format and the default error handling, one reply can hold a structured answer that fails to parse and also an ordinary tool call. The ordinary tool can then run and the run can end with no structured response and no exception, before the model reads the retry message.",
+      "evidence": [
+        "libs/langchain_v1/langchain/agents/factory.py:1329-1346",
+        "libs/langchain_v1/langchain/agents/factory.py:2021-2032",
+        "libs/langchain_v1/langchain/agents/factory.py:2102-2104"
+      ],
+      "verified": {
+        "how": "re-read at pinned commit",
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in four rounds; each sentence it questioned was narrowed, removed or kept with the reason recorded"
+      },
+      "upstream": {
+        "status": "already-tracked",
+        "url": "https://github.com/langchain-ai/langchain/issues/40423",
+        "checkedAt": "2026-11-08"
+      }
+    },
+    {
+      "title": "A long tool loop can turn summarized history into a fixed placeholder",
+      "plain": "By default, summarization middleware tries to trim the older messages to a 4,000-token window that starts at a human message. If nothing is left, as can happen in a long run of tool calls after one request, the summary model is not called and the older messages are replaced by the text \"Previous conversation was too long to summarize.\"",
+      "evidence": [
+        "libs/langchain_v1/langchain/agents/middleware/summarization.py:1028-1046",
+        "libs/langchain_v1/langchain/agents/middleware/summarization.py:935-937"
+      ],
+      "verified": {
+        "how": "re-read at pinned commit",
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in four rounds; each sentence it questioned was narrowed, removed or kept with the reason recorded"
+      },
+      "upstream": {
+        "status": "already-tracked",
+        "url": "https://github.com/langchain-ai/langchain/issues/41146",
+        "checkedAt": "2026-11-08"
+      }
+    }
+  ],
+  "notChecked": "This card was taken from the published map of LangChain, which read langchain-ai/langchain and langchain-ai/langgraph at one commit each; its code pointers cover the langchain repository only, it covers only decisions shown there, it did not look at code outside the map's scope (an agent built with create_agent, its opt-in middleware and the LangGraph runtime) or at the 3 decisions left out of that edition, and no LangChain code was run to make it.",
+  "provenance": {
+    "mapEdition": "edition with 3 of 92 cards left out (published 2026-11-03)",
+    "cardCommit": "02ce428f52e828eb684259d3d24222164870ba4c",
+    "method": "derived-from-full-map"
+  }
+}
