@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How DeerFlow decides</title>
+<meta name="description" content="In DeerFlow, a lead AI model does the work through tool calls and can hand tasks to sub-agents; a run normally ends when that model replies without asking for a tool, and plain code can also remove tool calls to bring it to a close. When a thread has an active /goal, a separate model call can judge whether the conversation shows the goal was met, though some conditions stand the goal down without that call.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="agent-ops-patterns">
+<meta property="og:title" content="How DeerFlow decides">
+<meta property="og:description" content="In DeerFlow, a lead AI model does the work through tool calls and can hand tasks to sub-agents; a run normally ends when that model replies without asking for a tool, and plain code can also remove tool calls to bring it to a close. When a thread has an active /goal, a separate model call can judge whether the conversation shows the goal was met, though some conditions stand the goal down without that call.">
+<meta property="og:url" content="https://u00dxk2.github.io/agent-ops-patterns/gallery/deer-flow/card.html">
+<meta name="twitter:card" content="summary">
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1d1b;--muted:#5d5b55;--line:#dedad0;--card:#ffffff;--code:#f2efe8;--link:#2f6f8f;
+  --model:#6b4fa0;--code-h:#2f6f8f;--human:#2e7d4f;--nobody:#a3452f}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--card:#1d1c19;--code:#262520;--link:#6fb3d4;
+  --model:#b9a2e6;--code-h:#6fb3d4;--human:#7fcf9f;--nobody:#f09a83}}
+:root[data-theme="dark"]{--bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--card:#1d1c19;--code:#262520;--link:#6fb3d4;
+  --model:#b9a2e6;--code-h:#6fb3d4;--human:#7fcf9f;--nobody:#f09a83}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:680px;margin:0 auto;padding:0 16px 56px}
+a{color:var(--link)}
+code{background:var(--code);padding:1px 4px;border-radius:4px;font-size:.86em;overflow-wrap:anywhere}
+.crumbs{font-size:.9rem;color:var(--muted);margin-top:18px}
+h1{font-size:1.6rem;line-height:1.2;margin:20px 0 10px}
+.summary{font-size:1.08rem}
+.meta{color:var(--muted);font-size:.88rem}
+h2{font-size:1.15rem;margin:32px 0 8px;padding-top:8px;border-top:1px solid var(--line)}
+ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
+.j,.p{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:10px 0}
+.j p,.p p{margin:4px 0}
+.q{font-weight:650}
+.holder{display:inline-block;font-size:.8rem;font-weight:650;border:1px solid currentColor;border-radius:999px;padding:0 8px;margin-right:4px}
+.holder-model{color:var(--model)}.holder-code{color:var(--code-h)}.holder-human{color:var(--human)}.holder-nobody{color:var(--nobody)}
+.ev{color:var(--muted);font-size:.85rem}
+.p h3{font-size:1.05rem;margin:2px 0 6px}
+.status{font-weight:600}
+.full{display:block;text-align:center;font-weight:650;border:1px solid var(--link);border-radius:8px;padding:12px;margin:28px 0 8px;text-decoration:none}
+</style>
+</head>
+<body>
+<main>
+
+<p class="crumbs"><a href="../../">agent-ops-patterns</a> / <a href="../">gallery</a> / <a href="./">DeerFlow map</a> / how it decides</p>
+
+<h1>How DeerFlow decides</h1>
+
+<p class="summary">In DeerFlow, a lead AI model does the work through tool calls and can hand tasks to sub-agents; a run normally ends when that model replies without asking for a tool, and plain code can also remove tool calls to bring it to a close. When a thread has an active /goal, a separate model call can judge whether the conversation shows the goal was met, though some conditions stand the goal down without that call.</p>
+
+<p class="meta">From <a href="https://github.com/bytedance/deer-flow"><code>bytedance/deer-flow</code></a> at source version <a href="https://github.com/bytedance/deer-flow/tree/14abd9a28eb035f277aa56098caab1b0600c6e8d"><code>14abd9a2</code></a>, mapped 2026-11-02. Each answer links the place in the code where that decision is made; the full map has the rest.</p>
+
+<h2>How it decides it is done</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">Do the receipt ids a sub-agent cites in its report point to real, successful tool calls?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> When a task sub-agent completes and receipts were harvested, code checks its report's citations against them. Any verdict shown to the lead does not change the task status.</p>
+  <p class="ev"><a href="https://github.com/bytedance/deer-flow/blob/14abd9a28eb035f277aa56098caab1b0600c6e8d/backend/packages/harness/deerflow/agents/middlewares/receipt_verification.py#L79" title="backend/packages/harness/deerflow/agents/middlewares/receipt_verification.py:79"><code>receipt_verification.py:79</code></a> · decision G7 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Did the run actually hand over the output files it produced?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> On normal completion, worker code uses available before and after snapshots to detect changed output files. If some are detected and none is covered by a recorded present_files path, the delivery check returns an error.</p>
+  <p class="ev"><a href="https://github.com/bytedance/deer-flow/blob/14abd9a28eb035f277aa56098caab1b0600c6e8d/backend/packages/harness/deerflow/runtime/runs/worker.py#L402" title="backend/packages/harness/deerflow/runtime/runs/worker.py:402"><code>worker.py:402</code></a> · decision G5 in the full map</p>
+</li>
+</ul>
+
+<h2>Limits and memory</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">How many graph steps may one run take before it is stopped?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> The Gateway takes the request's recursion_limit if it is a positive integer, otherwise the configured default, and caps it at max_recursion_limit.</p>
+  <p class="ev"><a href="https://github.com/bytedance/deer-flow/blob/14abd9a28eb035f277aa56098caab1b0600c6e8d/backend/app/gateway/services.py#L1319" title="backend/app/gateway/services.py:1319"><code>services.py:1319</code></a> · decision F1 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Is the agent stuck repeating the same tool calls, and should it be warned or stopped?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> After a model response with tool calls, code counts repeated call sets per run. With defaults, a repeated set can trigger a warning at 3 and a stop at 5; a separate window counting tool names has thresholds of 30 and 50. A stop removes that response's calls and adds a stop message.</p>
+  <p class="ev"><a href="https://github.com/bytedance/deer-flow/blob/14abd9a28eb035f277aa56098caab1b0600c6e8d/backend/packages/harness/deerflow/agents/middlewares/loop_detection_middleware.py#L634" title="backend/packages/harness/deerflow/agents/middlewares/loop_detection_middleware.py:634"><code>loop_detection_middleware.py:634</code></a> · decision F5 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">How many turns may a sub-agent take?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Code turns the sub-agent's max_turns (general-purpose 150, bash 60, config default 50) into a recursion limit.</p>
+  <p class="ev"><a href="https://github.com/bytedance/deer-flow/blob/14abd9a28eb035f277aa56098caab1b0600c6e8d/backend/packages/harness/deerflow/subagents/turn_budget.py#L128" title="backend/packages/harness/deerflow/subagents/turn_budget.py:128"><code>turn_budget.py:128</code></a> · decision F10 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Is there a free slot to run this sub-agent now, or must it queue or be refused?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> A process-wide admission controller (default 3 running) admits the execution, queues it up to max_queued with a timeout, or rejects it at once under the reject policy.</p>
+  <p class="ev"><a href="https://github.com/bytedance/deer-flow/blob/14abd9a28eb035f277aa56098caab1b0600c6e8d/backend/packages/harness/deerflow/subagents/capacity.py#L68" title="backend/packages/harness/deerflow/subagents/capacity.py:68"><code>capacity.py:68</code></a> · decision H4 in the full map</p>
+</li>
+</ul>
+
+<h2>Other judgments</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">Did the provider stop because the output budget ran out, and if so must the possibly truncated tool calls be suppressed and the person told?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Four detectors recognise the provider's output cap. On a hit all tool calls are removed, and a notice is added when tool calls were removed or no visible text remains.</p>
+  <p class="ev"><a href="https://github.com/bytedance/deer-flow/blob/14abd9a28eb035f277aa56098caab1b0600c6e8d/backend/packages/harness/deerflow/agents/middlewares/model_length_finish_reason_middleware.py#L121" title="backend/packages/harness/deerflow/agents/middlewares/model_length_finish_reason_middleware.py:121"><code>model_length_finish_reason_middleware.py:121</code></a> · decision C5 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">How should the user's rough draft be rewritten before it is sent?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> On request, a one-shot model call rewrites the draft into a clearer instruction; the user decides whether to send it.</p>
+  <p class="ev"><a href="https://github.com/bytedance/deer-flow/blob/14abd9a28eb035f277aa56098caab1b0600c6e8d/backend/app/gateway/routers/input_polish.py#L88" title="backend/app/gateway/routers/input_polish.py:88"><code>input_polish.py:88</code></a> · decision A11 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Is an inbound IM text a channel command or a chat turn?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Code checks whether the first whitespace-delimited token is a known slash command, case-insensitively.</p>
+  <p class="ev"><a href="https://github.com/bytedance/deer-flow/blob/14abd9a28eb035f277aa56098caab1b0600c6e8d/backend/app/channels/commands.py#L87-L91" title="backend/app/channels/commands.py:87-91"><code>commands.py:87-91</code></a> · decision A9 in the full map</p>
+</li>
+</ul>
+
+<h2>Three problems in the code</h2>
+<ol class="problems">
+<li class="p">
+  <h3>1. web_fetch cuts page content at 4,096 characters, with no notice of the cut</h3>
+  <p>Each web_fetch tool the map cites keeps at most the first 4,096 characters of the content it selects and adds no notice of that cut, so a long page can reach the model incomplete with nothing from the tool saying so. The example config uses the Jina tool, which does this. An open pull request proposes making the limit a setting.</p>
+  <p class="status">Reported; a fix is proposed, not merged (<a href="https://github.com/bytedance/deer-flow/pull/1071">#1071</a>), checked 2026-11-08.</p>
+  <p class="ev">Where: <a href="https://github.com/bytedance/deer-flow/blob/14abd9a28eb035f277aa56098caab1b0600c6e8d/backend/packages/harness/deerflow/community/jina_ai/tools.py#L70-L71" title="backend/packages/harness/deerflow/community/jina_ai/tools.py:70-71"><code>tools.py:70-71</code></a>, <a href="https://github.com/bytedance/deer-flow/blob/14abd9a28eb035f277aa56098caab1b0600c6e8d/backend/packages/harness/deerflow/community/tavily/tools.py#L130" title="backend/packages/harness/deerflow/community/tavily/tools.py:130"><code>tools.py:130</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in five rounds; each sentence it questioned was narrowed, removed or kept with the reason recorded.</p>
+</li>
+<li class="p">
+  <h3>2. One matching presented file is enough to pass the delivery check</h3>
+  <p>On a normal completion, when changed output files are detected, the delivery check compares them with the paths recorded as presented. One presented path that covers a detected change satisfies the check, even if the run's other changed output files were not presented. The check is written to catch runs that present none of them.</p>
+  <p class="status">Not reported upstream, checked 2026-11-08.</p>
+  <p class="ev">Where: <a href="https://github.com/bytedance/deer-flow/blob/14abd9a28eb035f277aa56098caab1b0600c6e8d/backend/packages/harness/deerflow/runtime/runs/worker.py#L401-L403" title="backend/packages/harness/deerflow/runtime/runs/worker.py:401-403"><code>worker.py:401-403</code></a>, <a href="https://github.com/bytedance/deer-flow/blob/14abd9a28eb035f277aa56098caab1b0600c6e8d/backend/packages/harness/deerflow/runtime/runs/worker.py#L418-L422" title="backend/packages/harness/deerflow/runtime/runs/worker.py:418-422"><code>worker.py:418-422</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in five rounds; each sentence it questioned was narrowed, removed or kept with the reason recorded.</p>
+</li>
+<li class="p">
+  <h3>3. Fifty proposed calls to one tool can force a stop, even when each call differs</h3>
+  <p>Besides counting repeated sets of tool calls, the loop check counts calls by tool name in a sliding window. At the default threshold, reaching 50 proposed calls to one tool in that window triggers a stop whatever their arguments: all calls in that response are removed and a stop message is added. A setting can raise the limit per tool. An open issue reports this limit interrupting batch scientific work, and a contributor there points to that setting.</p>
+  <p class="status">Already tracked upstream (<a href="https://github.com/bytedance/deer-flow/issues/2510">#2510</a>), checked 2026-11-08.</p>
+  <p class="ev">Where: <a href="https://github.com/bytedance/deer-flow/blob/14abd9a28eb035f277aa56098caab1b0600c6e8d/backend/packages/harness/deerflow/agents/middlewares/loop_detection_middleware.py#L699-L718" title="backend/packages/harness/deerflow/agents/middlewares/loop_detection_middleware.py:699-718"><code>loop_detection_middleware.py:699-718</code></a>, <a href="https://github.com/bytedance/deer-flow/blob/14abd9a28eb035f277aa56098caab1b0600c6e8d/backend/packages/harness/deerflow/agents/middlewares/loop_detection_middleware.py#L846-L855" title="backend/packages/harness/deerflow/agents/middlewares/loop_detection_middleware.py:846-855"><code>loop_detection_middleware.py:846-855</code></a>, <a href="https://github.com/bytedance/deer-flow/blob/14abd9a28eb035f277aa56098caab1b0600c6e8d/backend/packages/harness/deerflow/config/loop_detection_config.py#L58-L70" title="backend/packages/harness/deerflow/config/loop_detection_config.py:58-70"><code>loop_detection_config.py:58-70</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in five rounds; each sentence it questioned was narrowed, removed or kept with the reason recorded.</p>
+</li>
+</ol>
+
+<a class="full" href="https://u00dxk2.github.io/agent-ops-patterns/gallery/deer-flow/">See the full map →</a>
+
+<p class="meta">This card was taken from the published map of DeerFlow at one commit and covers only decisions shown there; it did not look at code outside the map's scope (the Python harness package and the gateway, channel and scheduler code that answers the harness's requests) or at the 17 decisions left out of that edition, and no DeerFlow code was run to make it.</p>
+<p class="meta">Map: edition with 17 of 133 cards left out (published 2026-11-03) · taken from the full map · card data: <a href="https://github.com/u00dxk2/agent-ops-patterns/blob/main/gallery/cards/deer-flow.json"><code>gallery/cards/deer-flow.json</code></a>. Found something wrong? Use the <a href="https://github.com/u00dxk2/agent-ops-patterns/issues/new?template=map-correction.yml">correction form</a>.</p>
+
+</main>
+</body>
+</html>
