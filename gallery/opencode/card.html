@@ -132,8 +132,8 @@ ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
 <ol class="problems">
 <li class="p">
   <h3>1. An agent's chosen model can be swapped for another without a warning from the selection code</h3>
-  <p>When a session has no model of its own and the model its agent is set up with is not among the available models, code falls back to a default or another available model. That selection code gives no warning that the agent's configured model was bypassed, though the name of the model that ran may still be shown elsewhere.</p>
-  <p class="status">No tracker issue found, checked 2026-11-08.</p>
+  <p>When a session has no model of its own and the model its agent is set up with is not among the available models, code falls back to a default or another available model. That selection code gives no warning that the agent's configured model was bypassed, though the name of the model that ran may still be shown elsewhere. Two closed issues report an agent's configured model being swapped for another: the linked one, on an older version that showed a warning, and #53060, which the maintainers disputed and closed for lack of a trace. Neither issue describes this exact code path.</p>
+  <p class="status">Reported; no linked fix found (<a href="https://github.com/anomalyco/opencode/issues/28726">#28726</a>), checked 2026-11-09.</p>
   <p class="ev">Where: <a href="https://github.com/anomalyco/opencode/blob/0093fe5782766f180167efab86fb8fdb3c5b6a4a/packages/core/src/session/runner/model.ts#L79-L87" title="packages/core/src/session/runner/model.ts:79-87"><code>model.ts:79-87</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again, and on 2026-11-08 for the sentence changed after a tracker search.</p>
 </li>
 <li class="p">

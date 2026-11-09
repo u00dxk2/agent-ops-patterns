@@ -128,7 +128,7 @@
     },
     {
       "title": "A /review reply that cannot be parsed comes back with no structured findings",
-      "plain": "Code tries to parse the review model's reply as JSON, whole and then from its first { to its last }. If both fail, the whole reply becomes the overall explanation, with zero findings and an empty correctness verdict. Codex tests this fallback on purpose.",
+      "plain": "Code tries to parse the review model's reply as JSON, whole and then from its first { to its last }. If both fail, the whole reply becomes the overall explanation, with zero findings and an empty correctness verdict. Codex tests this fallback on purpose. An open issue reports a /review that returned \"continue?\" instead of a review; a comment there names this fallback as a plausible cause, not a confirmed one.",
       "evidence": [
         "codex-rs/core/src/tasks/review.rs:193-208"
       ],
@@ -137,9 +137,9 @@
         "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in three rounds; each sentence it questioned was narrowed, removed or kept with the reason recorded"
       },
       "upstream": {
-        "status": "not-filed",
-        "url": null,
-        "checkedAt": "2026-11-08"
+        "status": "reported",
+        "url": "https://github.com/openai/codex/issues/24109",
+        "checkedAt": "2026-11-09"
       }
     }
   ],

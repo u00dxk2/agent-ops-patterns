@@ -110,7 +110,7 @@
   "problems": [
     {
       "title": "An agent's chosen model can be swapped for another without a warning from the selection code",
-      "plain": "When a session has no model of its own and the model its agent is set up with is not among the available models, code falls back to a default or another available model. That selection code gives no warning that the agent's configured model was bypassed, though the name of the model that ran may still be shown elsewhere.",
+      "plain": "When a session has no model of its own and the model its agent is set up with is not among the available models, code falls back to a default or another available model. That selection code gives no warning that the agent's configured model was bypassed, though the name of the model that ran may still be shown elsewhere. Two closed issues report an agent's configured model being swapped for another: the linked one, on an older version that showed a warning, and #53060, which the maintainers disputed and closed for lack of a trace. Neither issue describes this exact code path.",
       "evidence": [
         "packages/core/src/session/runner/model.ts:79-87"
       ],
@@ -119,9 +119,9 @@
         "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again, and on 2026-11-08 for the sentence changed after a tracker search"
       },
       "upstream": {
-        "status": "not-filed",
-        "url": null,
-        "checkedAt": "2026-11-08"
+        "status": "reported",
+        "url": "https://github.com/anomalyco/opencode/issues/28726",
+        "checkedAt": "2026-11-09"
       }
     },
     {

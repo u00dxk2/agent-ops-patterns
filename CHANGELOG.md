@@ -10,6 +10,8 @@ Changes that matter to anyone who vendors a file from this repo. Each entry name
 
 The label for `not-filed` was "Not reported upstream". It is now "No tracker issue found", followed as before by the date checked. What we did was search a project's tracker on that date, which does not show that nobody ever reported the problem somewhere else. Thirteen problems on eight cards show the new words. If you render the JSON with your own labels, consider the same change.
 
+**Re-pull:** `gallery/cards/codex.json`, `gallery/cards/opencode.json` and their `card.html` pages. A whole-pool search on 2026-11-09 found the nearest tracker issue for two `not-filed` rows. Both rows are now `reported`, with a link and one sentence about what the linked report describes. The other eleven `not-filed` rows are unchanged.
+
 ## 2026-11-08
 
 ### Security fixes from 2026-11-01 that had no entry, and the gallery at twelve maps

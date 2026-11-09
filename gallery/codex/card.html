@@ -130,8 +130,8 @@ ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
 </li>
 <li class="p">
   <h3>3. A /review reply that cannot be parsed comes back with no structured findings</h3>
-  <p>Code tries to parse the review model's reply as JSON, whole and then from its first { to its last }. If both fail, the whole reply becomes the overall explanation, with zero findings and an empty correctness verdict. Codex tests this fallback on purpose.</p>
-  <p class="status">No tracker issue found, checked 2026-11-08.</p>
+  <p>Code tries to parse the review model's reply as JSON, whole and then from its first { to its last }. If both fail, the whole reply becomes the overall explanation, with zero findings and an empty correctness verdict. Codex tests this fallback on purpose. An open issue reports a /review that returned &quot;continue?&quot; instead of a review; a comment there names this fallback as a plausible cause, not a confirmed one.</p>
+  <p class="status">Reported; no linked fix found (<a href="https://github.com/openai/codex/issues/24109">#24109</a>), checked 2026-11-09.</p>
   <p class="ev">Where: <a href="https://github.com/openai/codex/blob/a5c409243744c3b99776259eea2f3a13d6af4447/codex-rs/core/src/tasks/review.rs#L193-L208" title="codex-rs/core/src/tasks/review.rs:193-208"><code>review.rs:193-208</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in three rounds; each sentence it questioned was narrowed, removed or kept with the reason recorded.</p>
 </li>
 </ol>
