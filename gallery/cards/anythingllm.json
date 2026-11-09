@@ -106,24 +106,24 @@
       "upstream": {
         "status": "not-filed",
         "url": null,
-        "checkedAt": "2026-11-01"
+        "checkedAt": "2026-11-08"
       }
     },
     {
       "title": "The agent does not use the workspace's chat history setting",
-      "plain": "A workspace's chat history setting decides how much earlier conversation plain chat sends (20 when it is unset or zero). The agent does not read it: it always starts with the newest 20 saved exchanges, so a workspace set to send less, or more, gets 20 in agent mode.",
+      "plain": "A workspace's chat history setting decides how much earlier conversation plain chat sends (at the commit this card read, 20 when it is unset or zero; a pull request merged on 2026-11-04 changed how a limit of 0 is handled in chat). The agent does not read it: it always starts with the newest 20 saved exchanges, so a workspace set to send less, or more, gets 20 in agent mode.",
       "evidence": [
         "server/utils/agents/index.js:908",
         "server/utils/agents/index.js:89-102"
       ],
       "verified": {
         "how": "re-read at pinned commit",
-        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again"
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again, and on 2026-11-08 for the sentence changed after a tracker search"
       },
       "upstream": {
         "status": "not-filed",
         "url": null,
-        "checkedAt": "2026-11-01"
+        "checkedAt": "2026-11-08"
       }
     },
     {
@@ -141,7 +141,7 @@
       "upstream": {
         "status": "not-filed",
         "url": null,
-        "checkedAt": "2026-11-01"
+        "checkedAt": "2026-11-08"
       }
     }
   ],

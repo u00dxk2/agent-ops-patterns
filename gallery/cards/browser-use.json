@@ -139,24 +139,24 @@
       "upstream": {
         "status": "not-filed",
         "url": null,
-        "checkedAt": "2026-11-01"
+        "checkedAt": "2026-11-08"
       }
     },
     {
       "title": "Pressing Enter does not resume a paused run, though the message says it will",
-      "plain": "On Mac and Linux, pressing Ctrl+C pauses the run and prints \"Press [Enter] to resume or [Ctrl+C] again to quit\". Pressing Enter does not resume it; only code that calls agent.resume() does, so a person at the terminal can quit with a second Ctrl+C but cannot continue the run from there. We found no report of this in browser-use's tracker.",
+      "plain": "On Mac and Linux, pressing Ctrl+C pauses the run and prints \"Press [Enter] to resume or [Ctrl+C] again to quit\". Pressing Enter does not resume it; only code that calls agent.resume() does, so a person at the terminal can quit with a second Ctrl+C but cannot continue the run from there. In tracker searches on 2026-11-08 we found no issue tracking this; a 2025 pull request comment reported the same symptom.",
       "evidence": [
         "browser_use/agent/service.py:3942-3946",
         "browser_use/utils.py:399-437"
       ],
       "verified": {
         "how": "re-read at pinned commit",
-        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again"
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again, and on 2026-11-08 for the sentence changed after a tracker search"
       },
       "upstream": {
         "status": "not-filed",
         "url": null,
-        "checkedAt": "2026-11-01"
+        "checkedAt": "2026-11-08"
       }
     }
   ],
