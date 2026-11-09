@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How OpenAI Codex decides</title>
+<meta name="description" content="The main model picks each next step and plain code carries it out, and a turn can end when the model's reply holds no tool call and nothing else asks for a follow-up, unless a Stop hook you configured sends it on. When the conversation grows too long, local compaction replaces older history with a model's summary, and remote compaction uses an opaque item from the backend.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="agent-ops-patterns">
+<meta property="og:title" content="How OpenAI Codex decides">
+<meta property="og:description" content="The main model picks each next step and plain code carries it out, and a turn can end when the model's reply holds no tool call and nothing else asks for a follow-up, unless a Stop hook you configured sends it on. When the conversation grows too long, local compaction replaces older history with a model's summary, and remote compaction uses an opaque item from the backend.">
+<meta property="og:url" content="https://u00dxk2.github.io/agent-ops-patterns/gallery/codex/card.html">
+<meta name="twitter:card" content="summary">
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1d1b;--muted:#5d5b55;--line:#dedad0;--card:#ffffff;--code:#f2efe8;--link:#2f6f8f;
+  --model:#6b4fa0;--code-h:#2f6f8f;--human:#2e7d4f;--nobody:#a3452f}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--card:#1d1c19;--code:#262520;--link:#6fb3d4;
+  --model:#b9a2e6;--code-h:#6fb3d4;--human:#7fcf9f;--nobody:#f09a83}}
+:root[data-theme="dark"]{--bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--card:#1d1c19;--code:#262520;--link:#6fb3d4;
+  --model:#b9a2e6;--code-h:#6fb3d4;--human:#7fcf9f;--nobody:#f09a83}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:680px;margin:0 auto;padding:0 16px 56px}
+a{color:var(--link)}
+code{background:var(--code);padding:1px 4px;border-radius:4px;font-size:.86em;overflow-wrap:anywhere}
+.crumbs{font-size:.9rem;color:var(--muted);margin-top:18px}
+h1{font-size:1.6rem;line-height:1.2;margin:20px 0 10px}
+.summary{font-size:1.08rem}
+.meta{color:var(--muted);font-size:.88rem}
+h2{font-size:1.15rem;margin:32px 0 8px;padding-top:8px;border-top:1px solid var(--line)}
+ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
+.j,.p{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:10px 0}
+.j p,.p p{margin:4px 0}
+.q{font-weight:650}
+.holder{display:inline-block;font-size:.8rem;font-weight:650;border:1px solid currentColor;border-radius:999px;padding:0 8px;margin-right:4px}
+.holder-model{color:var(--model)}.holder-code{color:var(--code-h)}.holder-human{color:var(--human)}.holder-nobody{color:var(--nobody)}
+.ev{color:var(--muted);font-size:.85rem}
+.p h3{font-size:1.05rem;margin:2px 0 6px}
+.status{font-weight:600}
+.full{display:block;text-align:center;font-weight:650;border:1px solid var(--link);border-radius:8px;padding:12px;margin:28px 0 8px;text-decoration:none}
+</style>
+</head>
+<body>
+<main>
+
+<p class="crumbs"><a href="../../">agent-ops-patterns</a> / <a href="../">gallery</a> / <a href="./">OpenAI Codex map</a> / how it decides</p>
+
+<h1>How OpenAI Codex decides</h1>
+
+<p class="summary">The main model picks each next step and plain code carries it out, and a turn can end when the model's reply holds no tool call and nothing else asks for a follow-up, unless a Stop hook you configured sends it on. When the conversation grows too long, local compaction replaces older history with a model's summary, and remote compaction uses an opaque item from the backend.</p>
+
+<p class="meta">From <a href="https://github.com/openai/codex"><code>openai/codex</code></a> at source version <a href="https://github.com/openai/codex/tree/a5c409243744c3b99776259eea2f3a13d6af4447"><code>a5c40924</code></a>, mapped 2026-11-02. Each answer links the place in the code where that decision is made; the full map has the rest.</p>
+
+<h2>How it decides it is done</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">Is this turn finished?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> The model decides by what it emits. If a step has no tool call, the server asks for no follow-up and no input is pending, the loop runs the Stop hooks, and the turn ends unless a hook continues it.</p>
+  <p class="ev"><a href="https://github.com/openai/codex/blob/a5c409243744c3b99776259eea2f3a13d6af4447/codex-rs/core/src/session/turn.rs#L636" title="codex-rs/core/src/session/turn.rs:636"><code>turn.rs:636</code></a> · decision G1 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Do the user's Stop hooks accept that the agent is done?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Hook commands the user configured run with the last assistant message. If any asks to stop, the turn ends; otherwise a hook that blocks with a continuation prompt normally sends the turn on, with that prompt recorded.</p>
+  <p class="ev"><a href="https://github.com/openai/codex/blob/a5c409243744c3b99776259eea2f3a13d6af4447/codex-rs/core/src/hook_runtime.rs#L449" title="codex-rs/core/src/hook_runtime.rs:449"><code>hook_runtime.rs:449</code></a> · decision G2 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Has the thread's goal been achieved, or is it blocked?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> The model decides by calling update_goal. Code accepts complete, blocked or paused, charges final usage and stops automatic continuation.</p>
+  <p class="ev"><a href="https://github.com/openai/codex/blob/a5c409243744c3b99776259eea2f3a13d6af4447/codex-rs/ext/goal/src/tool.rs#L252-L260" title="codex-rs/ext/goal/src/tool.rs:252-260"><code>tool.rs:252-260</code></a> · decision G5 in the full map</p>
+</li>
+</ul>
+
+<h2>Limits and memory</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">After exec_command starts a process, how long does the tool wait before answering?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> The model's wait time, 10 seconds by default, is held between 250 ms and 30 s, with a 10 s floor on Windows. If the process is still running at the deadline, the tool returns the output so far and the process keeps running.</p>
+  <p class="ev"><a href="https://github.com/openai/codex/blob/a5c409243744c3b99776259eea2f3a13d6af4447/codex-rs/core/src/unified_exec/mod.rs#L206-L213" title="codex-rs/core/src/unified_exec/mod.rs:206-213"><code>mod.rs:206-213</code></a> · decision E2 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">How much of a command's captured output does the model read?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> The budget starts from the smaller of the model's max_output_tokens, 10,000 by default, and the model catalog's truncation policy. Text over it is cut from the middle under a warning header, then trimmed again to fit.</p>
+  <p class="ev"><a href="https://github.com/openai/codex/blob/a5c409243744c3b99776259eea2f3a13d6af4447/codex-rs/core/src/tools/context.rs#L527-L534" title="codex-rs/core/src/tools/context.rs:527-534"><code>context.rs:527-534</code></a> · decision E4 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">In a local compaction, what does the summary say?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> A language model is sent the history plus a compaction prompt, and its last message becomes the summary in the replacement history.</p>
+  <p class="ev"><a href="https://github.com/openai/codex/blob/a5c409243744c3b99776259eea2f3a13d6af4447/codex-rs/core/src/compact.rs#L125-L135" title="codex-rs/core/src/compact.rs:125-135"><code>compact.rs:125-135</code></a> · decision F3 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">What does a remote compaction keep?</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> The backend returns one opaque compaction item. Client code then picks which visible items stay beside it, within a budget of 64,000 tokens.</p>
+  <p class="ev"><a href="https://github.com/openai/codex/blob/a5c409243744c3b99776259eea2f3a13d6af4447/codex-rs/core/src/compact_remote_v2.rs#L464" title="codex-rs/core/src/compact_remote_v2.rs:464"><code>compact_remote_v2.rs:464</code></a> · decision F6 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">Should the running turn stop now?</p>
+  <p class="a"><span class="holder holder-human">Decided by a person</span> The person at the terminal interface, or an app-server client, sends an interrupt, and the session aborts the active task and its tools.</p>
+  <p class="ev"><a href="https://github.com/openai/codex/blob/a5c409243744c3b99776259eea2f3a13d6af4447/codex-rs/core/src/session/handlers.rs#L514" title="codex-rs/core/src/session/handlers.rs:514"><code>handlers.rs:514</code></a> · decision F14 in the full map</p>
+</li>
+</ul>
+
+<h2>Other judgments</h2>
+<ul class="judgments">
+<li class="j">
+  <p class="q">What does the agent do next: which tool to call, or what to say?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> The main model answers it in a streamed response at each step; code handles what comes back.</p>
+  <p class="ev"><a href="https://github.com/openai/codex/blob/a5c409243744c3b99776259eea2f3a13d6af4447/codex-rs/core/src/session/turn.rs#L2833" title="codex-rs/core/src/session/turn.rs:2833"><code>turn.rs:2833</code></a> · decision C1 in the full map</p>
+</li>
+<li class="j">
+  <p class="q">In multi-agent V1, should part of this work go to a sub-agent?</p>
+  <p class="a"><span class="holder holder-model">Decided by an AI model</span> The model decides by calling spawn_agent; code checks the arguments and starts a child thread.</p>
+  <p class="ev"><a href="https://github.com/openai/codex/blob/a5c409243744c3b99776259eea2f3a13d6af4447/codex-rs/core/src/tools/handlers/multi_agents/spawn.rs#L65" title="codex-rs/core/src/tools/handlers/multi_agents/spawn.rs:65"><code>spawn.rs:65</code></a> · decision H1 in the full map</p>
+</li>
+</ul>
+
+<h2>Three problems in the code</h2>
+<ol class="problems">
+<li class="p">
+  <h3>1. A long AGENTS.md near the root can crowd out the ones nearer your work</h3>
+  <p>Codex shares one budget, 32 KiB by default, across a project's AGENTS.md files, reading from the project root down to your working directory. So a long file near the root can use it up. When the budget is used up, later files, nearer your work, are not read; a file larger than what remains is cut. A pull request merged on 2026-11-04, after the commit this card read, adds warnings for files cut or skipped this way; the cut is still there.</p>
+  <p class="status">Already tracked upstream (<a href="https://github.com/openai/codex/issues/37956">#37956</a>), checked 2026-11-08.</p>
+  <p class="ev">Where: <a href="https://github.com/openai/codex/blob/a5c409243744c3b99776259eea2f3a13d6af4447/codex-rs/core/src/agents_md.rs#L145-L180" title="codex-rs/core/src/agents_md.rs:145-180"><code>agents_md.rs:145-180</code></a>, <a href="https://github.com/openai/codex/blob/a5c409243744c3b99776259eea2f3a13d6af4447/codex-rs/core/src/agents_md.rs#L68" title="codex-rs/core/src/agents_md.rs:68"><code>agents_md.rs:68</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in three rounds; each sentence it questioned was narrowed, removed or kept with the reason recorded.</p>
+</li>
+<li class="p">
+  <h3>2. An interrupted command's output can be missing from the model's result</h3>
+  <p>If you interrupt and a running exec_command call is aborted, its result for the model holds the elapsed time and 'aborted by user', with no command output. An open report in Codex's tracker describes output visible on screen but missing from the tool result returned to the model.</p>
+  <p class="status">Already tracked upstream (<a href="https://github.com/openai/codex/issues/35735">#35735</a>), checked 2026-11-08.</p>
+  <p class="ev">Where: <a href="https://github.com/openai/codex/blob/a5c409243744c3b99776259eea2f3a13d6af4447/codex-rs/core/src/tools/parallel.rs#L481-L501" title="codex-rs/core/src/tools/parallel.rs:481-501"><code>parallel.rs:481-501</code></a>, <a href="https://github.com/openai/codex/blob/a5c409243744c3b99776259eea2f3a13d6af4447/codex-rs/core/src/tools/parallel.rs#L378-L385" title="codex-rs/core/src/tools/parallel.rs:378-385"><code>parallel.rs:378-385</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in three rounds; each sentence it questioned was narrowed, removed or kept with the reason recorded.</p>
+</li>
+<li class="p">
+  <h3>3. A /review reply that cannot be parsed comes back with no structured findings</h3>
+  <p>Code tries to parse the review model's reply as JSON, whole and then from its first { to its last }. If both fail, the whole reply becomes the overall explanation, with zero findings and an empty correctness verdict. Codex tests this fallback on purpose.</p>
+  <p class="status">Not reported upstream, checked 2026-11-08.</p>
+  <p class="ev">Where: <a href="https://github.com/openai/codex/blob/a5c409243744c3b99776259eea2f3a13d6af4447/codex-rs/core/src/tasks/review.rs#L193-L208" title="codex-rs/core/src/tasks/review.rs:193-208"><code>review.rs:193-208</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in three rounds; each sentence it questioned was narrowed, removed or kept with the reason recorded.</p>
+</li>
+</ol>
+
+<a class="full" href="https://u00dxk2.github.io/agent-ops-patterns/gallery/codex/">See the full map →</a>
+
+<p class="meta">This card was taken from the published map of OpenAI Codex at one commit and covers only decisions shown there; it did not look at code outside the Rust agent in codex-rs/, at OpenAI's hosted services, or at the 8 decisions left out of that edition, and no Codex code was run to make it.</p>
+<p class="meta">Map: edition without a gap list or coverage figure, 157 of 165 cards shown (published 2026-11-02) · taken from the full map · card data: <a href="https://github.com/u00dxk2/agent-ops-patterns/blob/main/gallery/cards/codex.json"><code>gallery/cards/codex.json</code></a>. Found something wrong? Use the <a href="https://github.com/u00dxk2/agent-ops-patterns/issues/new?template=map-correction.yml">correction form</a>.</p>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,152 @@
+{
+  "schema": "aop-decides-card/v1",
+  "agent": {
+    "name": "OpenAI Codex",
+    "slug": "codex",
+    "repo": "https://github.com/openai/codex",
+    "commit": "a5c409243744c3b99776259eea2f3a13d6af4447",
+    "mappedAt": "2026-11-02"
+  },
+  "fullMapUrl": "https://u00dxk2.github.io/agent-ops-patterns/gallery/codex/",
+  "summary": "The main model picks each next step and plain code carries it out, and a turn can end when the model's reply holds no tool call and nothing else asks for a follow-up, unless a Stop hook you configured sends it on. When the conversation grows too long, local compaction replaces older history with a model's summary, and remote compaction uses an opaque item from the backend.",
+  "judgments": [
+    {
+      "id": "C1",
+      "stage": "other",
+      "question": "What does the agent do next: which tool to call, or what to say?",
+      "holder": "model",
+      "answer": "The main model answers it in a streamed response at each step; code handles what comes back.",
+      "evidence": "codex-rs/core/src/session/turn.rs:2833"
+    },
+    {
+      "id": "H1",
+      "stage": "other",
+      "question": "In multi-agent V1, should part of this work go to a sub-agent?",
+      "holder": "model",
+      "answer": "The model decides by calling spawn_agent; code checks the arguments and starts a child thread.",
+      "evidence": "codex-rs/core/src/tools/handlers/multi_agents/spawn.rs:65"
+    },
+    {
+      "id": "E2",
+      "stage": "limits-memory",
+      "question": "After exec_command starts a process, how long does the tool wait before answering?",
+      "holder": "code",
+      "answer": "The model's wait time, 10 seconds by default, is held between 250 ms and 30 s, with a 10 s floor on Windows. If the process is still running at the deadline, the tool returns the output so far and the process keeps running.",
+      "evidence": "codex-rs/core/src/unified_exec/mod.rs:206-213"
+    },
+    {
+      "id": "E4",
+      "stage": "limits-memory",
+      "question": "How much of a command's captured output does the model read?",
+      "holder": "code",
+      "answer": "The budget starts from the smaller of the model's max_output_tokens, 10,000 by default, and the model catalog's truncation policy. Text over it is cut from the middle under a warning header, then trimmed again to fit.",
+      "evidence": "codex-rs/core/src/tools/context.rs:527-534"
+    },
+    {
+      "id": "F3",
+      "stage": "limits-memory",
+      "question": "In a local compaction, what does the summary say?",
+      "holder": "model",
+      "answer": "A language model is sent the history plus a compaction prompt, and its last message becomes the summary in the replacement history.",
+      "evidence": "codex-rs/core/src/compact.rs:125-135"
+    },
+    {
+      "id": "F6",
+      "stage": "limits-memory",
+      "question": "What does a remote compaction keep?",
+      "holder": "code",
+      "answer": "The backend returns one opaque compaction item. Client code then picks which visible items stay beside it, within a budget of 64,000 tokens.",
+      "evidence": "codex-rs/core/src/compact_remote_v2.rs:464"
+    },
+    {
+      "id": "F14",
+      "stage": "limits-memory",
+      "question": "Should the running turn stop now?",
+      "holder": "human",
+      "answer": "The person at the terminal interface, or an app-server client, sends an interrupt, and the session aborts the active task and its tools.",
+      "evidence": "codex-rs/core/src/session/handlers.rs:514"
+    },
+    {
+      "id": "G1",
+      "stage": "done",
+      "question": "Is this turn finished?",
+      "holder": "model",
+      "answer": "The model decides by what it emits. If a step has no tool call, the server asks for no follow-up and no input is pending, the loop runs the Stop hooks, and the turn ends unless a hook continues it.",
+      "evidence": "codex-rs/core/src/session/turn.rs:636"
+    },
+    {
+      "id": "G2",
+      "stage": "done",
+      "question": "Do the user's Stop hooks accept that the agent is done?",
+      "holder": "code",
+      "answer": "Hook commands the user configured run with the last assistant message. If any asks to stop, the turn ends; otherwise a hook that blocks with a continuation prompt normally sends the turn on, with that prompt recorded.",
+      "evidence": "codex-rs/core/src/hook_runtime.rs:449"
+    },
+    {
+      "id": "G5",
+      "stage": "done",
+      "question": "Has the thread's goal been achieved, or is it blocked?",
+      "holder": "model",
+      "answer": "The model decides by calling update_goal. Code accepts complete, blocked or paused, charges final usage and stops automatic continuation.",
+      "evidence": "codex-rs/ext/goal/src/tool.rs:252-260"
+    }
+  ],
+  "problems": [
+    {
+      "title": "A long AGENTS.md near the root can crowd out the ones nearer your work",
+      "plain": "Codex shares one budget, 32 KiB by default, across a project's AGENTS.md files, reading from the project root down to your working directory. So a long file near the root can use it up. When the budget is used up, later files, nearer your work, are not read; a file larger than what remains is cut. A pull request merged on 2026-11-04, after the commit this card read, adds warnings for files cut or skipped this way; the cut is still there.",
+      "evidence": [
+        "codex-rs/core/src/agents_md.rs:145-180",
+        "codex-rs/core/src/agents_md.rs:68"
+      ],
+      "verified": {
+        "how": "re-read at pinned commit",
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in three rounds; each sentence it questioned was narrowed, removed or kept with the reason recorded"
+      },
+      "upstream": {
+        "status": "already-tracked",
+        "url": "https://github.com/openai/codex/issues/37956",
+        "checkedAt": "2026-11-08"
+      }
+    },
+    {
+      "title": "An interrupted command's output can be missing from the model's result",
+      "plain": "If you interrupt and a running exec_command call is aborted, its result for the model holds the elapsed time and 'aborted by user', with no command output. An open report in Codex's tracker describes output visible on screen but missing from the tool result returned to the model.",
+      "evidence": [
+        "codex-rs/core/src/tools/parallel.rs:481-501",
+        "codex-rs/core/src/tools/parallel.rs:378-385"
+      ],
+      "verified": {
+        "how": "re-read at pinned commit",
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in three rounds; each sentence it questioned was narrowed, removed or kept with the reason recorded"
+      },
+      "upstream": {
+        "status": "already-tracked",
+        "url": "https://github.com/openai/codex/issues/35735",
+        "checkedAt": "2026-11-08"
+      }
+    },
+    {
+      "title": "A /review reply that cannot be parsed comes back with no structured findings",
+      "plain": "Code tries to parse the review model's reply as JSON, whole and then from its first { to its last }. If both fail, the whole reply becomes the overall explanation, with zero findings and an empty correctness verdict. Codex tests this fallback on purpose.",
+      "evidence": [
+        "codex-rs/core/src/tasks/review.rs:193-208"
+      ],
+      "verified": {
+        "how": "re-read at pinned commit",
+        "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in three rounds; each sentence it questioned was narrowed, removed or kept with the reason recorded"
+      },
+      "upstream": {
+        "status": "not-filed",
+        "url": null,
+        "checkedAt": "2026-11-08"
+      }
+    }
+  ],
+  "notChecked": "This card was taken from the published map of OpenAI Codex at one commit and covers only decisions shown there; it did not look at code outside the Rust agent in codex-rs/, at OpenAI's hosted services, or at the 8 decisions left out of that edition, and no Codex code was run to make it.",
+  "provenance": {
+    "mapEdition": "edition without a gap list or coverage figure, 157 of 165 cards shown (published 2026-11-02)",
+    "cardCommit": "eb703110957fb361c9f6c6e685770d5cb4877444",
+    "method": "derived-from-full-map"
+  }
+}
