@@ -25,6 +25,8 @@ Each map takes one open-source agent system and lists the recurring judgments it
 
 The OpenHands map also has a gap report; the other eleven are shorter editions without one, and each says what it leaves out. A wrong sentence about someone else's code is the worst bug a map can have: corrections are welcome through the [correction form](https://github.com/u00dxk2/agent-ops-patterns/issues/new?template=map-correction.yml).
 
+The maps here are free to read. To have your own agent system mapped, as paid work, see [skylarkcreations.com/agent-maps](https://skylarkcreations.com/agent-maps).
+
 ## Designing a new system? Start here
 
 The maps describe systems that already exist. If you're about to build one, these are the parts of this repo that can change a design:
