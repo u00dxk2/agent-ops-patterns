@@ -8,7 +8,7 @@
     "mappedAt": "2026-11-02"
   },
   "fullMapUrl": "https://u00dxk2.github.io/agent-ops-patterns/gallery/deer-flow/",
-  "summary": "In DeerFlow, a lead AI model does the work through tool calls and can hand tasks to sub-agents; a run normally ends when that model replies without asking for a tool, and plain code can also remove tool calls to bring it to a close. When a thread has an active /goal, a separate model call can judge whether the conversation shows the goal was met, though some conditions stand the goal down without that call.",
+  "summary": "In DeerFlow, a lead AI model does the work through tool calls and, when sub-agents are switched on (the web app does this only in its Ultra mode), can hand tasks to them; a run normally ends when that model replies without asking for a tool, and plain code can also remove tool calls to bring it to a close. When a thread has an active /goal, a separate model call can judge whether the conversation shows the goal was met, though some conditions stand the goal down without that call.",
   "judgments": [
     {
       "id": "G7",

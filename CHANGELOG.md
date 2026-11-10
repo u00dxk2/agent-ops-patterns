@@ -2,6 +2,14 @@
 
 Changes that matter to anyone who vendors a file from this repo. Each entry names the files to re-pull.
 
+## 2026-11-10
+
+### Two card summaries say what was mapped and under what setting
+
+**Re-pull:** `gallery/cards/openhands.json`, `gallery/cards/deer-flow.json` and their `card.html` pages. Only the `summary` text changed; the contract is unchanged.
+
+The OpenHands summary now opens by saying the card covers the OpenHands agent SDK and not the OpenHands app. It also says the SDK's default of never asking holds even after an app gives the agent tools to run commands and edit files. The DeerFlow summary now says the lead model hands tasks to sub-agents only when sub-agents are switched on, which the web app does only in its Ultra mode. Both sentences were checked against each project's code at the mapped commit and at its main branch on 2026-11-10.
+
 ## 2026-11-09
 
 ### One badge on the cards now says what was done

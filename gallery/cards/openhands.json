@@ -8,7 +8,7 @@
     "mappedAt": "2026-10-06"
   },
   "fullMapUrl": "https://u00dxk2.github.io/agent-ops-patterns/gallery/openhands/",
-  "summary": "On its default settings, the software that runs the OpenHands agent never stops to ask for your approval. An app built on it can turn approvals on, but deciding when the work is done and what to remember stays with plain code and AI models.",
+  "summary": "This card covers the OpenHands agent SDK, the library that the OpenHands command-line tool and OpenHands Cloud are built on, and not the OpenHands app or its screens. On its default settings the SDK never stops to ask for your approval, even after an app gives the agent tools to run commands and edit files. An app built on it can turn approvals on, but deciding when the work is done and what to remember stays with plain code and AI models.",
   "judgments": [
     {
       "id": "D16",
