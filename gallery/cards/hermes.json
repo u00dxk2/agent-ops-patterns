@@ -132,7 +132,7 @@
   ],
   "notChecked": "This card was taken from the published map of Hermes Agent at one commit and covers only decisions shown there; that map leaves out the desktop and terminal interfaces, packaging, and optional plugins that are off by default, except where they answer a question the agent asks, and no Hermes code was run to make this card.",
   "provenance": {
-    "mapEdition": "edition without a gap list or coverage figure, all 277 cards shown (published 2026-11-03)",
+    "mapEdition": "edition without a gap list or coverage figure, all 279 cards shown (published 2026-11-03)",
     "cardCommit": "f30224f0497d6741741e5e35fc3a7f3aac58dfdb",
     "method": "derived-from-full-map"
   }

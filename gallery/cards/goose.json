@@ -149,7 +149,7 @@
   ],
   "notChecked": "This card was taken from the published map of goose at one commit and covers only decisions shown there; it did not look at code outside the map's scope (goose's core crates, command line, built-in extensions and desktop app) or at the 15 decisions left out of that edition, and no goose code was run to make it.",
   "provenance": {
-    "mapEdition": "edition with 15 of 103 cards left out (published 2026-11-03)",
+    "mapEdition": "edition with 15 of 104 cards left out (published 2026-11-03)",
     "cardCommit": "cce2668b4f065e93b6c4e654241de9f8a718bb07",
     "method": "derived-from-full-map"
   }

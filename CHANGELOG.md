@@ -2,6 +2,14 @@
 
 Changes that matter to anyone who vendors a file from this repo. Each entry names the files to re-pull.
 
+## 2026-11-11
+
+### Five more cards added to four maps
+
+**Re-pull:** `gallery/cards/codex.json`, `gallery/cards/deer-flow.json`, `gallery/cards/goose.json`, `gallery/cards/hermes.json` and their `card.html` pages. Only the `mapEdition` text changed, to name each full map's new card count; the contract is unchanged.
+
+Five decisions held by a model were added. Three name a session or thread: Hermes, goose, and the Codex terminal app. One is a separate model describing an image for Hermes's `vision_analyze` tool. One is DeerFlow's plan-mode to-do list. The Codex card is a model call the terminal app makes on its own; previously, the displayed terminal-app cards concerned questions put to the person. Each card's question, answer and "held by" text was checked against the project's code at the map's commit by a second model family. The maps now show 279 cards for Hermes, 158 for Codex, 118 for DeerFlow and 89 for goose.
+
 ## 2026-11-10
 
 ### Two card summaries say what was mapped and under what setting
