@@ -14,7 +14,7 @@ The OpenHands summary now opens by saying the card covers the OpenHands agent SD
 
 **Re-pull:** `gallery/cards/cline.json`, `gallery/cards/deer-flow.json`, `gallery/cards/goose.json`, `gallery/cards/hermes.json`, `gallery/cards/opencode.json` and their `card.html` pages. Only the `mapEdition` text changed, to name each full map's new card count; the contract is unchanged.
 
-A check of all twelve maps for two kinds of decision added seven cards to five of them. Four are a person stopping a run in progress (DeerFlow, Cline, goose, opencode). Three are an outside search service deciding which results the model reads (Hermes, Cline, opencode). Each card was read at the map's commit and at the project's main branch on 2026-11-10, and its sentences were checked by a second model family. The maps now show 277 cards for Hermes, 117 for DeerFlow, 116 for Cline, 88 for goose and 125 for opencode.
+A check of all twelve maps for two kinds of decision added seven cards to five of them. Four are a person stopping a run in progress (DeerFlow, Cline, goose, opencode). Three concern results returned by an outside search service (Hermes, Cline, opencode). Each card was read at the map's commit and at the project's main branch on 2026-11-10, and its sentences were checked by a second model family. The maps now show 277 cards for Hermes, 117 for DeerFlow, 116 for Cline, 88 for goose and 125 for opencode.
 
 ## 2026-11-09
 
