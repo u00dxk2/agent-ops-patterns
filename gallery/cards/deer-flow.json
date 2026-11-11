@@ -139,7 +139,7 @@
   ],
   "notChecked": "This card was taken from the published map of DeerFlow at one commit and covers only decisions shown there; it did not look at code outside the map's scope (the Python harness package and the gateway, channel and scheduler code that answers the harness's requests) or at the 17 decisions left out of that edition, and no DeerFlow code was run to make it.",
   "provenance": {
-    "mapEdition": "edition with 17 of 133 cards left out (published 2026-11-03)",
+    "mapEdition": "edition with 17 of 134 cards left out (published 2026-11-03)",
     "cardCommit": "cce2668b4f065e93b6c4e654241de9f8a718bb07",
     "method": "derived-from-full-map"
   }

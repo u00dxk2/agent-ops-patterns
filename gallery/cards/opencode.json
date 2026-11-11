@@ -161,7 +161,7 @@
   ],
   "notChecked": "This card was taken from the published map of opencode at one commit and covers only decisions shown there; it did not look at opencode's hosted services or at code outside the parts the map covers (its core, command line, server and terminal interface), and no opencode code was run to make it.",
   "provenance": {
-    "mapEdition": "edition without a gap list or coverage figure, all 123 cards shown (issue states checked 2026-10-29)",
+    "mapEdition": "edition without a gap list or coverage figure, all 125 cards shown (issue states checked 2026-10-29)",
     "cardCommit": "b5e87a627a1635ebfcce06d598d2011a068f21eb",
     "method": "derived-from-full-map"
   }

@@ -131,7 +131,7 @@
   ],
   "notChecked": "This card was taken from the published map of Cline at one commit and covers only decisions shown there; it did not look at Cline's hosted services or at code outside the parts the map covers (its SDK, command line, hub and VS Code extension), and no Cline code was run to make it.",
   "provenance": {
-    "mapEdition": "edition without a gap list or coverage figure, all 114 cards shown (published 2026-11-02)",
+    "mapEdition": "edition without a gap list or coverage figure, all 116 cards shown (published 2026-11-02)",
     "cardCommit": "15980d7b880363148df84c302abf2db1f66de606",
     "method": "derived-from-full-map"
   }
