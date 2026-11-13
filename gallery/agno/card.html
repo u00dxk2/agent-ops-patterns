@@ -152,7 +152,7 @@ ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
 
 <a class="full" href="https://u00dxk2.github.io/agent-ops-patterns/gallery/agno/">See the full map →</a>
 
-<p class="meta">This card was taken from the published map of agno at one commit and covers only decisions shown there; it did not look at AgentOS, the server that runs agents, or at provider adapters beyond those the map names, and no agno code was run to make it.</p>
+<p class="meta">This card was taken from the published map of agno at one commit and covers only decisions shown there. It did not look at AgentOS, the server that runs agents, or at provider adapters beyond those the map names. One problem was also tested by running it: a reply cut off by the token limit. On 2026-11-10, at this commit, an agent on agno's OpenAI Responses adapter got a scripted reply from a stand-in for the model, marked as cut off at the output-token limit. The run came back marked completed, with the partial answer and one logged warning. In separate cases of the same test, a normal reply ended completed and a provider failure ended in error, so the test could tell them apart. The reproduction covers only the three cases described here.</p>
 <p class="meta">Map: edition with 3 of 118 cards left out (published 2026-10-30) · taken from the full map · card data: <a href="https://github.com/u00dxk2/agent-ops-patterns/blob/main/gallery/cards/agno.json"><code>gallery/cards/agno.json</code></a>. Found something wrong? Use the <a href="https://github.com/u00dxk2/agent-ops-patterns/issues/new?template=map-correction.yml">correction form</a>.</p>
 
 </main>

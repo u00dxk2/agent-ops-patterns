@@ -152,7 +152,7 @@ ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
 
 <a class="full" href="https://u00dxk2.github.io/agent-ops-patterns/gallery/pi/">See the full map →</a>
 
-<p class="meta">This card was taken from the published map of pi at one commit and covers only decisions shown there; it did not look at code outside the map's scope (the command-line agent, agent loop, model layer, code mode and MCP client), and no pi code was run to make it.</p>
+<p class="meta">This card was taken from the published map of pi at one commit and covers only decisions shown there. It did not look at code outside the map's scope (the command-line agent, agent loop, model layer, code mode and MCP client). One judgment was also tested by running it: G4 (did the run end completed, in error, or aborted?). On 2026-11-12, at this commit, in pi's own test harness, a stand-in for the model sent a reply marked as cut off at its length limit. The turn-end event handed to extensions said completed, while the stored message kept the stop reason &quot;length&quot;. In separate cases of the same test, a normal reply ended completed and a provider error ended as error. The test did not use pi's text print mode, which reports a final reply cut off this way and exits with an error. The reproduction covers only the three cases described here.</p>
 <p class="meta">Map: first edition (2026-10-29) · taken from the full map · card data: <a href="https://github.com/u00dxk2/agent-ops-patterns/blob/main/gallery/cards/pi.json"><code>gallery/cards/pi.json</code></a>. Found something wrong? Use the <a href="https://github.com/u00dxk2/agent-ops-patterns/issues/new?template=map-correction.yml">correction form</a>.</p>
 
 </main>

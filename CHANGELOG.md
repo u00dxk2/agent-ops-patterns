@@ -2,6 +2,14 @@
 
 Changes that matter to anyone who vendors a file from this repo. Each entry names the files to re-pull.
 
+## 2026-11-13
+
+### Three cards say what was tested by running it
+
+**Re-pull:** `gallery/cards/agno.json`, `gallery/cards/pi.json`, `gallery/cards/cline.json` and their `card.html` pages. Only the `notChecked` text changed; the contract is unchanged.
+
+Each card's closing paragraph used to end by saying no code was run to make it. It now says which one item on the card was tested by running the project's code at the map's commit, with a scripted stand-in for the model where one was used (agno on 2026-11-10; pi and Cline on 2026-11-12), what the test showed, and that it covers only the three cases it describes. For pi, the item is judgment G4, not one of the card's problems. Each sentence was checked against the test files and the code by a second model family.
+
 ## 2026-11-11
 
 ### Five more cards added to four maps

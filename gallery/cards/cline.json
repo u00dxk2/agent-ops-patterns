@@ -129,7 +129,7 @@
       }
     }
   ],
-  "notChecked": "This card was taken from the published map of Cline at one commit and covers only decisions shown there; it did not look at Cline's hosted services or at code outside the parts the map covers (its SDK, command line, hub and VS Code extension), and no Cline code was run to make it.",
+  "notChecked": "This card was taken from the published map of Cline at one commit and covers only decisions shown there. It did not look at Cline's hosted services or at code outside the parts the map covers (its SDK, command line, hub and VS Code extension). One problem was also tested by running it: a file edit that timed out. On 2026-11-12, at this commit, Cline's editor tool was given a 50 ms limit around its real file editor. The test delayed that editor on purpose before it started. The tool reported that the edit had timed out while the file was still unchanged, and the file changed once the editor finished. In separate cases of the same test, a normal edit landed and reported success, and an edit made to fail before writing left the file unchanged. No model was used, and the test does not show how often a real edit is that slow. The reproduction covers only the three cases described here.",
   "provenance": {
     "mapEdition": "edition without a gap list or coverage figure, all 116 cards shown (published 2026-11-02)",
     "cardCommit": "15980d7b880363148df84c302abf2db1f66de606",
