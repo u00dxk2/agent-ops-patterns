@@ -9,7 +9,7 @@ Instructions for a coding agent working in this repository. Humans: [README.md](
   test in `test/`; the Python library carries its own self-check (`python lib/secret_redaction.py`).
 - `patterns/` — written protocols. Nothing executes them; they are held to accuracy and stated scope.
 - `skills/` — Agent Skills: `cs329a-self-improving-agents` (validated by
-  `test/skill-references.test.mjs`) `cog-ops-map` (validated by `test/cog-ops-map-skill.test.mjs`) and `cog-ops-design` (validated by
+  `test/skill-references.test.mjs`), `cog-ops-map` (validated by `test/cog-ops-map-skill.test.mjs`) and `cog-ops-design` (validated by
   `test/cog-ops-design-skill.test.mjs`).
 - `gallery/` — published cognitive operations maps of OTHER projects' agent code (twelve as of 2026-11-03; `gallery/README.md` has the table).
   Every sentence there is a claim about someone else's code: change one only with a quoted `file:line`
@@ -60,8 +60,8 @@ workflow's read-only posture is a property to keep.
 
 ## Traps
 
-- **Line endings.** `.gitattributes` pins `*.md` to LF. Both skill tests parse frontmatter with an
-  LF-only pattern; if it reports "frontmatter block missing" on a file you did not touch, the checkout
+- **Line endings.** `.gitattributes` pins `*.md` to LF. All three skill tests parse frontmatter with an
+  LF-only pattern; if one reports a missing frontmatter block on a file you did not touch, the checkout
   has CRLF — renormalize the file, do not loosen the test.
 - **Tests are the spec.** When a test and the code disagree, find out which one is wrong before
   changing either. Several tests exist to pin a boundary (a byte budget, an off-by-one) that an

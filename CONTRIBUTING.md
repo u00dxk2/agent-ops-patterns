@@ -18,7 +18,7 @@ What is welcome as a direct PR, no intent doc needed:
 
 - **Adoption reports** — "this caught X for us" as an issue is the single most useful contribution (see README § Posture).
 - **Bug reports with a failing test.** The test is the intent document.
-- **Mechanical one-liners** where the README explicitly invites them (e.g. adding a vendor shape to `snippet-redact` — one pattern line plus its test).
+- **Mechanical one-liners** where LIMITS.md explicitly invites them (e.g. adding a vendor shape to `snippet-redact` — one pattern line plus its test).
 
 ## Before this repo accepts outside PRs into CI with any privileges
 
