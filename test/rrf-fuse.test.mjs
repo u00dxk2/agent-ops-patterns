@@ -101,8 +101,9 @@ describe("rrfFuse — edges", () => {
   });
 
   it("a missing, NaN or infinite score fuses exactly like a score of 0", () => {
-    // Scores on both sides of 0 so that reading a bad score as anything but 0
-    // moves it: as 1 it would beat "a", as -2 it would lose to "e".
+    // This fixture compares the complete output ID order against zero
+    // substitution and distinguishes fallbacks of 1 and -2; it does not
+    // uniquely pin zero (a fallback of 0.25 also passes).
     const messy = [{ id: "a", score: 0.5 }, { id: "b", score: NaN }, { id: "c" }, { id: "d", score: Infinity }, { id: "f", score: -Infinity }, { id: "e", score: -1 }];
     const zeroed = messy.map((h) => (h.id === "a" || h.id === "e" ? h : { id: h.id, score: 0 }));
     const ids = (pool) => rrfFuse(pool, pool.length).map((h) => h.id);

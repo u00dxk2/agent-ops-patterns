@@ -139,15 +139,16 @@ describe("gallery pages on GitHub Pages", () => {
   // read "—" on 2026-11-13, though their card files were added on 2026-11-08,
   // because nothing tied the column to gallery/cards/. Each card JSON is the
   // source scripts/render-decides-card.mjs builds a card.html from, so each one
-  // needs a README link. This reads Markdown link syntax with HTML comments
-  // removed; it does not check which table column the link sits in.
+  // needs a README link. After removing closed HTML comments, this checks for
+  // each card's exact Markdown-link destination suffix anywhere in the README:
+  // it does not check for the opening "[", code spans, or the table column.
   it("every map with a card has its card linked from the root README", () => {
     const readme = uncommented(read("README.md"));
     const slugs = fs.readdirSync(path.join(root, "gallery", "cards")).filter((f) => f.endsWith(".json")).map((f) => f.slice(0, -5));
     assert.ok(slugs.length > 0, "at least one card (if not, this test is stale)");
     for (const s of slugs) {
       const link = `](https://u00dxk2.github.io/agent-ops-patterns/gallery/${s}/card.html)`;
-      assert.ok(readme.includes(link), `README.md links the ${s} card as a Markdown link`);
+      assert.ok(readme.includes(link), `README.md carries the ${s} card's Markdown-link destination`);
     }
   });
 
