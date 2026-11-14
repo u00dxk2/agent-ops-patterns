@@ -60,9 +60,10 @@ workflow's read-only posture is a property to keep.
 
 ## Traps
 
-- **Line endings.** `.gitattributes` pins `*.md` to LF. All three skill tests parse frontmatter with an
-  LF-only pattern; if one reports a missing frontmatter block on a file you did not touch, the checkout
-  has CRLF — renormalize the file, do not loosen the test.
+- **Line endings.** `.gitattributes` pins `*.md` to LF. The skill-references and cog-ops-map skill
+  tests parse frontmatter with an LF-only pattern (the cog-ops-design test converts CRLF first). If
+  either reports a missing frontmatter block on a file you did not touch, check the file's line
+  endings: a CRLF checkout causes it. Renormalize the file; do not loosen the test.
 - **Tests are the spec.** When a test and the code disagree, find out which one is wrong before
   changing either. Several tests exist to pin a boundary (a byte budget, an off-by-one) that an
   "obvious" simplification would move.

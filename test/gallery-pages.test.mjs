@@ -135,16 +135,19 @@ describe("gallery pages on GitHub Pages", () => {
     }
   });
 
-  // The root README's map table has a "Short version" column. Four rows read "—"
-  // for weeks after their cards went live (found 2026-11-13), because nothing
-  // tied the column to gallery/cards/. A card JSON is what makes card.html exist
-  // (scripts/render-decides-card.mjs), so each one needs its README link.
+  // The root README's map table has a "Short version" column. Four rows still
+  // read "—" on 2026-11-13, though their card files were added on 2026-11-08,
+  // because nothing tied the column to gallery/cards/. Each card JSON is the
+  // source scripts/render-decides-card.mjs builds a card.html from, so each one
+  // needs a README link. This reads Markdown link syntax with HTML comments
+  // removed; it does not check which table column the link sits in.
   it("every map with a card has its card linked from the root README", () => {
-    const readme = read("README.md");
+    const readme = uncommented(read("README.md"));
     const slugs = fs.readdirSync(path.join(root, "gallery", "cards")).filter((f) => f.endsWith(".json")).map((f) => f.slice(0, -5));
     assert.ok(slugs.length > 0, "at least one card (if not, this test is stale)");
     for (const s of slugs) {
-      assert.ok(readme.includes(`/agent-ops-patterns/gallery/${s}/card.html`), `README.md links the ${s} card`);
+      const link = `](https://u00dxk2.github.io/agent-ops-patterns/gallery/${s}/card.html)`;
+      assert.ok(readme.includes(link), `README.md links the ${s} card as a Markdown link`);
     }
   });
 

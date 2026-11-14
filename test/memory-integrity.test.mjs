@@ -469,8 +469,8 @@ test("classifyMemoryIndexSizes: rows with no identity are malformed, not measure
 });
 
 // LIMIT tests: what the header says this lint deliberately does not do. Each
-// pins current behaviour, so a later change that widens it has to change the
-// test (and the header) on purpose.
+// pins one example of current behaviour; a widening that this example does not
+// exercise can still stay green.
 
 test("LIMIT: presence/reference only — two indexed memories that contradict each other produce no finding", () => {
   const files = [
