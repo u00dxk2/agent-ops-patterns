@@ -467,3 +467,28 @@ test("classifyMemoryIndexSizes: rows with no identity are malformed, not measure
   // All malformed → nothing swept, never clean.
   assert.equal(classifyMemoryIndexSizes({ rows: [null, { agent: "" }] }).verdict, "nothing-swept");
 });
+
+// LIMIT tests: what the header says this lint deliberately does not do. Each
+// pins current behaviour, so a later change that widens it has to change the
+// test (and the header) on purpose.
+
+test("LIMIT: presence/reference only — two indexed memories that contradict each other produce no finding", () => {
+  const files = [
+    { name: "feedback_deploy_fridays.md", content: "---\nmetadata:\n  type: feedback\n---\nAlways deploy on Fridays." },
+    { name: "feedback_freeze_weekend.md", content: "---\nmetadata:\n  type: feedback\n---\nNever deploy on Fridays." },
+  ];
+  const idx = "- [Deploy Fridays](feedback_deploy_fridays.md) — ship it\n- [Weekend freeze](feedback_freeze_weekend.md) — hold it";
+  assert.deepEqual(lintMemoryIntegrity({ indexText: idx, files }).findings, []);
+});
+
+test("LIMIT: fail-soft under-reports — an index link with a path in it is skipped, so a missing pathed target is not a dead link", () => {
+  const idx = "- [Moved](archive/feedback_gone.md) — this file does not exist";
+  const { findings } = lintMemoryIntegrity({ indexText: idx, files: FILES });
+  assert.equal(findings.filter((f) => f.type === "dead-index-link").length, 0);
+});
+
+test("LIMIT: phantom-tool is opt-in — with no toolResolver, a script that does not exist is not reported", () => {
+  const idx = "- [Ops](feedback_ship_early.md) — run scripts/this-script-does-not-exist.mjs";
+  const { findings } = lintMemoryIntegrity({ indexText: idx, files: FILES });
+  assert.equal(findings.filter((f) => f.type === "phantom-tool").length, 0);
+});
