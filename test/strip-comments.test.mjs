@@ -151,6 +151,7 @@ test("fail-soft on junk input: non-strings coerce, nothing throws", () => {
   assert.equal(stripComments(null), "");
   assert.equal(stripComments(undefined), "");
   assert.equal(includesOutsideComments(42, "4"), true); // "42" contains "4" — coerced, not thrown
+  assert.equal(includesOutsideComments("let x = 42;", 42), true); // the needle is coerced too
   assert.equal(stripShellComments(null), "");
 });
 

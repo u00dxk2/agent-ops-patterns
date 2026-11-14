@@ -102,6 +102,7 @@ describe("matchesRawOrScannable — the doctrine as a function (widening only)",
     assert.equal(matchesRawOrScannable(g, "x --body y"), true);
     assert.equal(matchesRawOrScannable(g, "x --body y"), true); // a second call must not be skipped by lastIndex
     assert.equal(matchesRawOrScannable(g, null), false);
+    assert.equal(matchesRawOrScannable(/^$/, ""), false); // empty command: no text, even for a rule that matches ""
     assert.equal(matchesRawOrScannable("not a regex", "x --body y"), false);
   });
 });
