@@ -135,6 +135,19 @@ describe("gallery pages on GitHub Pages", () => {
     }
   });
 
+  // The root README's map table has a "Short version" column. Four rows read "—"
+  // for weeks after their cards went live (found 2026-11-13), because nothing
+  // tied the column to gallery/cards/. A card JSON is what makes card.html exist
+  // (scripts/render-decides-card.mjs), so each one needs its README link.
+  it("every map with a card has its card linked from the root README", () => {
+    const readme = read("README.md");
+    const slugs = fs.readdirSync(path.join(root, "gallery", "cards")).filter((f) => f.endsWith(".json")).map((f) => f.slice(0, -5));
+    assert.ok(slugs.length > 0, "at least one card (if not, this test is stale)");
+    for (const s of slugs) {
+      assert.ok(readme.includes(`/agent-ops-patterns/gallery/${s}/card.html`), `README.md links the ${s} card`);
+    }
+  });
+
   it("every map links back to the gallery", () => {
     for (const m of mapFolders()) {
       assert.ok(hrefs(read(`gallery/${m}/index.html`)).includes("../"), `gallery/${m}/index.html links ../`);
