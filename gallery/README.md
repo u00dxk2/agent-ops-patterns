@@ -4,6 +4,8 @@ Each map takes one open-source agent system and lists the recurring judgments it
 
 The method is ["Cognitive Operations Maps"](https://uncagedminds.substack.com/p/cognitive-operations-maps). The skill that builds one for your own system is [`skills/cog-ops-map/`](../skills/cog-ops-map/SKILL.md).
 
+What the twelve maps taught us, lesson by lesson, with the code each lesson rests on and the four small tests we ran: [How we know](findings.md).
+
 | Map | System | Seats | Checked against |
 |---|---|---|---|
 | [OpenHands](https://u00dxk2.github.io/agent-ops-patterns/gallery/openhands/) | [`OpenHands/software-agent-sdk`](https://github.com/OpenHands/software-agent-sdk), the agent loop of the OpenHands coding agent | 171 (95 rule, 76 ruling; 4 held by a person); 56 gaps found in this edition (12 flagged as stated design) plus 14 carried from the [first edition](https://u00dxk2.github.io/agent-ops-patterns/gallery/openhands/edition-1/) | commit `aae9c437`, 2026-10-06 |
