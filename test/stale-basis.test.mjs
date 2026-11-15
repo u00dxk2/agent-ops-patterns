@@ -146,4 +146,10 @@ describe("pickStaleBasis — fail-soft on malformed input", () => {
     const item = { lastEvaluated: "2026-08-13T00:00:00Z", created: "2026-01-01T00:00:00Z" };
     assert.equal(pickStaleBasis(item).basis, "lastEvaluated");
   });
+
+  it("LIMIT: an unreadable signal is skipped, so an older readable date wins and the item can read staler than it is", () => {
+    // Reviewer input (prepublish review round 2): the signal that might show freshness throws.
+    const item = { get lastChecked() { throw Error(); }, created: "2020-01-01" };
+    assert.deepEqual(pickStaleBasis(item), { date: "2020-01-01", basis: "created" });
+  });
 });
