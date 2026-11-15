@@ -95,9 +95,13 @@ describe("tallyUsage — limits, pinned as tested expectations", () => {
     const after = Date.now();
     assert.ok(ts >= before && ts <= after, "the default timestamp is the wall clock");
     assert.equal(makeTouchRows(["alpha"], { now: NOW }).rows[0].ts, new Date(NOW).toISOString());
-    // tallyUsage's window ends at the clock too: a touch one day old (by the clock) is in a 2-day window.
+    // tallyUsage's window ends at the clock too: a touch one day old (by the clock) is in a
+    // 2-day window, and a touch from 1970 is not. Both are needed: a constant clock (say 0)
+    // keeps the first in and would let the 1970 row in too (prepublish review round 2).
     const recent = [{ ts: new Date(Date.now() - 86_400_000).toISOString(), name: "alpha" }];
     assert.equal(tallyUsage(recent, ["alpha"], { days: 2 }).touched.length, 1);
+    const ancient = [{ ts: "1970-01-02T00:00:00Z", name: "alpha" }];
+    assert.equal(tallyUsage(ancient, ["alpha"], { days: 2 }).touched.length, 0);
   });
 });
 

@@ -29,18 +29,20 @@
  * SWEPT and exits 2: a clean verdict over nothing is not clean. Every outcome prints
  * the denominator first.
  *
- * Bypass a genuine false positive with a trailing comment (every mode, same
- * semantics): `pragma: allowlist secret` (or `gitleaks:allow` / `secret-scan:ignore`).
- * The marker must END the line: after it only whitespace, another marker, or a block
- * comment closer (C-style or `-->`). A marker anywhere else on the line (in a string, before more text) does
- * not count, so `// pragma: allowlist secret (why)` is NOT allowlisted; put the reason first.
- *
- * A credential URI is skipped as a placeholder when its own credentials carry a
- * placeholder marker (`<…>`, `:password@`, `:changeme@`, …) or its host is one as a WHOLE
- * host (port ignored): `localhost`, `127.0.0.1`, `example.com` or a name under it, `<…>`.
- * `notlocalhost.prod.internal` is not a placeholder host.
+ * Bypass a genuine false positive with an allowlist marker on the line (every mode, same
+ * semantics): `pragma: allowlist secret` (or `gitleaks:allow` / `secret-scan:ignore`),
+ * conventionally as a comment at the end of the line.
  *
  * WHERE IT STOPS. This is a shape matcher, not a credential validator.
+ *   - THE ALLOWLIST MARKER IS A TRUST STATEMENT, NOT A PARSED COMMENT. A line that
+ *     contains a marker ANYWHERE is skipped whole: in a comment, in a string, in JSON or
+ *     YAML data, before or after the secret. Whoever writes the line decides; the scanner
+ *     does not check that the marker is a comment (LIMIT test).
+ *   - PLACEHOLDER WORDS ARE SUBSTRINGS. A credentialed URI is skipped when its own
+ *     credentials, host or port CONTAIN a placeholder word: localhost, 127.0.0.1,
+ *     example.com, `<…>`, :password@, :pass@, :changeme@, :your- / :your_, :xxx@, REDACTED
+ *     or ***. So a real host such as `notlocalhost.prod.internal` or `redacted-db.internal`
+ *     reads as a placeholder and the URI is not reported (LIMIT test).
  *   - A hit does NOT prove the value is live, and a clean scan does NOT prove you
  *     have no exposure: it knows the shapes in PATTERNS (26 as of 2026-10-06) and nothing else. A
  *     bare high-entropy string, a vendor format not listed, or a secret split across
@@ -113,9 +115,10 @@ function refuseUnknownFlags(args) {
 // (a bad separate --history/--range value is described by its length); a sweep's git
 // failure is reported as a fixed category; a range is printed only when every component
 // is empty, 7-64 lowercase hex, or HEAD with ~/^ steps (see printableRange — a syntax
-// allowlist, not a check that the hex names a commit). Kept on purpose: the --repo path,
-// so a wrong-directory error stays legible. The staged (pre-commit) path passes git's
-// stderr through, but it hands git none of the scanner's arguments.
+// allowlist, not a check that the hex names a commit). The --repo path is NOT printed
+// either (it used to be, for legibility, and a secret-shaped directory name came back in
+// full: prepublish review round 2), and neither is an exception's text. The staged
+// (pre-commit) path drops git's stderr and prints a fixed line with git's exit status.
 function nearestKnownFlag(name) {
   const lower = String(name).toLowerCase();
   let best = null;
@@ -248,37 +251,17 @@ const PATTERNS = [
   { name: "basic-auth-url", re: /\bhttps?:\/\/[^\s:/@?#]+:[^\s@/?#]+@/ },
 ];
 
-// Markers that void a connection-string match (placeholders, not real secrets), read on
-// the candidate's own text (scheme, credentials and "@").
+// Markers that void a connection-string match (placeholders, not real secrets).
+// SUBSTRINGS of the candidate's credentials, host and port, not whole hosts: a real host
+// that contains one (`notlocalhost.prod.internal`) is skipped too. Declared in the header
+// and pinned by a LIMIT test; a stricter host matcher was tried and reviewed out (2026-11-15).
 // `<[^<>]*>`, not `<[^>]*>`: the latter searched to the end of the text from every "<",
 // so a long run of "<" cost quadratic time; now each search stops at the next "<".
-const PLACEHOLDER = /(<[^<>]*>|:password@|:pass@|:changeme@|:your[-_]|:xxx+@|REDACTED|\*\*\*)/i;
-// A placeholder HOST is a whole host (port ignored), never a substring of one: as a
-// substring, `localhost` voided `notlocalhost.prod.internal` (prepublish review, 2026-11-15).
-// `localhost` or `127.0.0.1` exactly; `example.com` or any name under it; `<…>`; or a
-// REDACTED / *** marker.
-const PLACEHOLDER_HOST = /^(?:<[^<>\s]*>|localhost|127\.0\.0\.1|(?:[A-Za-z0-9-]+\.)*example\.com)(?::\d*)?$|REDACTED|\*\*\*/i;
-// The documented form is a TRAILING comment: one or more markers, then at most a comment
-// closer (`*/`, `-->`) and whitespace before the end of the line. A marker earlier in the
-// line is data, and used to void the secret after it (prepublish review, 2026-11-15).
-// Read from the end by hand, a 64-character window at a time, so a line of repeated
-// markers costs time in proportion to its length.
-const ALLOW_TAIL = /(?:pragma:[ \t]{0,8}allowlist secret|gitleaks:allow|secret-scan:ignore)$/i;
-function isAllowlisted(content) {
-  const ws = (i) => /\s/.test(content[i]);
-  let end = content.length;
-  while (end > 0 && ws(end - 1)) end--;
-  if (content.endsWith("*/", end)) end -= 2;
-  else if (content.endsWith("-->", end)) end -= 3;
-  let found = false;
-  for (;;) {
-    while (end > 0 && ws(end - 1)) end--;
-    const m = ALLOW_TAIL.exec(content.slice(Math.max(0, end - 64), end));
-    if (!m) return found;
-    found = true;
-    end -= m[0].length;
-  }
-}
+const PLACEHOLDER =
+  /(localhost|127\.0\.0\.1|example\.com|<[^<>]*>|:password@|:pass@|:changeme@|:your[-_]|:xxx+@|REDACTED|\*\*\*)/i;
+// A marker ANYWHERE on the line skips it: a trust statement by the line's author, not a
+// parsed comment (header, LIMIT test).
+const ALLOW = /(pragma:\s*allowlist secret|gitleaks:allow|secret-scan:ignore)/i;
 // The host and port after a credential URI's "@" — no path, so a candidate never runs
 // into a neighbouring URI and borrows its placeholder. A host in angle brackets
 // (`@<host>`) is one placeholder token; otherwise "<" ends the host, so markup after a
@@ -297,7 +280,7 @@ for (const p of PATTERNS) {
  * void every other secret on it.
  */
 function firstPatternHit(content) {
-  if (isAllowlisted(content)) return null;
+  if (ALLOW.test(content)) return null;
   for (const p of PATTERNS) {
     if (p.test) {
       if (p.test(content)) return p.name;
@@ -309,7 +292,7 @@ function firstPatternHit(content) {
     }
     for (const m of content.matchAll(p.all)) {
       const host = URI_HOST.exec(content.slice(m.index + m[0].length))[0];
-      if (!PLACEHOLDER.test(m[0]) && !PLACEHOLDER_HOST.test(host)) return p.name;
+      if (!PLACEHOLDER.test(m[0] + host)) return p.name;
     }
   }
   return null;
@@ -368,9 +351,9 @@ if (argv.includes("--help")) {
 
 Flag values go in the NEXT argument. --flag=value is refused with exit 2, nothing scanned.
 
-Allowlist (all modes, same semantics): a trailing \`pragma: allowlist secret\`
-(or gitleaks:allow / secret-scan:ignore) that ENDS the line; a marker followed by more
-text, or inside data earlier on the line, does not count.`);
+Allowlist (all modes, same semantics): a \`pragma: allowlist secret\` (or gitleaks:allow /
+secret-scan:ignore) ANYWHERE on the line skips the whole line, conventionally written as a
+trailing comment. It is a trust statement, not a parsed comment.`);
   process.exit(0);
 }
 
@@ -478,7 +461,7 @@ if (historyIdx !== -1 || rangeIdx !== -1) {
     for (const h of r.hits) console.log(`  [${h.pattern}]  ${h.sha}  ${h.file}:${h.line}`);
     console.log("\n  A value in history stays in history — removing it from the tip does not remove it.");
     console.log("  Rotate the credential first; then decide whether the history itself must be rewritten.");
-    console.log("  False positive? the line needs a trailing `pragma: allowlist secret` in the commit that added it.\n");
+    console.log("  False positive? the line needs a `pragma: allowlist secret` marker (conventionally a trailing comment) in the commit that added it.\n");
     finish(3, "FINDINGS", `${r.hits.length} hit(s) · ${r.summary}`);
   }
   if (rangeIdx !== -1 && r.binaryUnread > 0) {
@@ -650,12 +633,15 @@ async function sweepHistory({ repo, revArgs, label }) {
   // (A streamErr raised while git was still running is why WE killed it, so it outranks
   // the resulting signal.)
   if (err || streamErr || code !== 0) {
+    // FIXED text only: no --repo path, no exception message, no git stderr. Each of those
+    // can carry a secret-shaped name, and no filter is trusted to catch it (prepublish
+    // review round 2). gitFailureCategory returns one of its own constant strings.
     const tail = stderr.split("\n").map((l) => l.trim()).filter(Boolean);
-    const detail = err ? err.message
-      : streamErr ? `reading git log failed: ${streamErr.message}`
-      : signal ? `git log killed by ${signal}`
+    const detail = err ? "git could not be started"
+      : streamErr ? "reading git log failed (the reason is not echoed)"
+      : signal ? `git log was killed by a signal`
       : `${gitFailureCategory(stderrFatal || tail.at(-1))} (git exit ${code})`;
-    return { summary: "", hits: [], nothingSwept: false, error: `git unreadable (${repo}): ${String(detail).split("\n")[0]}` };
+    return { summary: "", hits: [], nothingSwept: false, error: `git unreadable: ${detail}` };
   }
 
   const summary = `history: ${commits} commits scanned · ${hunks} hunks · ${added} added lines · ${binaryUnread} binary file diffs not read · ${label}`;
@@ -747,7 +733,7 @@ function selftestHistory(days) {
     "redis://cache.internal:6379/0",
     "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}",
     "The scanner keys on the xoxb prefix and the AKIA prefix; neither word alone is a token.",
-    "aws_access_key_id = AKIAFIXTUREFIXTURE01  # pragma: allowlist secret", // pragma: allowlist secret
+    "aws_access_key_id = AKIAFIXTUREFIXTURE01  # pragma: allowlist secret",
   ];
 
   let failed = 0;
@@ -1092,7 +1078,8 @@ function selftestHistory(days) {
     );
   } catch (err) {
     failed++;
-    console.log(`selftest arm — harness: FAIL — ${String(err?.message ?? err).split("\n")[0]}`);
+    // Fixed text: the exception can quote a git command line holding a fixture value.
+    console.log(`selftest arm — harness: FAIL — an exception stopped the arms (its text is not echoed)`);
   } finally {
     try { rmSync(base, { recursive: true, force: true }); } catch { /* temp dir; best effort */ }
   }
@@ -1142,7 +1129,11 @@ const LEGACY_READ = ["-c", "diff.interHunkContext=0", "diff", "--cached", "--uni
 // local `refs/replace/<blob>` made git show a clean replacement while the index, and so the
 // commit, still named the credential blob; the scan judged the wrong bytes and passed. It is a
 // global option, so it sits before the subcommand and leaves LEGACY_READ's own args as they were.
-const readStaged = (args) => execFileSync("git", ["--no-replace-objects", ...args], { encoding: "utf8", maxBuffer: MAX_BUFFER });
+// git's stderr is captured and DROPPED, never forwarded: it quotes paths and config values,
+// any of which can be secret-shaped (prepublish review round 2). A failure prints one fixed
+// line carrying at most git's exit status.
+const readStaged = (args) =>
+  execFileSync("git", ["--no-replace-objects", ...args], { encoding: "utf8", maxBuffer: MAX_BUFFER, stdio: ["ignore", "pipe", "pipe"] });
 let diff = "";
 try {
   diff = readStaged(FULL_READ);
@@ -1155,7 +1146,9 @@ try {
   // always did (no staged changes, git not installed, an unreadable repo).
   try {
     diff = readStaged(LEGACY_READ);
-  } catch {
+  } catch (e) {
+    const status = Number.isInteger(e?.status) ? ` (git exit ${e.status})` : "";
+    console.error(`⚠ pre-commit: git could not read the staged changes${status}; nothing was scanned and the commit is not blocked. git's message is not echoed.`);
     process.exit(0);
   }
   console.error("⚠ pre-commit: the full staged read failed; fell back to the plain read, so a file git treats as binary, a repo-configured diff driver, rename/copy detection or diff.relative may hide lines.");
@@ -1206,7 +1199,7 @@ if (findings.length) {
   console.error("\n✗ pre-commit: possible secret(s) in staged changes:\n");
   for (const f of findings) console.error(`  [${f.pattern}]  ${f.file}`);
   console.error("\n  Move the secret to an environment variable or a secret manager — never a committed file.");
-  console.error("  False positive? append a trailing `pragma: allowlist secret` to the line, then re-commit.\n");
+  console.error("  False positive? add a `pragma: allowlist secret` marker to the line (conventionally a trailing comment), then re-commit.\n");
   process.exit(1);
 }
 process.exit(0);

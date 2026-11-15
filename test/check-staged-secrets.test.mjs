@@ -157,35 +157,51 @@ test("a placeholder URI voids only itself, not other secrets on the line (AOP-R2
   }
 });
 
-test("a placeholder host counts only as a whole host, not as a substring of a real one (prepublish review, finding 2)", () => {
-  const pw = "Zq9w" + "Lk2";
-  for (const host of ["notlocalhost.prod.internal", "db.example.com.prod.internal", "localhost-db.internal", "10.127.0.0.15"]) {
-    const r = scanMessage("DB=postgres://svc:" + pw + "@" + host + "/db\n");
-    assert.equal(r.status, 1, host);
-    assert.match(r.err, /\[postgres-uri-with-creds\]/, host);
-  }
-  // A whole placeholder host, with or without a port, still voids the candidate.
-  for (const host of ["localhost", "localhost:5432", "127.0.0.1:3306", "example.com", "db.example.com", "<host>"]) {
-    assert.equal(scanMessage("DB=postgres://svc:" + pw + "@" + host + "/db\n").status, 0, host);
-  }
+test("a git failure prints a fixed diagnostic: never the --repo path or git's text (prepublish review round 2)", () => {
+  // Reviewer input: a missing --repo whose basename is secret-shaped. The diagnostic used
+  // to quote the path, outside the path rule.
+  const name = "rn" + "d_" + "A".repeat(24);
+  const r = spawnSync(process.execPath, [SCRIPT, "--history", "1", "--repo", join(dir, "missing", name)], { encoding: "utf8" });
+  assert.equal(r.status, 2);
+  assert.match(r.stdout + r.stderr, /git unreadable/);
+  assert.ok(!`${r.stdout}\n${r.stderr}`.includes(name), "the secret-shaped path was printed");
 });
 
-test("the allowlist marker counts only at the end of the line, as documented (prepublish review, finding 3)", () => {
+test("the staged path never forwards git's stderr (prepublish review round 2)", () => {
+  // A config value git cannot parse is quoted back in git's error text. The scan stays
+  // fail-soft (exit 0) and prints a fixed line instead.
+  const value = "rn" + "d_" + "B".repeat(24);
+  const repo = join(dir, "bad-config");
+  execFileSync("git", ["init", "-q", repo]);
+  execFileSync("git", ["-C", repo, "config", "core.autocrlf", value]);
+  const r = spawnSync(process.execPath, [SCRIPT], { cwd: repo, encoding: "utf8" });
+  assert.equal(r.status, 0);
+  assert.ok(!`${r.stdout}\n${r.stderr}`.includes(value), "git's stderr (quoting the config value) was forwarded");
+});
+
+test("LIMIT: a placeholder word anywhere in a URI's credentials or host skips it, so a real host containing one passes", () => {
+  // Reviewer inputs (prepublish review 2026-11-15). The words are substrings by design; a
+  // whole-host matcher was tried and had its own gaps, so the script claims less instead.
+  const pw = "Zq9w" + "Lk2";
+  for (const uri of [
+    "postgres://svc:" + pw + "@notlocalhost.prod.internal/db",
+    "postgres://svc:" + pw + "@redacted-db.internal/db",
+    "https://svc:" + pw + "@example.com%2eevil.tld/",
+  ]) {
+    assert.equal(scanMessage(`DB=${uri}\n`).status, 0, uri.slice(0, 40));
+  }
+  // Without the word, the same credentials fire.
+  assert.equal(scanMessage("DB=postgres://svc:" + pw + "@db.prod.internal/db\n").status, 1);
+});
+
+test("LIMIT: an allowlist marker ANYWHERE on the line skips it: a trust statement, not a parsed comment", () => {
+  // Reviewer inputs: the marker is JSON data before the key, and YAML data after it.
   const key = "rn" + "d_" + "A".repeat(24);
-  const mid = scanMessage(`{"note":"secret-scan:ignore","key":"${key}"}\n`);
-  assert.equal(mid.status, 1, "a marker inside the data is not a trailing comment");
-  assert.match(mid.err, /\[render-api-key\]/);
-  assert.equal(scanMessage(`KEY=${key} pragma: allowlist secret and more text\n`).status, 1);
-  // Trailing forms stay allowlisted: one marker, two markers, a closing comment token, CRLF.
-  for (const tail of ["# pragma: allowlist secret", "// pragma: allowlist secret gitleaks:allow", "/* gitleaks:allow */", "<!-- secret-scan:ignore -->", "# secret-scan:ignore  \r"]) {
-    assert.equal(scanMessage(`KEY=${key} ${tail}\n`).status, 0, tail);
-  }
-  // Read from the end in a bounded window: a long run of markers and spaces stays fast.
-  for (const run of ["gitleaks:allow ".repeat(40_000), `KEY=${key} ` + " ".repeat(200_000) + "x"]) {
-    const t0 = Date.now();
-    const r = scanMessage(run + "\n", 15_000);
-    assert.equal(r.signal, null, `timed out after ${Date.now() - t0} ms`);
-  }
+  assert.equal(scanMessage(`{"note":"secret-scan:ignore","key":"${key}"}\n`).status, 0);
+  assert.equal(scanMessage(`value: ${key} secret-scan:ignore\n`).status, 0);
+  assert.equal(scanMessage(`KEY=${key} // pragma: allowlist secret (why)\n`).status, 0);
+  // Without a marker, the same line fires.
+  assert.equal(scanMessage(`{"key":"${key}"}\n`).status, 1);
 });
 
 // SY-1 (c): vendor shapes ported from the fleet scanner (skylark-site 885414a72 / c2ffc4fb3).
@@ -269,5 +285,8 @@ test("the vendor shapes scan in linear time on repeated prefixes (SY-1 c)", () =
     const t0 = Date.now();
     const r = scanMessage(prefix.repeat(40_000) + "\n", 15_000);
     assert.equal(r.signal, null, `${prefix} timed out after ${Date.now() - t0} ms`);
+    // A finished scan, not a crash: exit 0 (clean) or 1 with a finding line. Checking the
+    // signal alone let an immediate erroneous exit pass (prepublish review round 2).
+    assert.ok(r.status === 0 || (r.status === 1 && /^\s+\[[a-z-]+\]\s+message line 1 /m.test(r.err)), `${prefix} exit ${r.status}`);
   }
 });

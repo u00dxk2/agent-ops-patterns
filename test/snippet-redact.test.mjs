@@ -72,7 +72,7 @@ const ALTERNATIVES = [
   ["slack-token", "xoxr-123456789012-abcdefghijklmnop"], // pragma: allowlist secret
   ["openai-key", "sk-admin-abcdefghijklmnopqrstuvwxyz1234"], // pragma: allowlist secret
   ["openai-key", "sk-svcacct-abcdefghijklmnopqrstuvwxyz1234"], // pragma: allowlist secret
-  ["openai-key", "sk-abcdefghijklmnopqrstuvwxyz123456"], // bare, no project prefix; pragma: allowlist secret
+  ["openai-key", "sk-abcdefghijklmnopqrstuvwxyz123456"], // pragma: allowlist secret (bare, no project prefix)
 ];
 
 for (const [shape, secret] of ALTERNATIVES) {

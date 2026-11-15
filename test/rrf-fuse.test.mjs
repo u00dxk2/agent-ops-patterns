@@ -112,13 +112,17 @@ describe("rrfFuse — edges", () => {
 
   it("k defaults to 60, the standard constant", () => {
     assert.equal(RRF_K, 60);
-    // And rrfFuse uses it when k is omitted: this pool orders differently at k=60 and
-    // k=1 (p is recency 1 / score 4, q is 2 / 2), so a changed default goes red.
-    const pool = [{ id: "p", score: 0 }, { id: "q", score: 3 }, { id: "r", score: 4 }, { id: "s", score: 1 }];
+    // And rrfFuse uses it when k is omitted. The pool is one where the fused order differs
+    // at k=59, 60 and 61 (found by search): x is newest with score rank 25 of 34, y is
+    // oldest with score rank 1, 32 fillers between. Ordering a pool that only separates 1
+    // from 60 let a default of 59 pass (prepublish review round 2).
     const ids = (out) => out.map((h) => h.id);
-    assert.deepEqual(ids(rrfFuse(pool, 4)), ["r", "q", "p", "s"]);
-    assert.deepEqual(ids(rrfFuse(pool, 4)), ids(rrfFuse(pool, 4, 60)));
-    assert.notDeepEqual(ids(rrfFuse(pool, 4, 1)), ids(rrfFuse(pool, 4)));
+    const fillerScores = Array.from({ length: 33 }, (_, i) => 33 - i).filter((s) => s !== 10);
+    const pool = [{ id: "x", score: 10 }, ...fillerScores.map((score, i) => ({ id: `f${i + 2}`, score })), { id: "y", score: 34 }];
+    const n = pool.length;
+    assert.deepEqual(ids(rrfFuse(pool, n)), ids(rrfFuse(pool, n, RRF_K)));
+    assert.notDeepEqual(ids(rrfFuse(pool, n)), ids(rrfFuse(pool, n, 59)));
+    assert.notDeepEqual(ids(rrfFuse(pool, n)), ids(rrfFuse(pool, n, 61)));
   });
 });
 
