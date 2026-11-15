@@ -88,6 +88,17 @@ describe("tallyUsage — limits, pinned as tested expectations", () => {
     const rows = [{ ts: iso(1), name: "alpha", session: "over-toucher" }];
     assert.equal(tallyUsage(rows, ["alpha"], { days: 90, now: NOW }).touched[0].count, 1);
   });
+
+  it("LIMIT: without `now`, both functions read the clock — pure only when `now` is passed (prepublish review, finding 16)", () => {
+    const before = Date.now();
+    const ts = Date.parse(makeTouchRows(["alpha"]).rows[0].ts);
+    const after = Date.now();
+    assert.ok(ts >= before && ts <= after, "the default timestamp is the wall clock");
+    assert.equal(makeTouchRows(["alpha"], { now: NOW }).rows[0].ts, new Date(NOW).toISOString());
+    // tallyUsage's window ends at the clock too: a touch one day old (by the clock) is in a 2-day window.
+    const recent = [{ ts: new Date(Date.now() - 86_400_000).toISOString(), name: "alpha" }];
+    assert.equal(tallyUsage(recent, ["alpha"], { days: 2 }).touched.length, 1);
+  });
 });
 
 describe("parseLedgerText — fail-soft JSONL", () => {

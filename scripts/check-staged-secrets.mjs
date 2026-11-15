@@ -31,6 +31,14 @@
  *
  * Bypass a genuine false positive with a trailing comment (every mode, same
  * semantics): `pragma: allowlist secret` (or `gitleaks:allow` / `secret-scan:ignore`).
+ * The marker must END the line: after it only whitespace, another marker, or a block
+ * comment closer (C-style or `-->`). A marker anywhere else on the line (in a string, before more text) does
+ * not count, so `// pragma: allowlist secret (why)` is NOT allowlisted; put the reason first.
+ *
+ * A credential URI is skipped as a placeholder when its own credentials carry a
+ * placeholder marker (`<…>`, `:password@`, `:changeme@`, …) or its host is one as a WHOLE
+ * host (port ignored): `localhost`, `127.0.0.1`, `example.com` or a name under it, `<…>`.
+ * `notlocalhost.prod.internal` is not a placeholder host.
  *
  * WHERE IT STOPS. This is a shape matcher, not a credential validator.
  *   - A hit does NOT prove the value is live, and a clean scan does NOT prove you
@@ -240,12 +248,37 @@ const PATTERNS = [
   { name: "basic-auth-url", re: /\bhttps?:\/\/[^\s:/@?#]+:[^\s@/?#]+@/ },
 ];
 
-// Markers that void a connection-string match (placeholders, not real secrets).
+// Markers that void a connection-string match (placeholders, not real secrets), read on
+// the candidate's own text (scheme, credentials and "@").
 // `<[^<>]*>`, not `<[^>]*>`: the latter searched to the end of the text from every "<",
 // so a long run of "<" cost quadratic time; now each search stops at the next "<".
-const PLACEHOLDER =
-  /(localhost|127\.0\.0\.1|example\.com|<[^<>]*>|:password@|:pass@|:changeme@|:your[-_]|:xxx+@|REDACTED|\*\*\*)/i;
-const ALLOW = /(pragma:\s*allowlist secret|gitleaks:allow|secret-scan:ignore)/i;
+const PLACEHOLDER = /(<[^<>]*>|:password@|:pass@|:changeme@|:your[-_]|:xxx+@|REDACTED|\*\*\*)/i;
+// A placeholder HOST is a whole host (port ignored), never a substring of one: as a
+// substring, `localhost` voided `notlocalhost.prod.internal` (prepublish review, 2026-11-15).
+// `localhost` or `127.0.0.1` exactly; `example.com` or any name under it; `<…>`; or a
+// REDACTED / *** marker.
+const PLACEHOLDER_HOST = /^(?:<[^<>\s]*>|localhost|127\.0\.0\.1|(?:[A-Za-z0-9-]+\.)*example\.com)(?::\d*)?$|REDACTED|\*\*\*/i;
+// The documented form is a TRAILING comment: one or more markers, then at most a comment
+// closer (`*/`, `-->`) and whitespace before the end of the line. A marker earlier in the
+// line is data, and used to void the secret after it (prepublish review, 2026-11-15).
+// Read from the end by hand, a 64-character window at a time, so a line of repeated
+// markers costs time in proportion to its length.
+const ALLOW_TAIL = /(?:pragma:[ \t]{0,8}allowlist secret|gitleaks:allow|secret-scan:ignore)$/i;
+function isAllowlisted(content) {
+  const ws = (i) => /\s/.test(content[i]);
+  let end = content.length;
+  while (end > 0 && ws(end - 1)) end--;
+  if (content.endsWith("*/", end)) end -= 2;
+  else if (content.endsWith("-->", end)) end -= 3;
+  let found = false;
+  for (;;) {
+    while (end > 0 && ws(end - 1)) end--;
+    const m = ALLOW_TAIL.exec(content.slice(Math.max(0, end - 64), end));
+    if (!m) return found;
+    found = true;
+    end -= m[0].length;
+  }
+}
 // The host and port after a credential URI's "@" — no path, so a candidate never runs
 // into a neighbouring URI and borrows its placeholder. A host in angle brackets
 // (`@<host>`) is one placeholder token; otherwise "<" ends the host, so markup after a
@@ -264,7 +297,7 @@ for (const p of PATTERNS) {
  * void every other secret on it.
  */
 function firstPatternHit(content) {
-  if (ALLOW.test(content)) return null;
+  if (isAllowlisted(content)) return null;
   for (const p of PATTERNS) {
     if (p.test) {
       if (p.test(content)) return p.name;
@@ -276,7 +309,7 @@ function firstPatternHit(content) {
     }
     for (const m of content.matchAll(p.all)) {
       const host = URI_HOST.exec(content.slice(m.index + m[0].length))[0];
-      if (!PLACEHOLDER.test(m[0] + host)) return p.name;
+      if (!PLACEHOLDER.test(m[0]) && !PLACEHOLDER_HOST.test(host)) return p.name;
     }
   }
   return null;
@@ -312,7 +345,7 @@ if (argv.includes("--help")) {
           was not scanned, so the range cannot be called clean.
   node scripts/${SCRIPT}.mjs --history <days> --selftest
         throwaway-repo arms, each run as a real child process of this script:
-          coverage every pattern has exactly one fixture
+          coverage every pattern has exactly one fixture, and each fixture's value is withheld as a path
           RED    a commit tripping EVERY pattern → exit 3, every pattern named, no value printed
           GREEN  realistic content + an allowlisted line → exit 0
           EMPTY  the only commit is outside the window → NOTHING SWEPT, exit 2
@@ -336,7 +369,8 @@ if (argv.includes("--help")) {
 Flag values go in the NEXT argument. --flag=value is refused with exit 2, nothing scanned.
 
 Allowlist (all modes, same semantics): a trailing \`pragma: allowlist secret\`
-(or gitleaks:allow / secret-scan:ignore) on the line.`);
+(or gitleaks:allow / secret-scan:ignore) that ENDS the line; a marker followed by more
+text, or inside data earlier on the line, does not count.`);
   process.exit(0);
 }
 
@@ -630,17 +664,27 @@ async function sweepHistory({ repo, revArgs, label }) {
 
 /**
  * The PATH RULE: a path is printed only when every character is in a plain set (letters,
- * digits, space and `. _ / @ + -`) AND it contains none of the secret prefixes anywhere —
- * no word boundary, no allowlist, no placeholder exemption. A quoted or escaped name
- * (git's "\t"), a ":" or "=" and an embedded prefix all fail it. Its failure mode is
- * withholding a harmless path, never printing a secret one.
+ * digits, space and `. _ / @ + -`), it contains none of the secret prefixes anywhere —
+ * no word boundary, no allowlist, no placeholder exemption — AND no pattern in PATTERNS
+ * fires on it. A quoted or escaped name (git's "\t"), a ":" or "=" and an embedded prefix
+ * all fail it. Its failure mode is withholding a harmless path, never printing a secret one.
+ *
+ * The prefix list once named only the older vendors, so a Render-shaped file name was
+ * printed in full (prepublish review, 2026-11-15). It now carries every pattern's prefix,
+ * and the PATTERNS clause covers a shape added later; the selftest's coverage arm checks
+ * that every fixture's value is withheld as a path.
  */
 function pathIsPrintable(p) {
   // Inside the function on purpose: the history sweep runs at module top level, BEFORE a
-  // module-scope const below this point would be initialised.
+  // module-scope const below this point would be initialised. (PATTERNS is above it.)
   const PRINTABLE = /^[A-Za-z0-9 ._/@+-]{1,240}$/;
-  const SECRET_PREFIX = /AKIA|sk_live_|gh[pousr]_|github_pat_|AIza|xox[baprs]-|sk-(?:ant|proj|svcacct|admin)-|sk-[A-Za-z0-9]{32}|PRIVATE KEY/;
-  return PRINTABLE.test(p) && !SECRET_PREFIX.test(p);
+  const SECRET_PREFIX = new RegExp([
+    "AKIA", "sk_live_", "rk_live_", "whsec_", "gh[pousr]_", "github_pat_", "AIza", "xox[baprs]-",
+    "hooks\\.slack", "sk-(?:ant|proj|svcacct|admin)-", "sk-[A-Za-z0-9]{32}", "rnd_", "dp\\.[a-z]{2,5}\\.",
+    "SG\\.", "sbp_", "sb_secret_", "eyJ", "phx_", "sntry[suai]_", "PRIVATE KEY",
+  ].join("|"));
+  if (!PRINTABLE.test(p) || SECRET_PREFIX.test(p)) return false;
+  return !PATTERNS.some((x) => (x.test ? x.test(p) : x.re.test(p)));
 }
 
 /** `b/path`, `"b/path with spaces"` or `/dev/null` → the path as git names it. */
@@ -703,7 +747,7 @@ function selftestHistory(days) {
     "redis://cache.internal:6379/0",
     "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}",
     "The scanner keys on the xoxb prefix and the AKIA prefix; neither word alone is a token.",
-    "aws_access_key_id = AKIAFIXTUREFIXTURE01  # pragma: allowlist secret",
+    "aws_access_key_id = AKIAFIXTUREFIXTURE01  # pragma: allowlist secret", // pragma: allowlist secret
   ];
 
   let failed = 0;
@@ -719,8 +763,12 @@ function selftestHistory(days) {
   const names = PATTERNS.map((p) => p.name);
   const missing = names.filter((n) => !FIRE.some(([f]) => f === n));
   const stray = FIRE.map(([f]) => f).filter((f) => !names.includes(f));
-  arm("coverage — every pattern has exactly one fixture", missing.length === 0 && stray.length === 0 && FIRE.length === names.length,
-    `missing ${JSON.stringify(missing)} stray ${JSON.stringify(stray)}`);
+  // The path rule must withhold every fixture's value used as a file name, so a pattern
+  // added without a path prefix goes red here rather than printing a secret-shaped name.
+  const printedAsPath = FIRE.filter(([, v]) => pathIsPrintable(v.slice(v.indexOf("=") + 1))).map(([n]) => n);
+  arm("coverage — every pattern has exactly one fixture, and every fixture's value is withheld as a path",
+    missing.length === 0 && stray.length === 0 && FIRE.length === names.length && printedAsPath.length === 0,
+    `missing ${JSON.stringify(missing)} stray ${JSON.stringify(stray)} printable as a path ${JSON.stringify(printedAsPath)}`);
 
   const self = fileURLToPath(import.meta.url);
   const base = mkdtempSync(join(tmpdir(), "css-history-selftest-"));
@@ -846,10 +894,13 @@ function selftestHistory(days) {
       ["private-key-block", "-----BEGIN PGP PRIVATE KEY BLOCK-----"], // pragma: allowlist secret gitleaks:allow
       ["github-pat", "GH=gh" + "o_FIXTUREFIXTUREFIXTUREFIXTUREFIXTURE0"], // pragma: allowlist secret gitleaks:allow
     ];
-    writeFileSync(join(vr, "v.txt"), `${variants.map(([, v]) => v).join("\n")}\n`);
+    // One file per variant, so each finding line names the variant it came from: with one
+    // shared file, rediss:// and redis+sentinel:// printed the same line and either one
+    // alone passed this arm (prepublish review, 2026-11-15).
+    variants.forEach(([, v], i) => writeFileSync(join(vr, `v${i}.txt`), `${v}\n`));
     git(vr, ["add", "-A"]);
     const r19 = runSelf([], vr);
-    const missed = variants.filter(([n]) => !new RegExp(`^\\s*\\[${n}\\]\\s+v\\.txt$`, "m").test(r19.out)).map(([n, v]) => `${n}:${v.slice(0, 12)}`);
+    const missed = variants.filter(([n], i) => !new RegExp(`^\\s*\\[${n}\\]\\s+v${i}\\.txt$`, "m").test(r19.out)).map(([n, v]) => `${n}:${v.slice(0, 12)}`);
     arm(
       "VARIANTS — rediss://, +driver schemes, the PGP key block and a gho_ token each fire on the staged path",
       r19.status === 1 && missed.length === 0 && variants.every(([, v]) => !r19.out.includes(v)),
@@ -985,6 +1036,10 @@ function selftestHistory(days) {
     // withheld, because the path is printed beside every hit.
     const named = initRepo("named");
     writeFileSync(join(named, `${FIRE[7][1]}.txt`), `${FIRE[7][1]}\n`);
+    // A bare Render-shaped name (no "=" or ":" for the character rule to catch): only the
+    // prefix list or PATTERNS can withhold it. It was printed before 2026-11-15.
+    const renderValue = FIRE.find(([n]) => n === "render-api-key")[1].split("=")[1];
+    writeFileSync(join(named, `${renderValue}.txt`), `${FIRE[7][1]}\n`);
     git(named, ["add", "-A"]);
     git(named, ["commit", "-q", "-m", "a secret-shaped file name"]);
     const r15 = runSelf(["--history", String(days), "--repo", named]);
@@ -1006,9 +1061,9 @@ function selftestHistory(days) {
     const withheld = (r15b.out.match(/<path withheld: not printable under the path rule>/g) ?? []).length;
     arm(
       "SECRET-SHAPED PATH — values in file names (plain, allowlist-marked, tab-led) are withheld, never printed",
-      r15.status === 3 && r15.out.includes("<path withheld") && leaked(r15.out).length === 0 &&
-        r15b.status === 3 && withheld >= 3 && !r15b.out.includes(stripeValue),
-      `plain exit ${r15.status}; all exit ${r15b.status}, ${withheld} withheld, value printed: ${r15b.out.includes(stripeValue)}`,
+      r15.status === 3 && (r15.out.match(/<path withheld/g) ?? []).length === 2 && leaked(r15.out).length === 0 && !r15.out.includes(renderValue) &&
+        r15b.status === 3 && withheld >= 4 && !r15b.out.includes(stripeValue) && !r15b.out.includes(renderValue),
+      `plain exit ${r15.status}; all exit ${r15b.status}, ${withheld} withheld, value printed: ${r15b.out.includes(stripeValue) || r15b.out.includes(renderValue)}`,
     );
 
     // RELATIVE — diff.relative=true with --repo at a SUBDIRECTORY must not drop the files

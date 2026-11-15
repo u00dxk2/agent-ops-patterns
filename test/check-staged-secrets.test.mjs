@@ -157,6 +157,37 @@ test("a placeholder URI voids only itself, not other secrets on the line (AOP-R2
   }
 });
 
+test("a placeholder host counts only as a whole host, not as a substring of a real one (prepublish review, finding 2)", () => {
+  const pw = "Zq9w" + "Lk2";
+  for (const host of ["notlocalhost.prod.internal", "db.example.com.prod.internal", "localhost-db.internal", "10.127.0.0.15"]) {
+    const r = scanMessage("DB=postgres://svc:" + pw + "@" + host + "/db\n");
+    assert.equal(r.status, 1, host);
+    assert.match(r.err, /\[postgres-uri-with-creds\]/, host);
+  }
+  // A whole placeholder host, with or without a port, still voids the candidate.
+  for (const host of ["localhost", "localhost:5432", "127.0.0.1:3306", "example.com", "db.example.com", "<host>"]) {
+    assert.equal(scanMessage("DB=postgres://svc:" + pw + "@" + host + "/db\n").status, 0, host);
+  }
+});
+
+test("the allowlist marker counts only at the end of the line, as documented (prepublish review, finding 3)", () => {
+  const key = "rn" + "d_" + "A".repeat(24);
+  const mid = scanMessage(`{"note":"secret-scan:ignore","key":"${key}"}\n`);
+  assert.equal(mid.status, 1, "a marker inside the data is not a trailing comment");
+  assert.match(mid.err, /\[render-api-key\]/);
+  assert.equal(scanMessage(`KEY=${key} pragma: allowlist secret and more text\n`).status, 1);
+  // Trailing forms stay allowlisted: one marker, two markers, a closing comment token, CRLF.
+  for (const tail of ["# pragma: allowlist secret", "// pragma: allowlist secret gitleaks:allow", "/* gitleaks:allow */", "<!-- secret-scan:ignore -->", "# secret-scan:ignore  \r"]) {
+    assert.equal(scanMessage(`KEY=${key} ${tail}\n`).status, 0, tail);
+  }
+  // Read from the end in a bounded window: a long run of markers and spaces stays fast.
+  for (const run of ["gitleaks:allow ".repeat(40_000), `KEY=${key} ` + " ".repeat(200_000) + "x"]) {
+    const t0 = Date.now();
+    const r = scanMessage(run + "\n", 15_000);
+    assert.equal(r.signal, null, `timed out after ${Date.now() - t0} ms`);
+  }
+});
+
 // SY-1 (c): vendor shapes ported from the fleet scanner (skylark-site 885414a72 / c2ffc4fb3).
 // Every value is fake and split at its provider prefix.
 const b64u = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");

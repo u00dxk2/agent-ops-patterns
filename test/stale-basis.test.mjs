@@ -31,6 +31,22 @@ describe("pickStaleBasis — newest signal wins, labeled", () => {
     assert.deepEqual(pickStaleBasis(undefined), { date: null, basis: "none" });
   });
 
+  it("a malformed external signal is skipped, never thrown on (prepublish review, finding 6)", () => {
+    const unprintable = { toString: null };
+    assert.deepEqual(pickStaleBasis({}, { externalSignals: [{ date: null, basis: unprintable }] }), { date: null, basis: "none" });
+    // A usable date whose basis cannot be turned into text is skipped too; the next signal stands.
+    assert.deepEqual(
+      pickStaleBasis({}, { externalSignals: [{ date: "2026-05-01", basis: unprintable }, { date: "2026-04-01", basis: "git" }] }),
+      { date: "2026-04-01", basis: "git" },
+    );
+    // A signal whose getter throws is skipped the same way.
+    const hostile = { get date() { throw new Error("boom"); }, basis: "x" };
+    assert.deepEqual(pickStaleBasis({ created: "2026-01-02" }, { externalSignals: [hostile] }), { date: "2026-01-02", basis: "created" });
+    // And on the item itself: a throwing field reads as no value.
+    const item = { get lastChecked() { throw new Error("boom"); }, lastEvaluated: "2026-03-01" };
+    assert.deepEqual(pickStaleBasis(item), { date: "2026-03-01", basis: "lastEvaluated" });
+  });
+
   it("honors custom signal/created field names (your schema, your names)", () => {
     const item = { verified_at: "2026-08-05T00:00:00Z", opened_at: "2026-02-01T00:00:00Z" };
     const r = pickStaleBasis(item, { signalFields: ["verified_at"], createdField: "opened_at" });

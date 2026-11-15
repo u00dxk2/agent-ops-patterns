@@ -147,6 +147,22 @@ test("coverage.reached counts files actually LINTED, not names that parsed", () 
   assert.equal(r.coverage.skipped, 4);
 });
 
+test("a file named in the inventory but unreadable is not reported as nonexistent (prepublish review, finding 5)", () => {
+  // Its NAME was supplied; only its content failed to read. Saying it "doesn't exist" is a
+  // false finding, and the header promises every ambiguity resolves to none.
+  const r = lintMemoryIntegrity({ indexText: "[A](a.md)", files: [{ name: "a.md" }] });
+  assert.deepEqual(r.findings, []);
+  assert.equal(r.coverage.contentless, 1);
+  // Same for a [[wiki-link]] to it, and across a separator spelling.
+  const w = lintMemoryIntegrity({
+    indexText: "- [B](b.md)\n- [Unread](unread-file.md)",
+    files: [{ name: "b.md", content: "see [[unread_file]]" }, { name: "unread_file.md", content: null }],
+  });
+  assert.deepEqual(w.findings, []);
+  // A link to a name NOBODY supplied is still dead.
+  const d = lintMemoryIntegrity({ indexText: "[A](a.md)\n[Z](z.md)", files: [{ name: "a.md" }] });
+  assert.deepEqual(d.findings.map((f) => f.detail.target), ["z.md"]);
+});
 test("extractIndexLinks skips external/pathed targets", () => {
   const idx = "- [ext](https://example.com/x.md)\n- [pathed](sub/dir.md)\n- [local](feedback_ship_early.md)";
   const links = extractIndexLinks(idx);
@@ -171,6 +187,16 @@ test("buildMemoryLinkGraph: backlinks, dangling, orphans; self/repeat links coll
   assert.ok(g.orphans.includes("reference_api_docs.md")); // nothing links TO it
   assert.equal(g.stats.nodeCount, 3);
   assert.ok(g.stats.edgeCount >= 3);
+  // FILES holds no self-link and no repeated link, so the collapse the name claims is
+  // exercised here: a self-link is no edge, and three links to one target are one edge.
+  const c = buildMemoryLinkGraph({ files: [
+    { name: "a.md", content: "[[a]] [[b]] [[b]] [[B]]" },
+    { name: "b.md", content: "nothing" },
+  ] });
+  assert.deepEqual(c.edges, [{ from: "a.md", to: "b.md" }]);
+  assert.deepEqual(c.backlinks, { "b.md": ["a.md"] });
+  assert.equal(c.nodes.find((n) => n.file === "a.md").outboundCount, 1);
+  assert.deepEqual(c.orphans, ["a.md"], "a self-link is not a backlink");
 });
 
 test("suggestMemoryRepairs: dead link with no close match says remove-or-create", () => {

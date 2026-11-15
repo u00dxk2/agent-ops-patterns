@@ -92,7 +92,7 @@ describe("matchesRawOrScannable — the doctrine as a function (widening only)",
     assert.equal(matchesRawOrScannable(QUOTED_RE, 'cmd "--body"'), true);
   });
 
-  it("clean text stays clean on both legs — normalization cannot invent a hit from nothing", () => {
+  it("text with no quotes, escapes or $'…' stays clean on both legs", () => {
     assert.equal(matchesRawOrScannable(BODY_RE, "cmd --body-file tmp/b.md"), false);
     assert.equal(matchesRawOrScannable(BODY_RE, "echo plain words"), false);
   });
@@ -113,6 +113,14 @@ describe("scannable-command — limits, pinned as tested expectations", () => {
   it("LIMIT: space-separated tokens are NOT joined — a mention must not become a match", () => {
     assert.equal(scannableCommand("--bo dy"), "--bo dy");
     assert.equal(matchesRawOrScannable(BODY_RE, "cmd --bo dy"), false);
+  });
+
+  it("LIMIT: quote removal can invent a hit the shell would not run (prepublish review, finding 9)", () => {
+    // Single quotes keep the inner double quotes literal: the argument is --bo"dy".
+    const cmd = `printf '%s' '--bo"dy"'`;
+    assert.equal(/--body/.test(cmd), false, "the raw text does not contain it");
+    assert.equal(scannableCommand(cmd), "printf %s --body");
+    assert.equal(matchesRawOrScannable(/--body/, cmd), true);
   });
 
   it("LIMIT: variable expansion is not modeled — $X carrying the flag passes", () => {
