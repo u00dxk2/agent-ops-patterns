@@ -4,7 +4,7 @@
 
 Twelve open-source AI agent systems, mapped decision by decision: the recurring decisions we found in each one's code, and who makes each. Plus the skill to map a system of your own.
 
-New here? Start with [How we know](./gallery/findings.md): ten lessons from the maps, the code each one rests on, the four small tests we ran, and what we tried that didn't work.
+New here? Start with [How we know](./gallery/findings.md): ten lessons from the maps, the evidence behind each one, the four small tests we ran, and what we tried that didn't work.
 
 ## The maps
 

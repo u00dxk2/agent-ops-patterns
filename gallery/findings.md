@@ -1,8 +1,9 @@
 # How we know: the evidence behind ten things we learned about how AI agents decide
 
 We read the source code of twelve open-source AI agent systems and drew ten lessons from what we found. This page is
-for the reader who doubts them. For each lesson it gives the code the lesson rests on, at the exact version we read,
-and says whether we only read that code or also ran it. It also lists what we tried that did not work.
+for the reader who doubts them. For each lesson it gives the evidence the lesson rests on: for most, code at the
+exact version we read, and whether we only read that code or also ran it. It also lists what we tried that did not
+work.
 
 Checked against the pinned code on 15 November 2026. As far as we know, no maintainer of these projects has
 reviewed or endorsed this page.

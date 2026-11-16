@@ -4,7 +4,7 @@ Each map takes one open-source agent system and lists the recurring judgments it
 
 The method is ["Cognitive Operations Maps"](https://uncagedminds.substack.com/p/cognitive-operations-maps). The skill that builds one for your own system is [`skills/cog-ops-map/`](../skills/cog-ops-map/SKILL.md).
 
-What the twelve maps taught us, lesson by lesson, with the code each lesson rests on and the four small tests we ran: [How we know](findings.md).
+What the twelve maps taught us, lesson by lesson, with the evidence behind each lesson and the four small tests we ran: [How we know](findings.md).
 
 | Map | System | Seats | Checked against |
 |---|---|---|---|
