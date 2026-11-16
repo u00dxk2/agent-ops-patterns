@@ -211,7 +211,7 @@ For each area there is reference logic or a written protocol here that may help.
 clear-eyed about what that buys you: **none of these mappings turns a FAIL into a PASS on
 its own.** Question 1 needs the matcher wired at *every* recall boundary, not vendored
 once. Question 2 maps to protocols, not to code you can drop in. Question 4 needs the
-trusted integration listed in the [README](./README.md#capability-grant) - the library is
+trusted integration listed in the [README](./README.md#whats-here) - the library is
 the smallest part of it.
 Question 5's linter finds dead links and orphans, not contradictions. One file, no
 dependencies, no framework, and no illusion that the file is the fix:

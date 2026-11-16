@@ -139,7 +139,7 @@ A zero from an instrument is a claim about the instrument until you've checked i
 
 ## Why this file exists
 
-Every number above is operational - how much machinery runs, how much traffic it carries,
+Every number in the table above is operational - how much machinery runs, how much traffic it carries,
 how much of it is tested. None of it is a business metric, and that's deliberate: the
 claim this repo makes is "these patterns come from a system that actually runs," and
 operational numbers are the ones that bear on that claim. Revenue and user counts answer
