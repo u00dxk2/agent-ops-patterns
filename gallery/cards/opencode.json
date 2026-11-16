@@ -87,7 +87,7 @@
       "stage": "limits-memory",
       "question": "How much of a tool's output does the model see?",
       "holder": "code",
-      "answer": "Unless the tool reports its own cut, the start of it: up to 2,000 lines and 50 KiB by default. When code cuts it, the full text is saved to a file for 7 days and the model is told where.",
+      "answer": "Unless the tool says whether it cut its own output, the start of it: up to 2,000 lines and 50 KiB by default. When code cuts it, the full text is saved to a file for 7 days and the model is told where.",
       "evidence": "packages/core/src/tool-output.ts:69-120"
     },
     {

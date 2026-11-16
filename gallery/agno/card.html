@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>How agno decides</title>
-<meta name="description" content="In an ordinary agno agent, the AI model decides at every turn whether to call tools or answer, and plain code by default runs each tool call it asks for without asking a person, unless the developer marked that tool or set a tool-call limit. The run normally ends when the model replies without asking for a tool, and by default nothing checks that answer, so even a reply cut off by the token limit is reported as completed.">
+<meta name="description" content="In an ordinary agno agent, the AI model decides at every turn whether to call tools or answer, and plain code by default runs each valid tool call it asks for without asking a person, unless the developer marked that tool or set a tool-call limit. The run normally ends when the model replies without asking for a tool, and by default nothing checks that answer, so even a reply cut off by the token limit is reported as completed.">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="agent-ops-patterns">
 <meta property="og:title" content="How agno decides">
-<meta property="og:description" content="In an ordinary agno agent, the AI model decides at every turn whether to call tools or answer, and plain code by default runs each tool call it asks for without asking a person, unless the developer marked that tool or set a tool-call limit. The run normally ends when the model replies without asking for a tool, and by default nothing checks that answer, so even a reply cut off by the token limit is reported as completed.">
+<meta property="og:description" content="In an ordinary agno agent, the AI model decides at every turn whether to call tools or answer, and plain code by default runs each valid tool call it asks for without asking a person, unless the developer marked that tool or set a tool-call limit. The run normally ends when the model replies without asking for a tool, and by default nothing checks that answer, so even a reply cut off by the token limit is reported as completed.">
 <meta property="og:url" content="https://u00dxk2.github.io/agent-ops-patterns/gallery/agno/card.html">
 <meta name="twitter:card" content="summary">
 <style>
@@ -48,7 +48,7 @@ ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
 
 <h1>How agno decides</h1>
 
-<p class="summary">In an ordinary agno agent, the AI model decides at every turn whether to call tools or answer, and plain code by default runs each tool call it asks for without asking a person, unless the developer marked that tool or set a tool-call limit. The run normally ends when the model replies without asking for a tool, and by default nothing checks that answer, so even a reply cut off by the token limit is reported as completed.</p>
+<p class="summary">In an ordinary agno agent, the AI model decides at every turn whether to call tools or answer, and plain code by default runs each valid tool call it asks for without asking a person, unless the developer marked that tool or set a tool-call limit. The run normally ends when the model replies without asking for a tool, and by default nothing checks that answer, so even a reply cut off by the token limit is reported as completed.</p>
 
 <p class="meta">From <a href="https://github.com/agno-agi/agno"><code>agno-agi/agno</code></a> at source version <a href="https://github.com/agno-agi/agno/tree/9153aacd83edf116a32ccd104bdcbd7358defaf2"><code>9153aacd</code></a>, mapped 2026-10-29. Each answer links the place in the code where that decision is made; the full map has the rest.</p>
 
@@ -56,7 +56,7 @@ ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
 <ul class="judgments">
 <li class="j">
   <p class="q">May a tool call the model issued run, without a person being asked?</p>
-  <p class="a"><span class="holder holder-code">Decided by plain code</span> Yes, by default. Code runs each tool call the model makes, except calls past a tool-call limit the developer set; it pauses for a person only on tools the developer marked for confirmation, user input or external execution, or on the ask-the-person tools when those are added.</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Yes, by default. Code runs each valid tool call the model makes, except calls past a tool-call limit the developer set; it pauses for a person only on tools the developer marked for confirmation, user input or external execution, or on the ask-the-person tools when those are added.</p>
   <p class="ev"><a href="https://github.com/agno-agi/agno/blob/9153aacd83edf116a32ccd104bdcbd7358defaf2/libs/agno/agno/models/base.py#L2431-L2575" title="libs/agno/agno/models/base.py:2431-2575"><code>base.py:2431-2575</code></a> · decision D1 in the full map</p>
 </li>
 <li class="j">
@@ -104,7 +104,7 @@ ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
 </li>
 <li class="j">
   <p class="q">Has the history grown enough that older turns should be folded into a summary?</p>
-  <p class="a"><span class="holder holder-code">Decided by plain code</span> Off by default. A Compaction object considers folding once replayed history reaches 150,000 tokens (its default); compaction=True folds only after the provider rejects a request as too long.</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Off by default. A Compaction object considers folding once the context it counts (the prompt, replayed history and tools) reaches 150,000 tokens (its default); compaction=True folds only after the provider rejects a request as too long.</p>
   <p class="ev"><a href="https://github.com/agno-agi/agno/blob/9153aacd83edf116a32ccd104bdcbd7358defaf2/libs/agno/agno/compaction/compaction.py#L258-L277" title="libs/agno/agno/compaction/compaction.py:258-277"><code>compaction.py:258-277</code></a> · decision F4 in the full map</p>
 </li>
 </ul>

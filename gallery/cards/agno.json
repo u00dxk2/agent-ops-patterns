@@ -8,7 +8,7 @@
     "mappedAt": "2026-10-29"
   },
   "fullMapUrl": "https://u00dxk2.github.io/agent-ops-patterns/gallery/agno/",
-  "summary": "In an ordinary agno agent, the AI model decides at every turn whether to call tools or answer, and plain code by default runs each tool call it asks for without asking a person, unless the developer marked that tool or set a tool-call limit. The run normally ends when the model replies without asking for a tool, and by default nothing checks that answer, so even a reply cut off by the token limit is reported as completed.",
+  "summary": "In an ordinary agno agent, the AI model decides at every turn whether to call tools or answer, and plain code by default runs each valid tool call it asks for without asking a person, unless the developer marked that tool or set a tool-call limit. The run normally ends when the model replies without asking for a tool, and by default nothing checks that answer, so even a reply cut off by the token limit is reported as completed.",
   "judgments": [
     {
       "id": "A1",
@@ -23,7 +23,7 @@
       "stage": "gatekeeping",
       "question": "May a tool call the model issued run, without a person being asked?",
       "holder": "code",
-      "answer": "Yes, by default. Code runs each tool call the model makes, except calls past a tool-call limit the developer set; it pauses for a person only on tools the developer marked for confirmation, user input or external execution, or on the ask-the-person tools when those are added.",
+      "answer": "Yes, by default. Code runs each valid tool call the model makes, except calls past a tool-call limit the developer set; it pauses for a person only on tools the developer marked for confirmation, user input or external execution, or on the ask-the-person tools when those are added.",
       "evidence": "libs/agno/agno/models/base.py:2431-2575"
     },
     {
@@ -87,7 +87,7 @@
       "stage": "limits-memory",
       "question": "Has the history grown enough that older turns should be folded into a summary?",
       "holder": "code",
-      "answer": "Off by default. A Compaction object considers folding once replayed history reaches 150,000 tokens (its default); compaction=True folds only after the provider rejects a request as too long.",
+      "answer": "Off by default. A Compaction object considers folding once the context it counts (the prompt, replayed history and tools) reaches 150,000 tokens (its default); compaction=True folds only after the provider rejects a request as too long.",
       "evidence": "libs/agno/agno/compaction/compaction.py:258-277"
     },
     {

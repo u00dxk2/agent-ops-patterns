@@ -87,7 +87,7 @@ Honest framing first, quoted from its upstream (qm): **a speed bump against mist
 
 - **A lexer heuristic, not a parser.** Division-vs-regex is decided by the previous significant token plus a well-formedness lookahead, and the header names where that guess goes wrong: a contextual keyword such as `of` used as a variable name, or an operator right after a regex literal's closing slash. A wrong guess can keep a comment, and in one pinned case it strips real code. Those shapes are pinned in [`test/strip-comments.test.mjs`](./test/strip-comments.test.mjs) as `LIMIT:` tests, not just prose; the further contexts the header lists are not all pinned. If a wrong answer costs your guard more than a false alarm, use a real parser.
 - **Template-literal text is opaque on purpose.** A needle between backticks is output the program emits, so a presence guard should find it. If your needle is in a comment inside a `${...}` substitution, that is code and it strips.
-- **Two languages.** JS/TS/JSX and POSIX-shell `#`. No HTML comments; shell heredoc bodies are scanned like code: a needle on a plain heredoc line reads as present (pinned), but a `#` at the start of a word inside a heredoc is read as a comment, so the rest of that line is dropped and a needle there reads as absent.
+- **Two languages.** JS/TS/JSX and POSIX-shell `#`. No HTML comments; shell heredoc bodies are scanned like code: a needle on a plain heredoc line reads as present (pinned), but an unquoted, unescaped `#` at the start of a word inside a heredoc is read as a comment, so the rest of that line is dropped and a needle there reads as absent.
 
 ### known-flags
 
