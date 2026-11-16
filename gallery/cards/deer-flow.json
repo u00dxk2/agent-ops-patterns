@@ -98,7 +98,7 @@
       "upstream": {
         "status": "fix-proposed",
         "url": "https://github.com/bytedance/deer-flow/pull/1071",
-        "checkedAt": "2026-11-08"
+        "checkedAt": "2026-11-15"
       }
     },
     {
@@ -133,7 +133,7 @@
       "upstream": {
         "status": "already-tracked",
         "url": "https://github.com/bytedance/deer-flow/issues/2510",
-        "checkedAt": "2026-11-08"
+        "checkedAt": "2026-11-15"
       }
     }
   ],

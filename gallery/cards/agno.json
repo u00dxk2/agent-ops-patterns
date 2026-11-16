@@ -8,7 +8,7 @@
     "mappedAt": "2026-10-29"
   },
   "fullMapUrl": "https://u00dxk2.github.io/agent-ops-patterns/gallery/agno/",
-  "summary": "In an ordinary agno agent, the AI model decides at every turn whether to call tools or answer, and plain code runs every tool call it asks for without asking a person unless the developer marked that tool. The run ends when the model replies without asking for a tool, and by default nothing checks that answer, so even a reply cut off by the token limit is reported as completed.",
+  "summary": "In an ordinary agno agent, the AI model decides at every turn whether to call tools or answer, and plain code by default runs each tool call it asks for without asking a person, unless the developer marked that tool or set a tool-call limit. The run normally ends when the model replies without asking for a tool, and by default nothing checks that answer, so even a reply cut off by the token limit is reported as completed.",
   "judgments": [
     {
       "id": "A1",
@@ -23,7 +23,7 @@
       "stage": "gatekeeping",
       "question": "May a tool call the model issued run, without a person being asked?",
       "holder": "code",
-      "answer": "Yes. Code runs every tool call the model makes; it pauses for a person only on tools the developer marked for confirmation, user input or external execution, or on the ask-the-person tools when those are added.",
+      "answer": "Yes, by default. Code runs each tool call the model makes, except calls past a tool-call limit the developer set; it pauses for a person only on tools the developer marked for confirmation, user input or external execution, or on the ask-the-person tools when those are added.",
       "evidence": "libs/agno/agno/models/base.py:2431-2575"
     },
     {
@@ -39,7 +39,7 @@
       "stage": "gatekeeping",
       "question": "Should the agent stop and ask the person?",
       "holder": "model",
-      "answer": "Only when the developer adds agno's ask-the-person toolkits; then the model decides when to stop and ask, and the run pauses for the person.",
+      "answer": "When the developer adds agno's ask-the-person toolkits, or a tool marked as needing the person's input; then the model decides when to stop and ask by calling it, and the run pauses for the person.",
       "evidence": "libs/agno/agno/models/base.py:2484-2518"
     },
     {
@@ -47,7 +47,7 @@
       "stage": "done",
       "question": "After this turn, is the run over, or does the agent take another turn?",
       "holder": "model",
-      "answer": "The model decides: agno keeps calling it while it asks for tools and stops when a reply has none, with no turn limit by default.",
+      "answer": "The model decides: normally agno keeps calling it while it asks for tools and stops when a reply has none, with no turn limit by default; a tool set to stop the run, or a pause for a person, also ends the loop.",
       "evidence": "libs/agno/agno/models/base.py:873-874"
     },
     {
@@ -71,7 +71,7 @@
       "stage": "limits-memory",
       "question": "When an agent keeps asking for tools, when are further tool calls refused?",
       "holder": "code",
-      "answer": "No limit by default. With a tool-call limit set, calls past it are not run and the model is told so; the run goes on.",
+      "answer": "No limit by default. With a tool-call limit set, calls past it are not run and the model is told so (tools that read back a large result set aside are not counted while that storage is on); the run goes on.",
       "evidence": "libs/agno/agno/models/base.py:2431-2445"
     },
     {
@@ -79,7 +79,7 @@
       "stage": "limits-memory",
       "question": "Which earlier messages of this conversation are replayed to the model?",
       "holder": "code",
-      "answer": "None by default; with history switched on and a database, the last 3 runs of the session, or the count the developer sets.",
+      "answer": "None by default; with history switched on and a database, normally the last 3 runs of the session, or the count the developer sets. With a compaction token threshold set, the recent history since the last summary is replayed instead.",
       "evidence": "libs/agno/agno/agent/_messages.py:1964-1998"
     },
     {
@@ -87,7 +87,7 @@
       "stage": "limits-memory",
       "question": "Has the history grown enough that older turns should be folded into a summary?",
       "holder": "code",
-      "answer": "Off by default. A Compaction object folds once replayed history reaches 150,000 tokens; compaction=True folds only after the provider rejects a request as too long.",
+      "answer": "Off by default. A Compaction object considers folding once replayed history reaches 150,000 tokens (its default); compaction=True folds only after the provider rejects a request as too long.",
       "evidence": "libs/agno/agno/compaction/compaction.py:258-277"
     },
     {
@@ -95,7 +95,7 @@
       "stage": "other",
       "question": "When a tool fails, what does the model see, and does the run go on?",
       "holder": "code",
-      "answer": "The error text goes back to the model as the tool's result and the model decides what next; the run does not fail.",
+      "answer": "Normally the error text goes back to the model as the tool's result and the model decides what next; the run does not fail. A tool can raise agno's stop exception to end the run, and a cancelled run stops.",
       "evidence": "libs/agno/agno/tools/function.py:2713-2717"
     },
     {
@@ -122,7 +122,7 @@
       "upstream": {
         "status": "fix-proposed",
         "url": "https://github.com/agno-agi/agno/pull/8630",
-        "checkedAt": "2026-11-08"
+        "checkedAt": "2026-11-15"
       }
     },
     {
@@ -139,7 +139,7 @@
       "upstream": {
         "status": "fix-proposed",
         "url": "https://github.com/agno-agi/agno/pull/10782",
-        "checkedAt": "2026-11-08"
+        "checkedAt": "2026-11-15"
       }
     },
     {

@@ -106,7 +106,7 @@
       "upstream": {
         "status": "already-tracked",
         "url": "https://github.com/langchain-ai/langchain/issues/33504",
-        "checkedAt": "2026-11-08"
+        "checkedAt": "2026-11-15"
       }
     },
     {
@@ -124,7 +124,7 @@
       "upstream": {
         "status": "already-tracked",
         "url": "https://github.com/langchain-ai/langchain/issues/40423",
-        "checkedAt": "2026-11-08"
+        "checkedAt": "2026-11-15"
       }
     },
     {
@@ -141,7 +141,7 @@
       "upstream": {
         "status": "already-tracked",
         "url": "https://github.com/langchain-ai/langchain/issues/41146",
-        "checkedAt": "2026-11-08"
+        "checkedAt": "2026-11-15"
       }
     }
   ],

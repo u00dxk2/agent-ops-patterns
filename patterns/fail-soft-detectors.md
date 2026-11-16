@@ -42,7 +42,7 @@ When a component is detected dead: try to resurrect it once; if resurrection fai
 
 ### 7. Every detector ships with a kill-switch
 
-One env var (`X_DISABLED=1`) checked at the top. When a detector misbehaves in production, the operator turns it off in seconds without a deploy, and the switch's existence makes shipping detectors *less* risky, so more of them ship.
+One env var (`X_DISABLED=1`) checked at the top. When a detector misbehaves in production, the operator turns it off without a code change, and the switch's existence makes shipping detectors *less* risky, so more of them ship.
 
 ### 8. Distrust the measurement before the system
 

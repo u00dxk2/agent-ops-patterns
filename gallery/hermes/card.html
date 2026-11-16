@@ -56,7 +56,7 @@ ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
 <ul class="judgments">
 <li class="j">
   <p class="q">May this sender's message dispatch agent work?</p>
-  <p class="a"><span class="holder holder-code">Decided by plain code</span> Code walks a fixed order of grants on every incoming gateway message. On a fresh install with no allowlist, an unknown sender is refused unless an operator approved their pairing code.</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Code walks a fixed order of grants on every incoming gateway message. On a fresh install with no allowlist, an unknown sender on an ordinary messaging platform is normally refused unless an operator approved their pairing code; local sessions, webhooks and adapters with their own access policy follow separate rules.</p>
   <p class="ev"><a href="https://github.com/NousResearch/hermes-agent/blob/b200f5bc60e31588ba2cb60e288029c4a54ba5fa/gateway/authz_mixin.py#L707-L790" title="gateway/authz_mixin.py:707-790"><code>authz_mixin.py:707-790</code></a> · decision A1 in the full map</p>
 </li>
 </ul>
@@ -113,13 +113,13 @@ ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
 <li class="p">
   <h3>1. A run budget can warn near the end but does not enforce a deadline</h3>
   <p>With --run-budget or agent.run_budget_seconds set, once 80% of the time has passed Hermes adds a one-time wrap-up notice to a tool result when it can, and it can shorten a default wait on a silent model call. The setting does not itself stop the run when the time is up, although the option's help text says it is intended for runs with a hard ceiling. An open pull request proposes stopping the model at the deadline.</p>
-  <p class="status">Reported; a fix is proposed, not merged (<a href="https://github.com/NousResearch/hermes-agent/pull/127780">#127780</a>), checked 2026-11-08.</p>
+  <p class="status">Reported; a fix is proposed, not merged (<a href="https://github.com/NousResearch/hermes-agent/pull/127780">#127780</a>), checked 2026-11-15.</p>
   <p class="ev">Where: <a href="https://github.com/NousResearch/hermes-agent/blob/b200f5bc60e31588ba2cb60e288029c4a54ba5fa/agent/conversation_loop.py#L126-L158" title="agent/conversation_loop.py:126-158"><code>conversation_loop.py:126-158</code></a>, <a href="https://github.com/NousResearch/hermes-agent/blob/b200f5bc60e31588ba2cb60e288029c4a54ba5fa/agent/chat_completion_helpers.py#L678-L687" title="agent/chat_completion_helpers.py:678-687"><code>chat_completion_helpers.py:678-687</code></a>, <a href="https://github.com/NousResearch/hermes-agent/blob/b200f5bc60e31588ba2cb60e288029c4a54ba5fa/hermes_cli/_parser.py#L300-L306" title="hermes_cli/_parser.py:300-306"><code>_parser.py:300-306</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in three rounds; every sentence it found too wide was narrowed or removed.</p>
 </li>
 <li class="p">
   <h3>2. Subagent calls over the limit in one reply are dropped without telling the model</h3>
   <p>When a model reply has passed Hermes' tool-call checks and asks for more delegate_task calls than delegation.max_concurrent_children (10 by default), Hermes drops the calls over the limit before the reply goes into the conversation. The cap itself only logs a warning, and the model gets no result for the dropped calls. An open report in Hermes' tracker describes this.</p>
-  <p class="status">Already tracked upstream (<a href="https://github.com/NousResearch/hermes-agent/issues/30405">#30405</a>), checked 2026-11-08.</p>
+  <p class="status">Already tracked upstream (<a href="https://github.com/NousResearch/hermes-agent/issues/30405">#30405</a>), checked 2026-11-15.</p>
   <p class="ev">Where: <a href="https://github.com/NousResearch/hermes-agent/blob/b200f5bc60e31588ba2cb60e288029c4a54ba5fa/run_agent.py#L1182-L1200" title="run_agent.py:1182-1200"><code>run_agent.py:1182-1200</code></a>, <a href="https://github.com/NousResearch/hermes-agent/blob/b200f5bc60e31588ba2cb60e288029c4a54ba5fa/agent/turn_tool_round.py#L96-L113" title="agent/turn_tool_round.py:96-113"><code>turn_tool_round.py:96-113</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in three rounds; every sentence it found too wide was narrowed or removed.</p>
 </li>
 <li class="p">

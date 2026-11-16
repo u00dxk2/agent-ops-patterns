@@ -64,7 +64,7 @@ OPEN (PART 1 settles): <packages whose status is unclear>.
 Stay inside your PART. If a seat belongs to another part, write one line under "Handed to PART n"
 and move on.
 
-## For every seat, record (S5 fields, all of them; write "none found: <search>" when empty)
+## For every seat, record (every S5 field except Gaps, which go in your gap list below; write "none found: <search>" when empty)
 
 - **ID**: stage plus ordinal, using your PART's letters (A1, B2).
 - **Question**: a question someone could quote in a business conversation.

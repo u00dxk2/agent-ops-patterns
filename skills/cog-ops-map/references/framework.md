@@ -95,4 +95,4 @@ makes the gap report actionable.
   record structure as models, the owner's own included. A human approval seat with no
   training capture is one of the most useful findings a map can make.
 - **Zero new dependencies** — CSS + inline SVG render everything; a charting library adds
-  nothing but weight and makes medium 2 (self-contained HTML) impossible.
+  weight, and loaded from outside the file it breaks medium 2 (self-contained HTML).

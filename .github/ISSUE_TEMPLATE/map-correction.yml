@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks. Every card on a map cites the file and lines it was read from, at one fixed commit, so a correction
+        Thanks. Every card on a map cites the file and lines it was read from, at a fixed commit, so a correction
         is easiest to check when it points at code.
 
         **Is it a security weakness in the project that was mapped?** Then please report it to that project privately,

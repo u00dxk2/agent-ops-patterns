@@ -15,7 +15,7 @@
       "stage": "gatekeeping",
       "question": "May this sender's message dispatch agent work?",
       "holder": "code",
-      "answer": "Code walks a fixed order of grants on every incoming gateway message. On a fresh install with no allowlist, an unknown sender is refused unless an operator approved their pairing code.",
+      "answer": "Code walks a fixed order of grants on every incoming gateway message. On a fresh install with no allowlist, an unknown sender on an ordinary messaging platform is normally refused unless an operator approved their pairing code; local sessions, webhooks and adapters with their own access policy follow separate rules.",
       "evidence": "gateway/authz_mixin.py:707-790"
     },
     {
@@ -91,7 +91,7 @@
       "upstream": {
         "status": "fix-proposed",
         "url": "https://github.com/NousResearch/hermes-agent/pull/127780",
-        "checkedAt": "2026-11-08"
+        "checkedAt": "2026-11-15"
       }
     },
     {
@@ -108,7 +108,7 @@
       "upstream": {
         "status": "already-tracked",
         "url": "https://github.com/NousResearch/hermes-agent/issues/30405",
-        "checkedAt": "2026-11-08"
+        "checkedAt": "2026-11-15"
       }
     },
     {

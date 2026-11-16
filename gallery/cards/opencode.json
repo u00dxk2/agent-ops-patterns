@@ -87,7 +87,7 @@
       "stage": "limits-memory",
       "question": "How much of a tool's output does the model see?",
       "holder": "code",
-      "answer": "Unless the tool already cut it, the start of it: up to 2,000 lines and 50 KiB by default. The full text is saved to a file for 7 days and the model is told where.",
+      "answer": "Unless the tool reports its own cut, the start of it: up to 2,000 lines and 50 KiB by default. When code cuts it, the full text is saved to a file for 7 days and the model is told where.",
       "evidence": "packages/core/src/tool-output.ts:69-120"
     },
     {
@@ -119,9 +119,9 @@
         "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again, and on 2026-11-08 for the sentence changed after a tracker search"
       },
       "upstream": {
-        "status": "reported",
+        "status": "already-tracked",
         "url": "https://github.com/anomalyco/opencode/issues/28726",
-        "checkedAt": "2026-11-09"
+        "checkedAt": "2026-11-15"
       }
     },
     {
@@ -155,7 +155,7 @@
       "upstream": {
         "status": "fix-proposed",
         "url": "https://github.com/anomalyco/opencode/pull/61328",
-        "checkedAt": "2026-11-08"
+        "checkedAt": "2026-11-15"
       }
     }
   ],

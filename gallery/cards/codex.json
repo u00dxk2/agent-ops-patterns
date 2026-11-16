@@ -106,7 +106,7 @@
       "upstream": {
         "status": "already-tracked",
         "url": "https://github.com/openai/codex/issues/37956",
-        "checkedAt": "2026-11-08"
+        "checkedAt": "2026-11-15"
       }
     },
     {
@@ -123,7 +123,7 @@
       "upstream": {
         "status": "already-tracked",
         "url": "https://github.com/openai/codex/issues/35735",
-        "checkedAt": "2026-11-08"
+        "checkedAt": "2026-11-15"
       }
     },
     {
@@ -137,9 +137,9 @@
         "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-08, in three rounds; each sentence it questioned was narrowed, removed or kept with the reason recorded"
       },
       "upstream": {
-        "status": "reported",
+        "status": "already-tracked",
         "url": "https://github.com/openai/codex/issues/24109",
-        "checkedAt": "2026-11-09"
+        "checkedAt": "2026-11-15"
       }
     }
   ],

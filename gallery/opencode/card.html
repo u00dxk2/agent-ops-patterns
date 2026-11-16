@@ -109,7 +109,7 @@ ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
 </li>
 <li class="j">
   <p class="q">How much of a tool's output does the model see?</p>
-  <p class="a"><span class="holder holder-code">Decided by plain code</span> Unless the tool already cut it, the start of it: up to 2,000 lines and 50 KiB by default. The full text is saved to a file for 7 days and the model is told where.</p>
+  <p class="a"><span class="holder holder-code">Decided by plain code</span> Unless the tool reports its own cut, the start of it: up to 2,000 lines and 50 KiB by default. When code cuts it, the full text is saved to a file for 7 days and the model is told where.</p>
   <p class="ev"><a href="https://github.com/anomalyco/opencode/blob/0093fe5782766f180167efab86fb8fdb3c5b6a4a/packages/core/src/tool-output.ts#L69-L120" title="packages/core/src/tool-output.ts:69-120"><code>tool-output.ts:69-120</code></a> · decision E5 in the full map</p>
 </li>
 </ul>
@@ -133,7 +133,7 @@ ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
 <li class="p">
   <h3>1. An agent's chosen model can be swapped for another without a warning from the selection code</h3>
   <p>When a session has no model of its own and the model its agent is set up with is not among the available models, code falls back to a default or another available model. That selection code gives no warning that the agent's configured model was bypassed, though the name of the model that ran may still be shown elsewhere. Two closed issues report an agent's configured model being swapped for another: the linked one, on an older version that showed a warning, and #53060, which the maintainers disputed and closed for lack of a trace. Neither issue describes this exact code path.</p>
-  <p class="status">Reported; no linked fix found (<a href="https://github.com/anomalyco/opencode/issues/28726">#28726</a>), checked 2026-11-09.</p>
+  <p class="status">Already tracked upstream (<a href="https://github.com/anomalyco/opencode/issues/28726">#28726</a>), checked 2026-11-15.</p>
   <p class="ev">Where: <a href="https://github.com/anomalyco/opencode/blob/0093fe5782766f180167efab86fb8fdb3c5b6a4a/packages/core/src/session/runner/model.ts#L79-L87" title="packages/core/src/session/runner/model.ts:79-87"><code>model.ts:79-87</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again, and on 2026-11-08 for the sentence changed after a tracker search.</p>
 </li>
 <li class="p">
@@ -145,7 +145,7 @@ ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
 <li class="p">
   <h3>3. No default limit on a run that keeps repeating itself</h3>
   <p>By default an agent has no step limit, and the map found no check in the current core for a model that keeps making the same tool calls, so a run whose repeated calls keep succeeding has no built-in limit and can go on until you stop it. opencode's tracker has an open discussion of this (#59339) and an open pull request that proposes loop detection.</p>
-  <p class="status">Reported; a fix is proposed, not merged (<a href="https://github.com/anomalyco/opencode/pull/61328">#61328</a>), checked 2026-11-08.</p>
+  <p class="status">Reported; a fix is proposed, not merged (<a href="https://github.com/anomalyco/opencode/pull/61328">#61328</a>), checked 2026-11-15.</p>
   <p class="ev">Where: <a href="https://github.com/anomalyco/opencode/blob/0093fe5782766f180167efab86fb8fdb3c5b6a4a/packages/core/src/session/runner/llm.ts#L224" title="packages/core/src/session/runner/llm.ts:224"><code>llm.ts:224</code></a>, <a href="https://github.com/anomalyco/opencode/blob/0093fe5782766f180167efab86fb8fdb3c5b6a4a/packages/schema/src/agent.ts#L39-L52" title="packages/schema/src/agent.ts:39-52"><code>agent.ts:39-52</code></a>. How we checked: the code was re-read at the source version named above; the sentences were checked by an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again.</p>
 </li>
 </ol>

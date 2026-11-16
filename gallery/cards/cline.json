@@ -91,7 +91,7 @@
       "upstream": {
         "status": "already-tracked",
         "url": "https://github.com/cline/cline/issues/10549",
-        "checkedAt": "2026-11-08"
+        "checkedAt": "2026-11-15"
       }
     },
     {
@@ -109,7 +109,7 @@
       "upstream": {
         "status": "already-tracked",
         "url": "https://github.com/cline/cline/issues/13267",
-        "checkedAt": "2026-11-08"
+        "checkedAt": "2026-11-15"
       }
     },
     {
@@ -125,7 +125,7 @@
       "upstream": {
         "status": "fix-proposed",
         "url": "https://github.com/cline/cline/pull/14741",
-        "checkedAt": "2026-11-08"
+        "checkedAt": "2026-11-15"
       }
     }
   ],

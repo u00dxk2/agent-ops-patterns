@@ -23,7 +23,7 @@
       "stage": "gatekeeping",
       "question": "Can anything block a tool call?",
       "holder": "code",
-      "answer": "Only an installed extension that handles tool calls: the first one that says block stops the call, and the model gets its reason as an error. pi ships no blocking policy; the two in its repository are examples.",
+      "answer": "Apart from code's own refusals (an unknown tool, invalid arguments, a cancelled run), only an installed extension that handles tool calls: the first one that says block stops the call, and the model gets its reason as an error. pi ships no blocking policy; the ones in its repository are examples.",
       "evidence": "packages/coding-agent/src/core/extensions/runner.ts:1249-1267"
     },
     {
@@ -110,7 +110,7 @@
   "problems": [
     {
       "title": "Piped input and your message are joined with nothing between them",
-      "plain": "In a one-shot run, pi joins piped input, the text of @file arguments and the first message into one prompt with no separator between them, so the end of one part runs straight into the start of the next. pi's maintainers closed the report about this as not planned.",
+      "plain": "In a one-shot run, pi joins piped input, the text of @file arguments and the first message into one prompt with no separator between them, so the end of one part runs straight into the start of the next. pi's tracker has a report about this, filed by someone else, that a bot closed automatically under the project's policy for new contributors; it is marked not planned and had not been reopened when we checked on 2026-11-15.",
       "evidence": [
         "packages/coding-agent/src/cli/initial-message.ts:26-40"
       ],
@@ -119,9 +119,9 @@
         "claimsPass": "an independent AI reviewer from another company (OpenAI Codex, read-only) on 2026-11-01; every sentence it found too wide was rewritten or removed, and every rewrite was checked again"
       },
       "upstream": {
-        "status": "reported",
+        "status": "already-tracked",
         "url": "https://github.com/earendil-works/pi/issues/7863",
-        "checkedAt": "2026-11-08"
+        "checkedAt": "2026-11-15"
       }
     },
     {
@@ -138,7 +138,7 @@
       "upstream": {
         "status": "fixed",
         "url": "https://github.com/earendil-works/pi/pull/10165",
-        "checkedAt": "2026-11-08"
+        "checkedAt": "2026-11-15"
       }
     },
     {
@@ -155,7 +155,7 @@
       "upstream": {
         "status": "already-tracked",
         "url": "https://github.com/earendil-works/pi/issues/10885",
-        "checkedAt": "2026-11-08"
+        "checkedAt": "2026-11-15"
       }
     }
   ],

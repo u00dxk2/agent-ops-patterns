@@ -50,7 +50,7 @@ of those 51.
 ### 2. The same agent follows different rules depending on how you start it
 
 - **Evidence:** the who-is-asked grid at the end of this page: 21 ways of running the twelve systems, by five kinds of
-  action, filled in separately from the code by two AI models from different companies. 93 of 101 cells agreed.
+  action, filled in separately from the code by two AI models from different companies. Of the grid's 105 cells, the two gave the same definite answer in 93, different definite answers in eight, and one of them answered "unclear" in four.
 - **Cline:** the only two rows where a person is asked before an ordinary command are both Cline: its VS Code extension
   and its ACP mode. Started from its ordinary command line, the same agent runs the command unasked.
 - **Kind:** read from code by two readers. Many cells are inferred from the code rather than read off one line, and

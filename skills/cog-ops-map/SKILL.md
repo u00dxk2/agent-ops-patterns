@@ -201,7 +201,7 @@ Pick the first option that fits, in this order:
      the same night, and it hand-edited the HTML *without noticing it was doing the forbidden
      thing* — one fold was verified stale within hours.)
      **Write injections with a replacer FUNCTION, never a replacement string** — prompt text
-     routinely contains `$`, and `String.replace` reads `$3,000` as capture-group 3 and will
+     routinely contains `$`, and `String.replace` treats `$` sequences in a replacement string as patterns (`$3,000` is capture-group 3 when the pattern has three groups) and can
      **silently truncate the fold** (observed: −450 chars, caught only because a `--check` run
      was non-idempotent). Same family as the "never `printf` text containing `%`" warning.
      **The injector MUST assert that no fold is zero-length, and that assertion belongs in the
@@ -374,13 +374,13 @@ already read the corpus?). **A proposed seat without a control is a wish.**
   absence survived a retro, a tracker row, and a probe that PASSED, because a consolidated card
   hides the seat that contradicts the census. Before filing a missing seat, grep the map's own consolidated cards
   for the question.)
-- **Build the map in the repo whose code it maps** — a rule, not a preference. A map built in a
+- **Build the map in the repo whose code it maps** when the system is yours or its owner invited the map — a rule, not a preference (read-only mode builds outside it, as above). A map built in a
   sibling/orchestration repo makes the same-commit maintenance contract *physically impossible*,
   and CI that checks out only the mapped repo will **silently skip** any freshness gate.
   (2026-07-31.)
 - **When a VALIDATION field names an eval, note whether that eval has a measured NOISE FLOOR**
   (run the incumbent against itself first; a pass/fail criterion with no floor is
-  unfalsifiable — a control run can fail criteria no model could pass, including the one in
+  uninterpretable — a control run can fail criteria no model could pass, including the one in
   production). *No floor measured* is a legitimate card entry and a legitimate gap. Two correctly
   reasoned exceptions: a **direct mechanism probe** — inspecting the actual differing cases and
   explaining WHY they differ — needs no floor; and a metric pinned at exactly **0** has a floor

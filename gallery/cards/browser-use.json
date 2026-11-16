@@ -8,7 +8,7 @@
     "mappedAt": "2026-10-29"
   },
   "fullMapUrl": "https://u00dxk2.github.io/agent-ops-patterns/gallery/browser-use/",
-  "summary": "In browser-use, the AI model chooses the actions on each of its steps (code may first open a web address named in the task) and decides the task is finished by calling done. Among the decisions this map shows, nobody is asked before an action runs, so a form submit or a script the model writes goes ahead on its own, and code clicks OK on alerts and confirm dialogs. The built-in limits on how long a run goes are counts, not judgments (500 steps, or 5 failed steps in a row), and the run's success flag is the model's value when it gives one and true when it does not; a second model call grades the run without changing that flag.",
+  "summary": "In browser-use, the AI model chooses the actions on each of its steps (code may first open a web address named in the task) and decides the task is finished by calling done. Among the decisions this map shows, nobody is asked before an action runs, so a form submit or a script the model writes goes ahead on its own, and code clicks OK on alerts and confirm dialogs. The built-in limits on how long a run goes are counts, not judgments (by default 500 steps, or 5 failed steps in a row and then one last step that may only report the result), and the run's success flag is the model's value when it gives one and true when it does not; a second model call grades the run without changing that flag.",
   "judgments": [
     {
       "id": "D17",
@@ -39,7 +39,7 @@
       "stage": "gatekeeping",
       "question": "Which browser permissions are granted to the sites the agent visits?",
       "holder": "code",
-      "answer": "When the browser connects, code grants clipboard read/write and notifications to every site; any other permission a page asks for is left to Chrome.",
+      "answer": "When the browser connects, code by default grants clipboard read/write and notifications to every site (the integrator can change or empty that list); any other permission a page asks for is left to Chrome.",
       "evidence": "browser_use/browser/watchdogs/permissions_watchdog.py:23-43"
     },
     {
@@ -47,7 +47,7 @@
       "stage": "gatekeeping",
       "question": "When a page offers a file, is it saved to disk?",
       "holder": "code",
-      "answer": "Yes. Downloads are always allowed, into a fresh temporary folder, and by default PDFs and attachments are also saved without a click.",
+      "answer": "Yes. Downloads are allowed, into a fresh temporary folder unless the integrator names one, and by default PDFs and attachments are also saved without a click.",
       "evidence": "browser_use/browser/watchdogs/downloads_watchdog.py:500-513"
     },
     {
@@ -122,7 +122,7 @@
       "upstream": {
         "status": "fix-proposed",
         "url": "https://github.com/browser-use/browser-use/pull/6178",
-        "checkedAt": "2026-11-08"
+        "checkedAt": "2026-11-15"
       }
     },
     {

@@ -12,13 +12,13 @@ Open an issue that says, in your own words:
 - what you believe the guard/pattern should do — and, in the house style, what it should deliberately NOT catch;
 - how you'd know it works (the input that must go red).
 
-If it belongs here, we'll burn our own tokens on the implementation. This is not gatekeeping for its own sake: every artifact in this repo follows one house contract — for the **libraries**, that means a pure single file, zero dependencies, a fail-soft or fail-closed posture declared and pinned by tests, and limits written as tested expectations; the **written protocols** are held to accuracy and stated scope instead, since nothing executes them, and holding a contributor's code to that contract costs more review than writing it fresh — while the *intent* is the part we genuinely cannot generate. A well-written failure story is the most valuable PR this repo can receive. Not because an agent couldn't draft one - it could, easily, and convincingly. What an agent can't supply is the provenance: the reproducible input, the log line, the commit where it broke. Bring that and the story is worth more than the code.
+If it belongs here, we'll burn our own tokens on the implementation. This is not gatekeeping for its own sake: every artifact in this repo is held to one house contract — for the **libraries**, that means a pure single file, zero dependencies, a fail-soft or fail-closed posture declared and pinned by tests, and limits written as tested expectations; the **written protocols** are held to accuracy and stated scope instead, since nothing executes them, and holding a contributor's code to that contract costs more review than writing it fresh — while the *intent* is the part we genuinely cannot generate. A well-written failure story is the most valuable PR this repo can receive. Not because an agent couldn't draft one - it could, easily, and convincingly. What an agent can't supply is the provenance: the reproducible input, the log line, the commit where it broke. Bring that and the story is worth more than the code.
 
 What is welcome as a direct PR, no intent doc needed:
 
 - **Adoption reports** — "this caught X for us" as an issue is the single most useful contribution (see README § Posture).
 - **Bug reports with a failing test.** The test is the intent document.
-- **Mechanical one-liners** where LIMITS.md explicitly invites them (e.g. adding a vendor shape to `snippet-redact` — one pattern line plus its test).
+- **Small mechanical changes** where LIMITS.md explicitly invites them (e.g. adding a vendor shape to `snippet-redact` — one entry in it and one in its Python port, plus a fixture row).
 
 ## Before this repo accepts outside PRs into CI with any privileges
 
