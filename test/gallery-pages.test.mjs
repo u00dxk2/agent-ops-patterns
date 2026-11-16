@@ -343,11 +343,15 @@ describe("gallery pages on GitHub Pages", () => {
   // Pages serves gallery/findings.md as raw text (.nojekyll), so the two entry pages
   // link the GitHub-rendered copy. The link sits above the first map card so a reader
   // arriving from the essay sees it without scrolling through the map list.
+  const FINDINGS_URL = "https://github.com/u00dxk2/agent-ops-patterns/blob/main/gallery/findings.md";
+  // Position of the exact "How we know" anchor to `url`, or -1. A string match on the
+  // page source, shared by the check and its LIMIT test.
+  const findingsLinkAt = (html, url = FINDINGS_URL) => html.indexOf(`<a href="${url}">How we know</a>`);
+
   it("the front page and the gallery page link the findings page above the first map card", () => {
-    const FINDINGS_URL = "https://github.com/u00dxk2/agent-ops-patterns/blob/main/gallery/findings.md";
     for (const rel of ["index.html", "gallery/index.html"]) {
       const html = uncommented(read(rel));
-      const link = html.indexOf(`<a href="${FINDINGS_URL}">How we know</a>`);
+      const link = findingsLinkAt(html);
       assert.ok(link !== -1, `${rel} links "How we know" to ${FINDINGS_URL}`);
       const firstCard = html.indexOf('<div class="map">');
       assert.ok(firstCard !== -1, `${rel} has map cards`);
@@ -355,13 +359,13 @@ describe("gallery pages on GitHub Pages", () => {
     }
   });
 
-  it("LIMIT: the findings link check matches one exact anchor string; it does not fetch the target or check that it renders", () => {
-    // A reworded link text or an added attribute fails the check above; a 404 at
-    // github.com does not. The live read after a push is the check on the target.
-    const url = "https://github.com/u00dxk2/agent-ops-patterns/blob/main/gallery/findings.md";
-    const wanted = `<a href="${url}">How we know</a>`;
-    assert.equal(`<p><a class="x" href="${url}">How we know</a></p>`.indexOf(wanted), -1, "an extra attribute is not matched");
-    assert.notEqual(`<p><a href="${url.replace("findings", "findingz")}">How we know</a></p>`.indexOf(`>How we know</a>`), -1, "the text alone matches whatever the target");
+  it("LIMIT: the findings link check is an exact string match on the page source: an added attribute or reworded text fails it, and whether the target exists is not checked", () => {
+    assert.equal(findingsLinkAt(`<p><a class="x" href="${FINDINGS_URL}">How we know</a></p>`), -1, "an extra attribute fails");
+    assert.equal(findingsLinkAt(`<p><a href="${FINDINGS_URL}">how we know</a></p>`), -1, "reworded text fails");
+    // Any URL is accepted as written: nothing here asks github.com whether it serves the
+    // file. The live read after a push is the check on the target.
+    const missing = "https://github.com/u00dxk2/agent-ops-patterns/blob/main/gallery/no-such-file.md";
+    assert.notEqual(findingsLinkAt(`<p><a href="${missing}">How we know</a></p>`, missing), -1, "a missing target is not detected");
   });
 
   it("LIMIT: this reads the files on disk, not the deployed site; a failed Pages build is not seen here", () => {

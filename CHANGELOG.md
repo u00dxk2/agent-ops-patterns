@@ -8,6 +8,8 @@ Changes that matter to anyone who vendors a file from this repo. Each entry name
 
 `index.html` and `gallery/index.html` each have one new line, above the map list, linking "How we know" (`gallery/findings.md`). The link points at the copy rendered on github.com, because the site serves Markdown files as raw text. No card, map or count changed; nothing to re-pull.
 
+The sentences that describe the findings page (README, `gallery/README.md`, the top of `gallery/findings.md`) said it gives "the code" each lesson rests on. They now say "the evidence", because lesson 1 rests on the maps, lesson 2 on a grid, and lesson 10 on our own review results.
+
 ## 2026-11-15
 
 ### Every map row re-read against the code; 531 corrected
