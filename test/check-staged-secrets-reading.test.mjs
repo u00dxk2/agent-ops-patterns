@@ -33,6 +33,28 @@ function assertCaught(out, file, why) {
   assert.match(out.stderr, new RegExp(String.raw`\[github-pat\]\s+${file.replace(".", "\\.")}`), `${why} — no github-pat finding for ${file}`);
 }
 
+test("a file NAMED like a vendor key is withheld on the staged and history paths (prepublish review, finding 1)", () => {
+  // The path rule's prefix list stopped at the older vendors, so a Render-shaped name was
+  // printed in full beside its own finding. Every pattern's shape now withholds a path.
+  const names = [
+    "rn" + "d_" + "A".repeat(24),
+    "x-" + "sntry" + "u_" + "A".repeat(30), // a `-` before the prefix: the line rule's start boundary does not fire
+    "SG" + "." + "A".repeat(22) + "." + "B".repeat(43),
+  ];
+  const r = repo();
+  for (const n of names) writeFileSync(join(r, `${n}.txt`), `TOKEN=${TOKEN}\n`);
+  git(r, "add", "-A");
+  const staged = scan(r);
+  git(r, "commit", "-q", "-m", "names");
+  const history = spawnSync(process.execPath, [SCRIPT, "--history", "1", "--repo", r], { encoding: "utf8" });
+  for (const [label, out, code] of [["staged", staged, 1], ["history", history, 3]]) {
+    assert.equal(out.status, code, label);
+    const text = `${out.stdout}\n${out.stderr}`;
+    assert.equal((text.match(/<path withheld/g) ?? []).length, names.length, `${label}: every name withheld`);
+    for (const n of names) assert.ok(!text.includes(n.slice(-20)), `${label}: ${n.slice(0, 6)}… printed`);
+  }
+});
+
 test("a `-diff` attribute does not hide staged lines (SY-1 a: --text)", () => {
   const r = repo();
   writeFileSync(join(r, ".gitattributes"), "*.cfg -diff\n");

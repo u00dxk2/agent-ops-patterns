@@ -182,9 +182,15 @@ test("shell presence guard: a rationale naming a script is not the script runnin
   assert.equal(includesOutsideShellComments(hook, "other-check.mjs"), true);
 });
 
-// LIMIT pinned: heredoc bodies are scanned like code — errs toward FOUND,
-// never toward a false absence.
+// LIMIT pinned: heredoc bodies are scanned like code. A plain body line errs
+// toward FOUND; a comment-shaped body line is stripped (a false absence).
 test("LIMIT: a needle in a heredoc body reads as present (fail toward FOUND)", () => {
   const hook = "cat <<EOF\nthe-needle\nEOF\n";
   assert.equal(includesOutsideShellComments(hook, "the-needle"), true);
+});
+
+test("LIMIT: a comment-shaped heredoc body line is stripped, a FALSE ABSENCE (prepublish review, finding 7)", () => {
+  // The shell prints "# needle" here; the stripper reads it as a comment.
+  assert.equal(includesOutsideShellComments("cat <<'EOF'\n# needle\nEOF\n", "needle"), false);
+  assert.equal(includesOutsideShellComments("cat <<EOF\n  # needle\nEOF\n", "needle"), false);
 });

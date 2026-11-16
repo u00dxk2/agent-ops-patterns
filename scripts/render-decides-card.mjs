@@ -47,9 +47,12 @@ function longStrings(value, at = "card") {
   return [];
 }
 
+// A `.` or `..` segment is refused: the browser resolves `/blob/<commit>/../main/x.py` to
+// `/blob/main/x.py`, a link off the card's pinned commit (prepublish review, 2026-11-15).
 function evidenceOk(e) {
   const m = typeof e === "string" && e.match(EVIDENCE);
-  return Boolean(m) && (m[2] === undefined || Number(m[2]) >= Number(m[1]));
+  if (!m || e.slice(0, e.lastIndexOf(":")).split("/").some((s) => s === "." || s === "..")) return false;
+  return m[2] === undefined || Number(m[2]) >= Number(m[1]);
 }
 
 function scoreKeys(value, at = "card") {
@@ -91,7 +94,7 @@ export function validateCard(card) {
     need(HOLDERS.includes(j.holder), `${at}.holder is one of ${HOLDERS.join(", ")}`);
     need(nonEmpty(j.question), `${at}.question`);
     need(nonEmpty(j.answer), `${at}.answer`);
-    need(evidenceOk(j.evidence), `${at}.evidence is path:line or path:start-end`);
+    need(evidenceOk(j.evidence), `${at}.evidence is path:line or path:start-end, with no . or .. segment`);
   });
 
   const ps = Array.isArray(card.problems) ? card.problems : [];
@@ -100,7 +103,7 @@ export function validateCard(card) {
     const at = `problems[${i}]`;
     need(nonEmpty(p.title), `${at}.title`);
     need(nonEmpty(p.plain), `${at}.plain`);
-    need(Array.isArray(p.evidence) && p.evidence.length > 0 && p.evidence.every(evidenceOk), `${at}.evidence is a non-empty list of path:line`);
+    need(Array.isArray(p.evidence) && p.evidence.length > 0 && p.evidence.every(evidenceOk), `${at}.evidence is a non-empty list of path:line, with no . or .. segment`);
     need(HOW.includes(p.verified?.how), `${at}.verified.how is one of ${HOW.join(" | ")}`);
     need(nonEmpty(p.verified?.claimsPass), `${at}.verified.claimsPass`);
     const u = p.upstream ?? {};

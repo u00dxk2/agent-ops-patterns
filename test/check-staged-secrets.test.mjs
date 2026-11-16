@@ -157,6 +157,72 @@ test("a placeholder URI voids only itself, not other secrets on the line (AOP-R2
   }
 });
 
+test("a git failure prints a fixed diagnostic: never the --repo path or git's text (prepublish review round 2)", () => {
+  // Reviewer input: a missing --repo whose basename is secret-shaped. The diagnostic used
+  // to quote the path, outside the path rule.
+  const name = "rn" + "d_" + "A".repeat(24);
+  const r = spawnSync(process.execPath, [SCRIPT, "--history", "1", "--repo", join(dir, "missing", name)], { encoding: "utf8" });
+  assert.equal(r.status, 2);
+  assert.match(r.stdout + r.stderr, /git unreadable/);
+  assert.ok(!`${r.stdout}\n${r.stderr}`.includes(name), "the secret-shaped path was printed");
+});
+
+test("a selftest that fails in setup prints the fixed sentence, never the temp path (prepublish review round 3)", () => {
+  // Reviewer input: the temp directory is a missing folder with a secret-shaped name, so
+  // mkdtempSync throws before any arm runs. Node's own uncaught-exception text quoted it.
+  const name = "rn" + "d_" + "C".repeat(24);
+  const missing = join(dir, "no-such-dir", name);
+  const r = spawnSync(process.execPath, [SCRIPT, "--history", "1", "--selftest"], {
+    encoding: "utf8",
+    env: { ...process.env, TEMP: missing, TMP: missing, TMPDIR: missing },
+  });
+  const out = `${r.stdout}\n${r.stderr}`;
+  assert.equal(r.status, 1, out.slice(0, 200).replaceAll(name, "<name>"));
+  assert.match(out, /^RESULT: FAIL/m);
+  assert.ok(
+    out.split(/\r?\n/).includes("selftest arm — setup: FAIL — an exception stopped the selftest before its arms ran (its text is not echoed)"),
+    "the fixed setup sentence is missing",
+  );
+  assert.ok(!out.includes(name), "the secret-shaped temp path was printed");
+});
+
+test("the staged path never forwards git's stderr (prepublish review round 2)", () => {
+  // A config value git cannot parse is quoted back in git's error text. The scan stays
+  // fail-soft (exit 0) and prints a fixed line instead.
+  const value = "rn" + "d_" + "B".repeat(24);
+  const repo = join(dir, "bad-config");
+  execFileSync("git", ["init", "-q", repo]);
+  execFileSync("git", ["-C", repo, "config", "core.autocrlf", value]);
+  const r = spawnSync(process.execPath, [SCRIPT], { cwd: repo, encoding: "utf8" });
+  assert.equal(r.status, 0);
+  assert.ok(!`${r.stdout}\n${r.stderr}`.includes(value), "git's stderr (quoting the config value) was forwarded");
+});
+
+test("LIMIT: a placeholder word anywhere in a URI's credentials or host skips it, so a real host containing one passes", () => {
+  // Reviewer inputs (prepublish review 2026-11-15). The words are substrings by design; a
+  // whole-host matcher was tried and had its own gaps, so the script claims less instead.
+  const pw = "Zq9w" + "Lk2";
+  for (const uri of [
+    "postgres://svc:" + pw + "@notlocalhost.prod.internal/db",
+    "postgres://svc:" + pw + "@redacted-db.internal/db",
+    "https://svc:" + pw + "@example.com%2eevil.tld/",
+  ]) {
+    assert.equal(scanMessage(`DB=${uri}\n`).status, 0, uri.slice(0, 40));
+  }
+  // Without the word, the same credentials fire.
+  assert.equal(scanMessage("DB=postgres://svc:" + pw + "@db.prod.internal/db\n").status, 1);
+});
+
+test("LIMIT: an allowlist marker ANYWHERE on the line skips it: a trust statement, not a parsed comment", () => {
+  // Reviewer inputs: the marker is JSON data before the key, and YAML data after it.
+  const key = "rn" + "d_" + "A".repeat(24);
+  assert.equal(scanMessage(`{"note":"secret-scan:ignore","key":"${key}"}\n`).status, 0);
+  assert.equal(scanMessage(`value: ${key} secret-scan:ignore\n`).status, 0);
+  assert.equal(scanMessage(`KEY=${key} // pragma: allowlist secret (why)\n`).status, 0);
+  // Without a marker, the same line fires.
+  assert.equal(scanMessage(`{"key":"${key}"}\n`).status, 1);
+});
+
 // SY-1 (c): vendor shapes ported from the fleet scanner (skylark-site 885414a72 / c2ffc4fb3).
 // Every value is fake and split at its provider prefix.
 const b64u = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
@@ -238,5 +304,8 @@ test("the vendor shapes scan in linear time on repeated prefixes (SY-1 c)", () =
     const t0 = Date.now();
     const r = scanMessage(prefix.repeat(40_000) + "\n", 15_000);
     assert.equal(r.signal, null, `${prefix} timed out after ${Date.now() - t0} ms`);
+    // A finished scan, not a crash: exit 0 (clean) or 1 with a finding line. Checking the
+    // signal alone let an immediate erroneous exit pass (prepublish review round 2).
+    assert.ok(r.status === 0 || (r.status === 1 && /^\s+\[[a-z-]+\]\s+message line 1 /m.test(r.err)), `${prefix} exit ${r.status}`);
   }
 });

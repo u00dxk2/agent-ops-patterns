@@ -79,6 +79,13 @@ describe("How-it-decides cards", () => {
     assert.notDeepEqual(broken((c) => { c.judgments[0].stage = "safety"; }), [], "stage outside the enum");
     assert.notDeepEqual(broken((c) => { c.judgments[0].evidence = "agent.py"; }), [], "evidence with no line");
     assert.notDeepEqual(broken((c) => { c.judgments[0].evidence = "agent.py:30-12"; }), [], "reversed range");
+    // A `.` or `..` segment resolves out of /blob/<commit>/ in the browser (prepublish review, finding 4).
+    for (const e of ["../main/x.py:1", "src/../../main/x.py:1", "./x.py:1", "a/./b.py:2", "..:3"]) {
+      assert.notDeepEqual(broken((c) => { c.judgments[0].evidence = e; }), [], `dot segment in ${e}`);
+      assert.notDeepEqual(broken((c) => { c.problems[0].evidence = [e]; }), [], `dot segment in problem evidence ${e}`);
+    }
+    assert.deepEqual(broken((c) => { c.judgments[0].evidence = ".github/workflows/ci.yml:4"; }), [], "a dot-file segment is still a path");
+    assert.deepEqual(broken((c) => { c.judgments[0].evidence = "src/a..b.py:4"; }), [], "dots inside a name are fine");
     assert.notDeepEqual(broken((c) => { c.agent.commit = c.agent.commit.slice(0, 8); }), [], "short commit");
     assert.notDeepEqual(broken((c) => { c.problems[0].upstream.status = "open"; }), [], "status outside the enum");
     assert.notDeepEqual(broken((c) => { c.problems[0].upstream.url = null; }), [], "null url on a filed problem");

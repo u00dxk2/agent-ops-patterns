@@ -341,6 +341,11 @@ describe("gallery pages on GitHub Pages", () => {
   });
 
   it("LIMIT: this reads the files on disk, not the deployed site; a failed Pages build is not seen here", () => {
-    assert.equal(typeof servedFile, "function");
+    // A relative link maps to a repo path, judged by the file on disk...
+    assert.equal(servedFile("gallery/index.html", "./findings.html"), "gallery/findings.html");
+    assert.equal(servable("index.html"), fs.existsSync(path.join(root, "index.html")));
+    assert.equal(servable("gallery/no-such-page-on-disk.html"), false);
+    // ...and a link to the deployed site itself is not followed, so what Pages serves is never read.
+    assert.equal(servedFile("index.html", "https://u00dxk2.github.io/agent-ops-patterns/gallery/"), null);
   });
 });

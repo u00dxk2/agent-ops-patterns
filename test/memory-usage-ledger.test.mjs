@@ -88,6 +88,25 @@ describe("tallyUsage — limits, pinned as tested expectations", () => {
     const rows = [{ ts: iso(1), name: "alpha", session: "over-toucher" }];
     assert.equal(tallyUsage(rows, ["alpha"], { days: 90, now: NOW }).touched[0].count, 1);
   });
+
+  it("LIMIT: without `now`, both functions read the clock — pure only when `now` is passed (prepublish review, finding 16)", () => {
+    const before = Date.now();
+    const ts = Date.parse(makeTouchRows(["alpha"]).rows[0].ts);
+    const after = Date.now();
+    assert.ok(ts >= before && ts <= after, "the default timestamp is the wall clock");
+    assert.equal(makeTouchRows(["alpha"], { now: NOW }).rows[0].ts, new Date(NOW).toISOString());
+    // tallyUsage's window ends at the clock too, pinned from both sides with rows dated by the
+    // real clock: one day old is INSIDE a 2-day window, three days old is OUTSIDE it. A
+    // constant clock in the past (0, or 2000-01-01) makes both rows "future-dated", which
+    // pass unclamped, so the old row counts and this goes red; a constant clock in the future
+    // drops the recent row (prepublish review rounds 2 and 3).
+    const day = 86_400_000;
+    const recent = { ts: new Date(Date.now() - day).toISOString(), name: "recent" };
+    const old = { ts: new Date(Date.now() - 3 * day).toISOString(), name: "old" };
+    const t = tallyUsage([recent, old], ["recent", "old"], { days: 2 });
+    assert.deepEqual(t.touched.map((e) => e.name), ["recent"]);
+    assert.deepEqual(t.neverTouched, ["old"]);
+  });
 });
 
 describe("parseLedgerText — fail-soft JSONL", () => {

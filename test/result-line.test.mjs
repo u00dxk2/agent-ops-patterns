@@ -123,3 +123,17 @@ test("LIMIT: a closed stdout cannot crash the check or change its exit code", ()
   );
   assert.equal(r.status, 3, "exit code survives the dead verdict line");
 });
+
+// LIMIT pinned (prepublish review, finding 8): the line is last only among writes that
+// happen before it. An exit listener registered AFTER arming runs after it.
+test("LIMIT: an exit listener registered after arming writes below the RESULT line", () => {
+  const r = runChild(
+    `import { armResultLine } from "file:///${LIB}";` +
+      `import { writeSync } from "node:fs";` +
+      `armResultLine({ 0: "PASS" });` +
+      `process.on("exit", () => writeSync(1, "cleanup\\n"));`,
+  );
+  const lines = r.stdout.trim().split(/\r?\n/);
+  assert.equal(lines.at(-1), "cleanup");
+  assert.equal(lines.at(-2), "RESULT: PASS (exit 0)", "still present, so grep '^RESULT:' finds it");
+});
