@@ -2,6 +2,12 @@
 
 Changes that matter to anyone who vendors a file from this repo. Each entry names the files to re-pull.
 
+## 2026-11-16
+
+### The front page and the gallery page link the findings page
+
+`index.html` and `gallery/index.html` each have one new line, above the map list, linking "How we know" (`gallery/findings.md`). The link points at the copy rendered on github.com, because the site serves Markdown files as raw text. No card, map or count changed; nothing to re-pull.
+
 ## 2026-11-15
 
 ### Every map row re-read against the code; 531 corrected
