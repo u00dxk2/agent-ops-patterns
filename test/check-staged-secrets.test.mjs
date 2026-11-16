@@ -179,6 +179,10 @@ test("a selftest that fails in setup prints the fixed sentence, never the temp p
   const out = `${r.stdout}\n${r.stderr}`;
   assert.equal(r.status, 1, out.slice(0, 200).replaceAll(name, "<name>"));
   assert.match(out, /^RESULT: FAIL/m);
+  assert.ok(
+    out.split(/\r?\n/).includes("selftest arm — setup: FAIL — an exception stopped the selftest before its arms ran (its text is not echoed)"),
+    "the fixed setup sentence is missing",
+  );
   assert.ok(!out.includes(name), "the secret-shaped temp path was printed");
 });
 
