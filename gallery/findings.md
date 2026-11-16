@@ -37,6 +37,8 @@ Source of this table: [`gallery/README.md`](README.md) in this repository.
 
 ## The ten lessons, one by one
 
+<a name="lesson-1"></a>
+
 ### 1. A goal is a bundle of decisions you never see
 
 - **Evidence:** the twelve maps. For example, Cline's map lists 116 recurring decisions. Plain code holds 83, the AI
@@ -47,14 +49,25 @@ Source of this table: [`gallery/README.md`](README.md) in this repository.
   held by plain code, a second AI's own list had a counterpart for 51 of our 85, and gave the same holder for 49
 of those 51.
 
+<a name="lesson-2"></a>
+
 ### 2. The same agent follows different rules depending on how you start it
 
 - **Evidence:** the who-is-asked grid at the end of this page: 21 ways of running the twelve systems, by five kinds of
   action, filled in separately from the code by two AI models from different companies. Of the grid's 105 cells, the two gave the same definite answer in 93, different definite answers in eight, and one of them answered "unclear" in four.
 - **Cline:** the only two rows where a person is asked before an ordinary command are both Cline: its VS Code extension
   and its ACP mode. Started from its ordinary command line, the same agent runs the command unasked.
+- **The other systems:** of the seven systems with more than one row in the grid, four differ from row to row (Cline,
+  Hermes, Codex, AnythingLLM) and three do not (goose, opencode, pi). In Hermes and Codex the unattended row is the
+  stricter one: a command on the danger list is refused.
+- **The three toolkit rows** (OpenHands SDK, agno, LangChain) are among the 13 that run an ordinary command unasked;
+  we added the command tool to them, as a developer would.
+- **Cline's ACP mode:** Cline sends the approval request to the app that is driving it and waits
+  (`apps/cli/src/acp/permissions.ts:115`); whether a person sees a prompt depends on that app.
 - **Kind:** read from code by two readers. Many cells are inferred from the code rather than read off one line, and
   agreement between two readers is not a test of the running software. Nobody ran these.
+
+<a name="lesson-3"></a>
 
 ### 3. Sometimes the one asked for permission isn't you
 
@@ -70,6 +83,8 @@ of those 51.
   (`tools/approval.py:1209-1216`); messaging platforms that can ask a person are handled separately.
 - **Kind:** read from code, not run.
 
+<a name="lesson-4"></a>
+
 ### 4. An agent can record an answer nobody gave
 
 - **Evidence (Cline `d19f176b`):** `apps/cli/src/utils/approval.ts:120-126` picks the first option when no terminal is
@@ -79,10 +94,16 @@ of those 51.
   the question. Continue working on their task using that answer."
 - **Controls:** a run where the second option was chosen came back with it; a run with no answer at all refused, with
   Cline's own message "The user did not answer."
+- **Where it applies:** the command line's default mode, where the question tool is switched on
+  (`apps/cli/src/commands/program.ts:135`, `sdk/packages/core/src/extensions/tools/presets.ts:33`). Its `--yolo` mode
+  switches the tool off (`presets.ts:106`). The three options and their order were ours; the code takes whichever
+  option comes first.
 - **Not shown:** the whole Cline program started end to end, an AI model receiving that note, or how often this
   happens.
 - **Already reported:** someone else filed it as
   [cline/cline#14800](https://github.com/cline/cline/issues/14800) in October; it was still open on 15 November.
+
+<a name="lesson-5"></a>
 
 ### 5. "Failed" doesn't mean nothing happened
 
@@ -90,9 +111,16 @@ of those 51.
   and a deliberately slow edit, the tool reported "Editor operation timed out after 50ms" while the file was unchanged;
   the edit then landed.
 - **Controls:** a normal edit succeeded; an edit forced to fail left the file unchanged.
-- **The other side:** opencode's shell code states "A recorded timeout must always kill"
-  (`packages/core/src/shell.ts:379`, `0093fe57`).
+- **Where a timeout does stop the work:** for shell commands. opencode's shell code states "A recorded timeout must
+  always kill" (`packages/core/src/shell.ts:379`, `0093fe57`), and Cline's own shell tool kills the command when its
+  timer runs out (`sdk/packages/core/src/extensions/tools/executors/bash.ts:837-843`). The case above is Cline's file
+  edit, not its shell.
+- **Already reported:** Cline's tracker has an open report of the same outcome in VS Code, a timeout reported after
+  the write had landed ([cline/cline#13267](https://github.com/cline/cline/issues/13267)); it was filed by someone
+  else.
 - **No AI model was in this test.**
+
+<a name="lesson-6"></a>
 
 ### 6. "Completed" doesn't mean finished
 
@@ -105,6 +133,8 @@ of those 51.
 - **Scope:** one version, one kind of connection (agno's default), a fake service. It shows what the code does with a
   cut-off reply, not how often a real service sends one.
 
+<a name="lesson-7"></a>
+
 ### 7. The worker often grades its own homework
 
 - **Evidence:** in the systems we read, a common way for a run to end is that the model stops asking for tools and
@@ -115,6 +145,8 @@ of those 51.
   1632).
 - **Kind:** read from code.
 
+<a name="lesson-8"></a>
+
 ### 8. Your "yes" can be remembered while your "no" is forgotten
 
 - **Evidence (opencode `0093fe57`, `packages/core/src/permission.ts`):** an "always" answer saves a project rule when
@@ -123,13 +155,17 @@ of those 51.
 - **Scope:** opencode only, read and not run. A lasting "no" can be written into a settings file by hand; we did not
   test that.
 
+<a name="lesson-9"></a>
+
 ### 9. Every switched-off check is a choice someone made for you
 
 - **pi (`1ce44bed`):** `packages/coding-agent/docs/security.md:3`, "it does not ask for approval before every tool
   call."
 - **Hermes (`b200f5bc`):** `hermes_cli/config_defaults.py:204-209` ships the reminder to verify code edits switched
   off, with the comment that "the nudges proved more noise than signal." The reminder itself is described in
-  `agent/verification_stop.py:1-3`.
+  `agent/verification_stop.py:1-3`. It is a message to the model, not a prompt to a person.
+
+<a name="lesson-10"></a>
 
 ### 10. Agents checking agents make mistakes, and so did we
 

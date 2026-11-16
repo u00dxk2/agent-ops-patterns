@@ -17,7 +17,7 @@ body:
     id: map
     attributes:
       label: Which map?
-      options: ["OpenHands", "Cline", "opencode", "pi", "agno", "AnythingLLM", "browser-use", "Other / the gallery itself"]
+      options: ["OpenHands", "Cline", "opencode", "pi", "agno", "AnythingLLM", "browser-use", "OpenAI Codex", "goose", "DeerFlow", "LangChain", "Hermes Agent", "Other / the gallery itself"]
     validations:
       required: true
 

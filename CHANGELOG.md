@@ -2,6 +2,24 @@
 
 Changes that matter to anyone who vendors a file from this repo. Each entry names the files to re-pull.
 
+## 2026-11-15
+
+### Every map row re-read against the code; 531 corrected
+
+**Re-pull:** eleven of the twelve `gallery/cards/<slug>.json` files and their `card.html` pages (all but AnythingLLM's), and the twelve map pages `gallery/<slug>/index.html` if you vendor them. The card contract is unchanged, and no map's card count changed. On three cards an `upstream.status` value went from `reported` to `already-tracked` (codex, opencode, pi), and the `checkedAt` dates moved.
+
+A model from a different company re-read all 1,566 rows shown on the twelve maps against each project's code at the map's commit. 531 rows were corrected, most by adding a condition or by softening an "only" or an "always". A second read of 447 of the corrected rows flagged 156 of them again, usually for another clause, so the last corrections cut detail instead of adding it. `gallery/README.md` now says what a row is: a summary of the main case that points at the lines it cites. On the cards, sentences that stated a default as if it always held now name it as a default. One agno row's "held by" label moved from an outside service to code.
+
+### A page with the evidence behind ten lessons
+
+`gallery/findings.md` is new. For each of ten lessons drawn from the maps it gives the evidence the lesson rests on; for lessons 1 to 8 it says whether the code was only read or also run. It also lists what was tried and did not work. Each lesson has a link target, `#lesson-1` to `#lesson-10`.
+
+### Smaller changes
+
+- The map-correction issue form now lists all twelve maps.
+- README, LIMITS, the patterns and the skills had sentences narrowed after a claims check.
+- Sixteen findings from a code review were acted on in `lib/`, `scripts/` and the tests: four code fixes with tests seen failing first, two scanner limits stated and pinned by tests, and headers and test names narrowed.
+
 ## 2026-11-13
 
 ### Three cards say what was tested by running it

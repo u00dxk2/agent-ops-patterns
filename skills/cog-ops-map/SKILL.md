@@ -493,8 +493,8 @@ else's code: https://u00dxk2.github.io/agent-ops-patterns/gallery/pi/ (its sourc
   agent, agent loop, model layer, code mode and MCP client) and the one commit that its claims
   about the code and its line citations refer to.
 - **The census.** 112 seats across the nine stages: A 17, B 19, C 10, D 17, E 26, F 14, G 4,
-  H 0, I 5. "H 0" is a finding, not a gap in the page: at that commit nothing in the mapped
-  parts hands work to a sub-agent. By kind of question and holder: RULE · code 45, RULING ·
+  H 0, I 5. "H 0" is a finding, not a gap in the page: at that commit the map found nothing
+  in the mapped parts that hands work to a sub-agent. By kind of question and holder: RULE · code 45, RULING ·
   code 42, RULING · human 9, RULING · external 8, RULING · llm 8. Most of the system's
   judgment calls are made by code, not by the model.
 - **The cards.** Each card shown has a question, a short answer for the default setup and a
