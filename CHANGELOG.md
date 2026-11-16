@@ -10,6 +10,8 @@ Changes that matter to anyone who vendors a file from this repo. Each entry name
 
 The sentences that describe the findings page (README, `gallery/README.md`, the top of `gallery/findings.md`) said it gives "the code" each lesson rests on. They now say "the evidence", because lesson 1 rests on the maps, lesson 2 on a grid, and lesson 10 on our own review results.
 
+Lesson 10 on the findings page now also gives the counts from the 15 November re-read of the maps (the same counts as the 2026-11-15 entry below), labelled as review counts, not an error rate.
+
 ## 2026-11-15
 
 ### Every map row re-read against the code; 531 corrected

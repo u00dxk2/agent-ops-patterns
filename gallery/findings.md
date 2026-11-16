@@ -177,6 +177,9 @@ of those 51.
   other AI's.
 - **Counts we dropped:** we abandoned an early cross-system count that combined failures recorded as success with
   failures that got no verdict at all. It shrank under review. We quote named cases instead.
+- **The full re-read of the maps (15 November 2026):** a second AI re-read all 1,566 map rows against the pinned code,
+  and 531 were corrected. A second read of 447 of the corrected rows flagged 156 of them again, for a false statement
+  or a missing condition. These are review counts, not a measured error rate for the published rows.
 
 ## What we tried that didn't work
 
