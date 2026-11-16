@@ -28,6 +28,7 @@ Each map is one self-contained HTML file with no external requests. The links in
 ## What a map is, and is not
 
 - **Not exhaustive.** Each map names the parts of the system it covered and how its seats were found; a judgment outside those, or in a helper nobody opened, is not on it.
+- **A summary of each decision, not the whole of it.** A row gives the main case in a sentence or two; the code it cites has branches the row leaves out. On 15 November 2026 an AI from a different company re-read all 1,566 rows against the pinned code, and 531 were corrected, most by adding a condition or softening an "only" or "always". A second read of the corrected rows still flagged about a third of them, usually for another clause, so the last corrections cut detail instead of adding it. Treat a row as a pointer to the lines it cites.
 - **A snapshot.** It describes the code at the commit it names. The project keeps moving, so a cited line number can stop pointing at what it describes; each map says which parts were checked at which commit.
 - **A reading, mostly.** Each gap says whether it was reproduced with a test or read from the source. Most are readings of code paths, not observed failures.
 - **Not a security audit, and not a verdict on the project.** The maps describe behaviour. Where a project's own docstring states a choice, the map quotes or cites it.

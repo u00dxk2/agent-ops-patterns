@@ -159,7 +159,7 @@ test("a stray `=` between two runs hides neither of them", () => {
 });
 
 test("FAIL-CLOSED: a scan that cannot stabilize returns no text at all", () => {
-  // No known input reaches this branch, which is exactly why it needs a seam:
+  // Few inputs reach this branch at the default cap, which is why it needs a seam:
   // a guard nobody can make fire is a guard nobody has checked. Driving
   // maxPasses to 1 on input that needs a confirming pass proves the branch is
   // wired, and proves it discards the partial text rather than returning it.
@@ -328,7 +328,7 @@ test("LIMIT: opaque unprefixed credentials pass (no key-name rules by design)", 
 
 // SendGrid left this list in SY-3: a real-length SG. key now redacts, and the short-segment
 // value that used to sit here is the LIMIT in test/redactor-vendor-shapes.test.mjs.
-test("LIMIT: vendors absent from SHAPES pass (adding one is a one-line PR)", () => {
+test("LIMIT: vendors absent from SHAPES pass (adding one is an entry in each redactor plus a fixture)", () => {
   for (const s of ["xapp-1-A012-3456-abcdef"]) {
     assert.equal(redactSecretShapes(s).shapes.length, 0); // pragma: allowlist secret
   }
