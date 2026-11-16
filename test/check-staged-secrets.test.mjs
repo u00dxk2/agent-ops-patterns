@@ -167,6 +167,21 @@ test("a git failure prints a fixed diagnostic: never the --repo path or git's te
   assert.ok(!`${r.stdout}\n${r.stderr}`.includes(name), "the secret-shaped path was printed");
 });
 
+test("a selftest that fails in setup prints the fixed sentence, never the temp path (prepublish review round 3)", () => {
+  // Reviewer input: the temp directory is a missing folder with a secret-shaped name, so
+  // mkdtempSync throws before any arm runs. Node's own uncaught-exception text quoted it.
+  const name = "rn" + "d_" + "C".repeat(24);
+  const missing = join(dir, "no-such-dir", name);
+  const r = spawnSync(process.execPath, [SCRIPT, "--history", "1", "--selftest"], {
+    encoding: "utf8",
+    env: { ...process.env, TEMP: missing, TMP: missing, TMPDIR: missing },
+  });
+  const out = `${r.stdout}\n${r.stderr}`;
+  assert.equal(r.status, 1, out.slice(0, 200).replaceAll(name, "<name>"));
+  assert.match(out, /^RESULT: FAIL/m);
+  assert.ok(!out.includes(name), "the secret-shaped temp path was printed");
+});
+
 test("the staged path never forwards git's stderr (prepublish review round 2)", () => {
   // A config value git cannot parse is quoted back in git's error text. The scan stays
   // fail-soft (exit 0) and prints a fixed line instead.

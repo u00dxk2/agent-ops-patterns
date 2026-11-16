@@ -23,9 +23,12 @@
  * ladder above (0/1), so a caller can never confuse "history is dirty" with "your
  * commit is blocked".
  *
- * History output is REDACTED: pattern name · short sha · path:line only. The matched
- * value and the line text are NEVER printed — this mode runs over real history and
- * its output lands in transcripts. A run with 0 commits in the window prints NOTHING
+ * History output is REDACTED: pattern name · short sha · path:line only — this mode runs
+ * over real history and its output lands in transcripts. WHAT IS NEVER PRINTED, in every
+ * mode: a matched value or the text of a scanned line; a scanned file's path when it fails
+ * the path rule (secret-shaped, or outside a plain character set: it is shown as withheld);
+ * git's error text; the --repo path; an unknown flag or refused argument value; and the
+ * text of an exception the scan or the selftest catches (each is a fixed sentence). A run with 0 commits in the window prints NOTHING
  * SWEPT and exits 2: a clean verdict over nothing is not clean. Every outcome prints
  * the denominator first.
  *
@@ -34,6 +37,10 @@
  * conventionally as a comment at the end of the line.
  *
  * WHERE IT STOPS. This is a shape matcher, not a credential validator.
+ *   - AN ERROR OUTSIDE THOSE PATHS IS PRINTED BY NODE AS IS. Node failing to start or to
+ *     load this file, or an unexpected exception anywhere the scan and selftest do not
+ *     catch, prints Node's own message and stack, which can include paths from the
+ *     operator's environment (the script's location, a temp or working directory).
  *   - THE ALLOWLIST MARKER IS A TRUST STATEMENT, NOT A PARSED COMMENT. A line that
  *     contains a marker ANYWHERE is skipped whole: in a comment, in a string, in JSON or
  *     YAML data, before or after the secret. Whoever writes the line decides; the scanner
@@ -439,7 +446,16 @@ if (historyIdx !== -1 || rangeIdx !== -1) {
     }
     const days = Number(daysRaw);
     if (argv.includes("--selftest")) {
-      const code = selftestHistory(days);
+      // One try around the WHOLE selftest, setup included: a throw before the arms' own try
+      // (mkdtempSync on a bad temp dir) was an uncaught exception, and Node's text quoted
+      // the operator's temp path (prepublish review round 3). Any throw is a fixed sentence.
+      let code;
+      try {
+        code = selftestHistory(days);
+      } catch {
+        console.log("selftest arm — setup: FAIL — an exception stopped the selftest before its arms ran (its text is not echoed)");
+        code = 1;
+      }
       finish(code, code === 0 ? "PASS" : "FAIL", code === 0 ? "selftest: every arm passed" : "selftest: an arm failed");
     }
     const sinceIso = new Date(Date.now() - days * 86_400_000).toISOString();
@@ -653,7 +669,9 @@ async function sweepHistory({ repo, revArgs, label }) {
  * digits, space and `. _ / @ + -`), it contains none of the secret prefixes anywhere —
  * no word boundary, no allowlist, no placeholder exemption — AND no pattern in PATTERNS
  * fires on it. A quoted or escaped name (git's "\t"), a ":" or "=" and an embedded prefix
- * all fail it. Its failure mode is withholding a harmless path, never printing a secret one.
+ * all fail it. It errs toward withholding a harmless path. It knows only the shapes and
+ * prefixes listed here: a credential of an unlisted shape, in a name of plain characters,
+ * is printed (as the same value would read clean in a file's content).
  *
  * The prefix list once named only the older vendors, so a Render-shaped file name was
  * printed in full (prepublish review, 2026-11-15). It now carries every pattern's prefix,
