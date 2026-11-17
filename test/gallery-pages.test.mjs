@@ -359,6 +359,18 @@ describe("gallery pages on GitHub Pages", () => {
     }
   });
 
+  // The essay these maps were written up in. Address from David's own message, 2026-11-17.
+  const ESSAY_LINE = '<p>The essay: <a href="https://uncagedminds.substack.com/p/10-things-you-should-know-about-how">10 Things You Should Know About How AI Agents Think, Decide, and Act</a>.</p>';
+
+  it("the front page and the gallery page link the essay above the first map card", () => {
+    for (const rel of ["index.html", "gallery/index.html"]) {
+      const html = uncommented(read(rel));
+      const link = html.indexOf(ESSAY_LINE);
+      assert.ok(link !== -1, `${rel} carries the essay link line`);
+      assert.ok(link < html.indexOf('<div class="map">'), `${rel}: the essay link comes before the first map card`);
+    }
+  });
+
   it("LIMIT: the findings link check is an exact string match on the page source: an added attribute or reworded text fails it, and whether the target exists is not checked", () => {
     assert.equal(findingsLinkAt(`<p><a class="x" href="${FINDINGS_URL}">How we know</a></p>`), -1, "an extra attribute fails");
     assert.equal(findingsLinkAt(`<p><a href="${FINDINGS_URL}">how we know</a></p>`), -1, "reworded text fails");

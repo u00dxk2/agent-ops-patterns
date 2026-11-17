@@ -6,7 +6,7 @@ Changes that matter to anyone who vendors a file from this repo. Each entry name
 
 ### Links to the essay
 
-README, `gallery/README.md` and the top of `gallery/findings.md` each have one new line: the essay's title, linked to its page. No card, map or count changed; nothing to re-pull.
+README, `gallery/README.md`, the top of `gallery/findings.md`, `index.html` and `gallery/index.html` each have one new line: the essay's title, linked to its page. No card, map or count changed; nothing to re-pull.
 
 ## 2026-11-16
 
