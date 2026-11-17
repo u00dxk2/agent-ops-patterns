@@ -6,6 +6,8 @@ Twelve open-source AI agent systems, mapped decision by decision: the recurring 
 
 New here? Start with [How we know](./gallery/findings.md): ten lessons from the maps, the evidence behind each one, the four small tests we ran, and what we tried that didn't work.
 
+The essay: [10 Things You Should Know About How AI Agents Think, Decide, and Act](https://uncagedminds.substack.com/p/10-things-you-should-know-about-how).
+
 ## The maps
 
 Each map takes one open-source agent system and lists the recurring judgments it found there, each as a *seat*: the question it answers and who holds it (code, a model, a person, or something outside the project). Each map is one self-contained HTML page that makes no external requests, read at a named commit (two for LangChain, which spans two repositories). How to read one, and what a map is not: [`gallery/`](./gallery/README.md).

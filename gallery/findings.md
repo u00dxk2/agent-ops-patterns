@@ -5,6 +5,8 @@ for the reader who doubts them. For each lesson it gives the evidence the lesson
 exact version we read, and whether we only read that code or also ran it. It also lists what we tried that did not
 work.
 
+The essay: [10 Things You Should Know About How AI Agents Think, Decide, and Act](https://uncagedminds.substack.com/p/10-things-you-should-know-about-how).
+
 Checked against the pinned code on 15 November 2026. As far as we know, no maintainer of these projects has
 reviewed or endorsed this page.
 

@@ -6,6 +6,8 @@ The method is ["Cognitive Operations Maps"](https://uncagedminds.substack.com/p/
 
 What the twelve maps taught us, lesson by lesson, with the evidence behind each lesson and the four small tests we ran: [How we know](findings.md).
 
+The essay: [10 Things You Should Know About How AI Agents Think, Decide, and Act](https://uncagedminds.substack.com/p/10-things-you-should-know-about-how).
+
 | Map | System | Seats | Checked against |
 |---|---|---|---|
 | [OpenHands](https://u00dxk2.github.io/agent-ops-patterns/gallery/openhands/) | [`OpenHands/software-agent-sdk`](https://github.com/OpenHands/software-agent-sdk), the agent loop of the OpenHands coding agent | 171 (95 rule, 76 ruling; 4 held by a person); 56 gaps found in this edition (12 flagged as stated design) plus 14 carried from the [first edition](https://u00dxk2.github.io/agent-ops-patterns/gallery/openhands/edition-1/) | commit `aae9c437`, 2026-10-06 |
