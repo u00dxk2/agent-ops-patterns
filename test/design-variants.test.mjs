@@ -6,12 +6,11 @@ import { fileURLToPath } from "node:url";
 import { build, seatCounts } from "../scripts/build-design-variants.mjs";
 
 // The layout stylesheets under design/ (design pass 2026-11-17, layout C picked). A page uses
-// one only if its <head> links it. These tests read source files: they pin which pages carry a
-// <link rel="stylesheet"> to which design stylesheet (the front page plan-c.css, every card page
-// card.css, nothing else either), the exact list of files in design/ (the two stylesheets, the
-// font as text and its licence), that the stylesheets carry no content string other than the
-// empty one, and the builder's seat-count rule. They do not decode the drawn marks or parse the
-// font; see the LIMIT tests.
+// one only if a <link rel="stylesheet"> names it. These tests compare source text: link tags read
+// the way this repo writes them (the front page names plan-c.css right after its inline style,
+// every card page names card.css there, no other page names either), the exact list of files in
+// design/, the whole value of every `content` declaration the builder writes, and selected
+// seat-count cases. They do not decode the drawn marks or parse the font; see the LIMIT tests.
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (rel) => fs.readFileSync(path.join(root, rel), "utf8").replace(/\r\n/g, "\n");
@@ -31,12 +30,13 @@ function htmlPages(dir = root, out = []) {
 // Other mentions of a file name (text, comments, attributes of other elements) are not links.
 const designLinks = (html) => [...html.replace(/<!--[\s\S]*?-->/g, "").matchAll(/<link\b[^>]*>/gi)]
   .map((m) => m[0])
-  .filter((tag) => /\brel\s*=\s*["']?stylesheet\b/i.test(tag))
-  .map((tag) => (tag.match(/\bhref\s*=\s*["']?([^"'\s>]+)/i) || [])[1] || "")
+  .filter((tag) => /(?:^|\s)rel\s*=\s*["']?stylesheet\b/i.test(tag))
+  .map((tag) => (tag.match(/(?:^|\s)href\s*=\s*["']?([^"'\s>]+)/i) || [])[1] || "")
   .filter((href) => /(^|\/)design\//.test(href) || /plan-[abc]\.css/.test(href))
   .map((href) => href.replace(/^(\.\.?\/)+/, ""));
-// CSS comments are removed first; the property name is matched in any case.
-const contentValues = (css) => [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/content\s*:\s*("[^"]*"|'[^']*'|[^;}]+)/gi)].map((m) => m[1].trim());
+// CSS comments are removed first; the property name is matched in any case; the WHOLE value up
+// to the next ";" or "}" is returned, so anything after an empty string is seen too.
+const contentValues = (css) => [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/content\s*:\s*([^;}]*)/gi)].map((m) => m[1].trim());
 const FRONT_LINK = '</style>\n<link rel="stylesheet" href="./design/plan-c.css">\n</head>';
 const CARD_LINK = '</style>\n<link rel="stylesheet" href="../../design/card.css">\n</head>';
 
@@ -73,6 +73,8 @@ describe("design-pass stylesheets", () => {
     assert.deepEqual(contentValues('.x::before{content : "Seat key"}'), ['"Seat key"']);
     assert.deepEqual(contentValues('.x::before{CONTENT:"Seat key"}'), ['"Seat key"']);
     assert.deepEqual(contentValues('.x::before{content/**/:"Seat key"}'), ['"Seat key"']);
+    assert.deepEqual(contentValues('.x::before{content:"" "Seat key"}'), ['"" "Seat key"'], "words after an empty string are part of the value");
+    assert.deepEqual(designLinks('<link rel="canonical" data-rel="stylesheet" href="./design/plan-c.css">'), [], "data-rel is not rel");
   });
 
   it("the builder refuses a map entry written another way, and font bytes without the WOFF2 signature", () => {
@@ -84,6 +86,12 @@ describe("design-pass stylesheets", () => {
     assert.deepEqual(seatCounts(`<p class="map-key">x</p>\n${entry('<div class="map">', 5)}`), [5], "an unrelated class holding the word map is not an entry");
     const src = fs.readFileSync(path.join(root, "scripts", "build-design-variants.mjs"), "utf8");
     assert.match(src, /"wOF2"/, "the font check reads the WOFF2 signature");
+  });
+
+  it("LIMIT: an entry whose map AND facts lines are both spelled another way is skipped, not refused", () => {
+    const ok = '<div class="map">\n  <div class="facts">5 seats</div>\n</div>';
+    const odd = '<div class="map featured">\n  <div class="facts featured">3 seats</div>\n</div>';
+    assert.deepEqual(seatCounts(`${odd}\n${ok}`), [5]);
   });
 
   it("LIMIT: the font check reads the WOFF2 signature and length field only; it does not parse the font", () => {

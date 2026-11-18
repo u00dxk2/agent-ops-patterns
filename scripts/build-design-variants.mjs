@@ -3,19 +3,21 @@
 //
 // Design pass 2026-11-17: layout C ("the register") for the front page and the matching
 // card layout. Each file restyles ONE page type on top of that page's own inline <style>.
-// A page uses it only if its <head> carries a <link rel="stylesheet"> to it AFTER that
-// <style>: index.html links plan-c.css, and every card page written by
-// scripts/render-decides-card.mjs links card.css. Rolling back is deleting that line.
+// A page uses it only if a <link rel="stylesheet"> names it; at this commit the front page
+// and the twelve cards (written by scripts/render-decides-card.mjs) link their stylesheet
+// immediately after their inline style. Rolling back is deleting that line.
 // The two layouts not picked (A and B) are not part of this site.
 //
 // The stylesheets add no words. Seat marks are background images on empty pseudo-elements,
 // drawn from the seat counts index.html already prints ("171 seats …"), so a count that
 // changes on the page changes the drawing on the next build, and --check goes red until then.
 //
-// Failure posture: fail-closed on its inputs, as far as the stated rules below reach. A
-// seat-count line outside a map entry written the expected way, a map entry with no seat
-// count, a missing font file, or one whose bytes lack the WOFF2 signature and length field
-// stops the build with exit 1 before any file is written. The font is not parsed: a file
+// Failure posture: fail-closed on its inputs, as far as the stated rules below reach. It
+// rejects unequal totals of literal `<div class="facts">N seats` matches and parsed
+// `<div class="map">` entries, a parsed entry with no matching facts line, a missing font
+// file, and font bytes lacking the WOFF2 signature and length field, each with exit 1 before
+// any file is written. An entry whose map AND facts lines are both spelled another way is in
+// neither total, so it is skipped, not refused (a LIMIT test says so). The font is not parsed: a file
 // that is well formed on those two points but not a usable font would still be embedded,
 // and shows up only as the fallback face in a frame. (A write that fails part way, say a
 // full disk, can leave one file new and one old; --check then reports it.)
