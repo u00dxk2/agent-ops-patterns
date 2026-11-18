@@ -30,7 +30,7 @@ main>h2{font-size:1.2rem}
   main>.crumbs{border-top:2px solid var(--fg);padding-top:12px}
   main>h1+p+p+p+p+h2{margin-top:24px}
 }
-@media (max-width:900px){
+@media (max-width:900.98px){
   main{padding:0 16px 88px}
   .map{display:block}
   .map .name{display:inline-block;margin-bottom:4px}

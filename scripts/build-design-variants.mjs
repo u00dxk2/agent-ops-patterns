@@ -45,6 +45,10 @@ export function seatCounts(html, page = "index.html") {
   const cards = [...text.matchAll(/<div class="map">\n([\s\S]*?)\n<\/div>/g)].map((m) => m[1]);
   const factsLines = [...text.matchAll(/<div class="facts">\d+ seats\b/g)].length;
   if (factsLines !== cards.length) throw new Error(`${page} has ${factsLines} "<N> seats" facts lines but ${cards.length} map entries written as <div class="map">; write every entry that way`);
+  // The strips are placed with `.map:nth-of-type(n)`, which counts every <div> sibling, so a
+  // <div> at column 0 that is not a map entry would shift every strip after it. Refused.
+  const topDivs = (text.match(/^<div\b/gm) || []).length;
+  if (topDivs !== cards.length) throw new Error(`${page} has ${topDivs} <div> lines at column 0 but ${cards.length} map entries; the seat strips count every <div>, so only map entries may be written there`);
   return cards.map((c, i) => {
     const facts = c.match(/<div class="facts">(\d+) seats\b/);
     if (!facts) throw new Error(`map entry ${i + 1} on ${page} has no "<N> seats" facts line`);
@@ -75,7 +79,8 @@ const INK_LIGHT = "#141c20", INK_DARK = "#e6ecee";
 // The phone layout shift (2026-11-17: CLS 0.026 front page, 0.030 card at 390 wide) came from the
 // headline being laid out in the next font in the stack and re-wrapping when Bitter arrived. The
 // "Bitter Fallback" face is local Georgia Bold scaled to Bitter's metrics, so the first layout
-// already has Bitter's line breaks. The numbers come from the two fonts' own tables (head, hhea,
+// is close to Bitter's; letter widths still differ, so a line can still break differently, and
+// only the measured shift says how close. The numbers come from the two fonts' own tables (head, hhea,
 // cmap, hmtx), not from a browser: size-adjust = Bitter's frequency-weighted average letter width
 // over Georgia Bold's; the overrides are Bitter's hhea ascender, descender and line gap over 1000,
 // divided by size-adjust. Measured 2026-11-18 against C:/Windows/Fonts/georgiab.ttf. A device
@@ -134,7 +139,7 @@ main>h2{font-size:1.2rem}
   main>h1{border-top:2px solid var(--fg);padding-top:12px}
   main>h1+.lede+p+p+h2{margin-top:24px}
 }
-@media (max-width:900px){
+@media (max-width:900.98px){
   main{padding:0 16px 88px}
   .map{display:block}
   .map .name{display:inline-block;margin-bottom:4px}
@@ -144,18 +149,21 @@ ${strips(counts, 28, 7, 5)}`;
 }
 
 // The gallery page's opening, checked before its side column is written.
-// The rule: inside <main>, everything before the first <h2> is exactly a `<p class="crumbs">`, one
-// `<h1>`, and GALLERY_INTRO plain `<p>` elements, each starting its own line, in that order. The
-// side column's selectors name those elements by position, so any other opening is refused
-// rather than letting the column take the wrong elements or leave one behind.
+// The rule: between `<main>` and the first line that starts `<h2>`, every non-blank line is one
+// whole element on one line, starting at column 0 with exactly `<p class="crumbs">`, `<h1>` or
+// `<p>` and ending with its own closing tag; and the lines are, in order, the breadcrumb, the
+// h1 and GALLERY_INTRO paragraphs. Anything else there (an indented line, a line of text, any
+// other tag, an element spread over two lines) is refused. The side column's selectors name
+// those elements by position, so a refusal is better than a column holding the wrong elements.
 const GALLERY_INTRO = 4;
 export function galleryOpening(html) {
   const text = html.replace(/\r\n/g, "\n").replace(/<!--[\s\S]*?-->/g, "");
   const m = text.match(/<main>\n([\s\S]*?)\n<h2>/);
   if (!m) throw new Error("gallery/index.html: no <main> followed by an <h2> line");
-  const starts = m[1].split("\n").filter((l) => l.startsWith("<")).map((l) => (l.match(/^<([a-z0-9]+)(?:\s+class="([^"]*)")?/i) || []).slice(1).join("."));
-  const want = ["p.crumbs", "h1.", ...Array(GALLERY_INTRO).fill("p.")];
-  if (starts.join(" ") !== want.join(" ")) throw new Error(`gallery/index.html opening is [${starts.join(", ")}], the side column is written for [${want.join(", ")}]`);
+  const kinds = m[1].split("\n").filter((l) => l.trim() !== "").map((l) =>
+    /^<p class="crumbs">.*<\/p>$/.test(l) ? "crumbs" : /^<h1>.*<\/h1>$/.test(l) ? "h1" : /^<p>.*<\/p>$/.test(l) ? "p" : `other: ${l.slice(0, 40)}`);
+  const want = ["crumbs", "h1", ...Array(GALLERY_INTRO).fill("p")];
+  if (kinds.join(" | ") !== want.join(" | ")) throw new Error(`gallery/index.html opening is [${kinds.join(" | ")}], the side column is written for [${want.join(" | ")}]`);
   return true;
 }
 
@@ -178,7 +186,7 @@ main>h2{font-size:1.2rem}
   main>.crumbs{border-top:2px solid var(--fg);padding-top:12px}
   ${intro[intro.length - 1]}+h2{margin-top:24px}
 }
-@media (max-width:900px){
+@media (max-width:900.98px){
   main{padding:0 16px 88px}
   .map{display:block}
   .map .name{display:inline-block;margin-bottom:4px}

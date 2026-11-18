@@ -92,10 +92,17 @@ describe("design-pass stylesheets", () => {
     assert.match(src, /"wOF2"/, "the font check reads the WOFF2 signature");
   });
 
-  it("LIMIT: an entry whose map AND facts lines are both spelled another way is skipped, not refused", () => {
+  it("an entry whose map AND facts lines are both spelled another way is refused by the column-0 <div> rule", () => {
     const ok = '<div class="map">\n  <div class="facts">5 seats</div>\n</div>';
     const odd = '<div class="map featured">\n  <div class="facts featured">3 seats</div>\n</div>';
-    assert.deepEqual(seatCounts(`${odd}\n${ok}`), [5]);
+    assert.throws(() => seatCounts(`${odd}\n${ok}`), /2 <div> lines at column 0 but 1 map entries/);
+    assert.throws(() => seatCounts(`<div class="note">x</div>\n${ok}`), /2 <div> lines at column 0/, "an ordinary <div> before the maps would shift every strip");
+  });
+
+  it("LIMIT: a <div> that is a direct child of <main> but written indented is not seen by the column-0 rule", () => {
+    // nth-of-type would still count it. The rule reads lines, not the DOM.
+    const ok = '<div class="map">\n  <div class="facts">5 seats</div>\n</div>';
+    assert.deepEqual(seatCounts(`  <div class="note">x</div>\n${ok}`), [5]);
   });
 
   it("LIMIT: the font check reads the WOFF2 signature and length field only; it does not parse the font", () => {
@@ -133,6 +140,9 @@ describe("design-pass stylesheets", () => {
     assert.throws(() => galleryOpening(open(ok.slice(0, -1))), /side column is written for/, "three paragraphs");
     assert.throws(() => galleryOpening(open(ok.slice(1))), /side column is written for/, "no breadcrumb");
     assert.throws(() => galleryOpening(open([ok[0], ok[1], '<p class="lede">a</p>', ...ok.slice(3)])), /side column is written for/, "a classed paragraph");
+    assert.throws(() => galleryOpening(open([...ok.slice(0, 3), "  <aside>x</aside>", ...ok.slice(3)])), /side column is written for/, "an indented element between the paragraphs");
+    assert.throws(() => galleryOpening(open([...ok, "  <p>e</p>"])), /side column is written for/, "an indented fifth paragraph");
+    assert.throws(() => galleryOpening(open([...ok.slice(0, 5), "<p>d", "continued</p>"])), /side column is written for/, "a paragraph over two lines");
     assert.throws(() => galleryOpening("<main>\n<h1>T</h1>\n</main>"), /no <main> followed by an <h2>/);
   });
 
@@ -146,9 +156,18 @@ describe("design-pass stylesheets", () => {
 
   it("the phone-shift fallback face is in every stylesheet and sits right after Bitter in the display stack", () => {
     for (const [name, css] of Object.entries(build())) {
-      assert.match(css, /@font-face\{font-family:"Bitter Fallback";font-weight:700;[^}]*src:local\("Georgia Bold"\)[^}]*size-adjust:/, `${name} declares the fallback face`);
+      assert.ok(css.includes('@font-face{font-family:"Bitter Fallback";font-weight:700;font-style:normal;src:local("Georgia Bold"),local("Georgia-Bold");size-adjust:92.32%;ascent-override:101.28%;descent-override:28.70%;line-gap-override:0%}'), `${name} declares the fallback face with the measured numbers`);
       assert.match(css, /--display:"Bitter","Bitter Fallback",/, `${name}: the fallback face is next after Bitter`);
     }
+  });
+
+  it("LIMIT: the gallery and front page print the same counts in the same order today, so no test tells which page's counts the gallery strips were drawn from", () => {
+    assert.deepEqual(seatCounts(read("gallery/index.html"), "gallery/index.html"), seatCounts(read("index.html")));
+  });
+
+  it("LIMIT: build()'s own guards (gallery opening, zero entries, WOFF2 bytes) are tested through their helpers or source text, not by feeding build() bad files", () => {
+    const src = fs.readFileSync(path.join(root, "scripts", "build-design-variants.mjs"), "utf8");
+    assert.match(src, /galleryOpening\(galleryHtml\)/);
   });
 
   it("LIMIT: the fallback face's numbers are measured once from the font tables; this test does not re-measure them or the shift", () => {
