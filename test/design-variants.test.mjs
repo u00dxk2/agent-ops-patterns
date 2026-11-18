@@ -6,11 +6,12 @@ import { fileURLToPath } from "node:url";
 import { build, seatCounts } from "../scripts/build-design-variants.mjs";
 
 // The layout stylesheets under design/ (design pass 2026-11-17, layout C picked). A page uses
-// one only if its <head> links it. These tests read source files: they pin WHICH pages name
-// WHICH stylesheet outside an HTML comment (the front page plan-c.css, every card page
-// card.css, nothing else either), that design/ holds only those files, that the stylesheets
-// carry no content string, and that the builder reads one seat count per map entry. They do
-// not decode the drawn marks; see the LIMIT test.
+// one only if its <head> links it. These tests read source files: they pin which pages carry a
+// <link rel="stylesheet"> to which design stylesheet (the front page plan-c.css, every card page
+// card.css, nothing else either), the exact list of files in design/ (the two stylesheets, the
+// font as text and its licence), that the stylesheets carry no content string other than the
+// empty one, and the builder's seat-count rule. They do not decode the drawn marks or parse the
+// font; see the LIMIT tests.
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (rel) => fs.readFileSync(path.join(root, rel), "utf8").replace(/\r\n/g, "\n");
@@ -26,8 +27,16 @@ function htmlPages(dir = root, out = []) {
 }
 
 // Every design-folder stylesheet a page source names, in order.
-const designLinks = (html) => [...html.replace(/<!--[\s\S]*?-->/g, "").matchAll(/design\/[\w-]+\.css|plan-[abc]\.css/g)].map((m) => m[0]);
-const contentValues = (css) => [...css.matchAll(/content\s*:\s*("[^"]*"|'[^']*'|[^;}]+)/g)].map((m) => m[1].trim());
+// The rule: only a <link> element whose rel is stylesheet counts, and its href is what it links.
+// Other mentions of a file name (text, comments, attributes of other elements) are not links.
+const designLinks = (html) => [...html.replace(/<!--[\s\S]*?-->/g, "").matchAll(/<link\b[^>]*>/gi)]
+  .map((m) => m[0])
+  .filter((tag) => /\brel\s*=\s*["']?stylesheet\b/i.test(tag))
+  .map((tag) => (tag.match(/\bhref\s*=\s*["']?([^"'\s>]+)/i) || [])[1] || "")
+  .filter((href) => /(^|\/)design\//.test(href) || /plan-[abc]\.css/.test(href))
+  .map((href) => href.replace(/^(\.\.?\/)+/, ""));
+// CSS comments are removed first; the property name is matched in any case.
+const contentValues = (css) => [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/content\s*:\s*("[^"]*"|'[^']*'|[^;}]+)/gi)].map((m) => m[1].trim());
 const FRONT_LINK = '</style>\n<link rel="stylesheet" href="./design/plan-c.css">\n</head>';
 const CARD_LINK = '</style>\n<link rel="stylesheet" href="../../design/card.css">\n</head>';
 
@@ -59,15 +68,29 @@ describe("design-pass stylesheets", () => {
     assert.deepEqual(designLinks('<link rel="stylesheet" href="../../design/card.css">'), ["design/card.css"]);
     assert.deepEqual(designLinks("<p>the design of the plan</p>"), []);
     assert.deepEqual(designLinks('<!-- <link rel="stylesheet" href="./design/plan-c.css"> -->'), [], "a link inside a comment is not a link");
-    assert.deepEqual(contentValues('.x::before{content : "Seat key"}'), ['"Seat key"'], "spacing around the colon does not hide a content string");
+    assert.deepEqual(designLinks("<p>see design/plan-c.css</p>"), [], "a file name in text is not a link");
+    assert.deepEqual(designLinks('<LINK HREF="./design/plan-c.css" REL=stylesheet>'), ["design/plan-c.css"], "attribute order and case do not hide a link");
+    assert.deepEqual(contentValues('.x::before{content : "Seat key"}'), ['"Seat key"']);
+    assert.deepEqual(contentValues('.x::before{CONTENT:"Seat key"}'), ['"Seat key"']);
+    assert.deepEqual(contentValues('.x::before{content/**/:"Seat key"}'), ['"Seat key"']);
   });
 
-  it("the builder refuses a map entry it would skip, and a font file that is not WOFF2", () => {
-    const entry = (cls, n) => `<div class="${cls}">\n  <div class="facts">${n} seats</div>\n</div>`;
-    assert.deepEqual(seatCounts(`${entry("map", 3)}\n${entry("map", 5)}`), [3, 5]);
-    assert.throws(() => seatCounts(`${entry("map featured", 3)}\n${entry("map", 5)}`), /2 map entries but this reader parses 1/);
+  it("the builder refuses a map entry written another way, and font bytes without the WOFF2 signature", () => {
+    const entry = (open, n) => `${open}\n  <div class="facts">${n} seats</div>\n</div>`;
+    assert.deepEqual(seatCounts(`${entry('<div class="map">', 3)}\n${entry('<div class="map">', 5)}`), [3, 5]);
+    for (const open of ['<div class="map featured">', "<div class=map>", '<DIV CLASS="map">']) {
+      assert.throws(() => seatCounts(`${entry(open, 3)}\n${entry('<div class="map">', 5)}`), /2 "<N> seats" facts lines but 1 map entries/, open);
+    }
+    assert.deepEqual(seatCounts(`<p class="map-key">x</p>\n${entry('<div class="map">', 5)}`), [5], "an unrelated class holding the word map is not an entry");
     const src = fs.readFileSync(path.join(root, "scripts", "build-design-variants.mjs"), "utf8");
     assert.match(src, /"wOF2"/, "the font check reads the WOFF2 signature");
+  });
+
+  it("LIMIT: the font check reads the WOFF2 signature and length field only; it does not parse the font", () => {
+    // A zero-filled buffer carrying "wOF2" and the right length would be embedded. A bad font
+    // shows in frames as the fallback face, not in this test.
+    const src = fs.readFileSync(path.join(root, "scripts", "build-design-variants.mjs"), "utf8");
+    assert.match(src, /readUInt32BE\(8\)/);
   });
 
   it("the two layouts not picked are gone: design/ holds only what is served", () => {
@@ -86,7 +109,7 @@ describe("design-pass stylesheets", () => {
     const counts = seatCounts(html);
     assert.equal(counts.length, [...html.matchAll(/<div class="map">/g)].length);
     assert.equal(counts[0], 171, "OpenHands, the first entry (if the page changed, change this number with it)");
-    assert.throws(() => seatCounts('<div class="map">\n  <div class="facts">many seats</div>\n</div>'), /no "<N> seats" facts line/);
+    assert.throws(() => seatCounts('<div class="map">\n  <div class="facts">many seats</div>\n</div>'), /"<N> seats" facts line/);
   });
 
   it("the stylesheets add no words: no content string other than the empty one", () => {

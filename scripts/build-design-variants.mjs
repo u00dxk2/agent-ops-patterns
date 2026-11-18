@@ -6,16 +6,19 @@
 // A page uses it only if its <head> carries a <link rel="stylesheet"> to it AFTER that
 // <style>: index.html links plan-c.css, and every card page written by
 // scripts/render-decides-card.mjs links card.css. Rolling back is deleting that line.
-// The two layouts not picked (A and B) were removed from the repository.
+// The two layouts not picked (A and B) are not part of this site.
 //
 // The stylesheets add no words. Seat marks are background images on empty pseudo-elements,
 // drawn from the seat counts index.html already prints ("171 seats …"), so a count that
 // changes on the page changes the drawing on the next build, and --check goes red until then.
 //
-// Failure posture: fail-closed on its inputs. A map entry the reader cannot parse, a map
-// entry with no readable seat count, or a font file that is missing or is not WOFF2 data
-// stops the build with exit 1 before any file is written. (A write that fails part way,
-// say a full disk, can still leave one file new and one old; --check then reports it.)
+// Failure posture: fail-closed on its inputs, as far as the stated rules below reach. A
+// seat-count line outside a map entry written the expected way, a map entry with no seat
+// count, a missing font file, or one whose bytes lack the WOFF2 signature and length field
+// stops the build with exit 1 before any file is written. The font is not parsed: a file
+// that is well formed on those two points but not a usable font would still be embedded,
+// and shows up only as the fallback face in a frame. (A write that fails part way, say a
+// full disk, can leave one file new and one old; --check then reports it.)
 //
 // Usage: node scripts/build-design-variants.mjs [--check]
 //   exit 0 written / up to date · 1 failed or (with --check) a file differs · 2 usage
@@ -28,13 +31,16 @@ const OUT = path.join(root, "design");
 const FONT = path.join(OUT, "bitter-700-latin.woff2.b64.txt");
 
 // Seat counts, in page order, read from the front page's own "facts" lines.
-// Every element whose class list holds "map" must be one this reader parses; a map entry it
-// would skip shifts every later strip onto the wrong row, so that is an error, not a skip.
+// The rule: a map entry is written exactly `<div class="map">` on its own line, closed by a
+// `</div>` on its own line, and holds one `<div class="facts">N seats` line. The reader does
+// not try to recognise any other spelling. Instead it counts the "N seats" facts lines on the
+// whole page separately; if that count differs from the entries it parsed, some entry is
+// spelled another way, and the build refuses rather than shift strips onto the wrong rows.
 export function seatCounts(html) {
   const text = html.replace(/\r\n/g, "\n").replace(/<!--[\s\S]*?-->/g, "");
   const cards = [...text.matchAll(/<div class="map">\n([\s\S]*?)\n<\/div>/g)].map((m) => m[1]);
-  const marked = [...text.matchAll(/class\s*=\s*["'][^"']*\bmap\b[^"']*["']/g)].length;
-  if (marked !== cards.length) throw new Error(`index.html has ${marked} map entries but this reader parses ${cards.length}; change the reader with the markup`);
+  const factsLines = [...text.matchAll(/<div class="facts">\d+ seats\b/g)].length;
+  if (factsLines !== cards.length) throw new Error(`index.html has ${factsLines} "<N> seats" facts lines but ${cards.length} map entries written as <div class="map">; write every entry that way`);
   return cards.map((c, i) => {
     const facts = c.match(/<div class="facts">(\d+) seats\b/);
     if (!facts) throw new Error(`map entry ${i + 1} on index.html has no "<N> seats" facts line`);
@@ -148,6 +154,7 @@ export function build() {
   if (!/^[A-Za-z0-9+/]+=*$/.test(fontB64) || fontB64.length < 1000) throw new Error(`${FONT} is not base64 font data`);
   const bytes = Buffer.from(fontB64, "base64");
   // A WOFF2 file starts with the signature "wOF2" and records its own total length at byte 8.
+  // Only those two points are checked (see the failure posture above).
   if (bytes.subarray(0, 4).toString("latin1") !== "wOF2" || bytes.readUInt32BE(8) !== bytes.length) throw new Error(`${FONT} does not decode to a WOFF2 font`);
   const b = base(fontB64);
   return {
