@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { build, seatCounts } from "../scripts/build-design-variants.mjs";
+import { build, seatCounts, galleryOpening } from "../scripts/build-design-variants.mjs";
 
 // The layout stylesheets under design/ (design pass 2026-11-17, layout C picked). A page uses
 // one only if a <link rel="stylesheet"> names it. These tests compare source text: link tags read
@@ -39,9 +39,10 @@ const designLinks = (html) => [...html.replace(/<!--[\s\S]*?-->/g, "").matchAll(
 const contentValues = (css) => [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/content\s*:\s*([^;}]*)/gi)].map((m) => m[1].trim());
 const FRONT_LINK = '</style>\n<link rel="stylesheet" href="./design/plan-c.css">\n</head>';
 const CARD_LINK = '</style>\n<link rel="stylesheet" href="../../design/card.css">\n</head>';
+const GALLERY_LINK = '</style>\n<link rel="stylesheet" href="../design/gallery.css">\n</head>';
 
 describe("design-pass stylesheets", () => {
-  it("only the front page and the card pages link a layout, each exactly once, after the page's own style", () => {
+  it("only the front page, the gallery page and the card pages link a layout, each exactly once, after the page's own style", () => {
     const pages = htmlPages();
     assert.ok(pages.length >= 14, `found ${pages.length} pages (if fewer, the walk stopped matching)`);
     let cards = 0;
@@ -52,6 +53,9 @@ describe("design-pass stylesheets", () => {
       if (rel === "index.html") {
         assert.deepEqual(links, ["design/plan-c.css"], "index.html links plan-c.css once");
         assert.ok(html.includes(FRONT_LINK), "index.html: the link sits right after </style>, before </head>");
+      } else if (rel === "gallery/index.html") {
+        assert.deepEqual(links, ["design/gallery.css"], "gallery/index.html links gallery.css once");
+        assert.ok(html.includes(GALLERY_LINK), "gallery/index.html: the link sits right after </style>, before </head>");
       } else if (/^gallery\/[\w-]+\/card\.html$/.test(rel)) {
         cards++;
         assert.deepEqual(links, ["design/card.css"], `${rel} links card.css once`);
@@ -103,12 +107,12 @@ describe("design-pass stylesheets", () => {
 
   it("the two layouts not picked are gone: design/ holds only what is served", () => {
     const files = fs.readdirSync(path.join(root, "design")).sort();
-    assert.deepEqual(files, ["OFL.txt", "bitter-700-latin.woff2.b64.txt", "card.css", "plan-c.css"]);
+    assert.deepEqual(files, ["OFL.txt", "bitter-700-latin.woff2.b64.txt", "card.css", "gallery.css", "plan-c.css"]);
   });
 
-  it("each file under design/ is exactly what the builder writes from index.html today", () => {
+  it("each file under design/ is exactly what the builder writes from index.html and gallery/index.html today", () => {
     const files = build();
-    assert.deepEqual(Object.keys(files).sort(), ["card.css", "plan-c.css"]);
+    assert.deepEqual(Object.keys(files).sort(), ["card.css", "gallery.css", "plan-c.css"]);
     for (const [name, css] of Object.entries(files)) assert.equal(read(`design/${name}`), css, `design/${name} is stale: run node scripts/build-design-variants.mjs`);
   });
 
@@ -118,6 +122,38 @@ describe("design-pass stylesheets", () => {
     assert.equal(counts.length, [...html.matchAll(/<div class="map">/g)].length);
     assert.equal(counts[0], 171, "OpenHands, the first entry (if the page changed, change this number with it)");
     assert.throws(() => seatCounts('<div class="map">\n  <div class="facts">many seats</div>\n</div>'), /"<N> seats" facts line/);
+  });
+
+  it("the gallery's side column is written for its opening, and any other opening is refused", () => {
+    assert.equal(galleryOpening(read("gallery/index.html")), true);
+    const open = (lines) => `<main>\n${lines.join("\n\n")}\n\n<h2>The maps</h2>`;
+    const ok = ['<p class="crumbs">x</p>', "<h1>T</h1>", "<p>a</p>", "<p>b</p>", "<p>c</p>", "<p>d</p>"];
+    assert.equal(galleryOpening(open(ok)), true);
+    assert.throws(() => galleryOpening(open([...ok, "<p>e</p>"])), /side column is written for/, "a fifth paragraph");
+    assert.throws(() => galleryOpening(open(ok.slice(0, -1))), /side column is written for/, "three paragraphs");
+    assert.throws(() => galleryOpening(open(ok.slice(1))), /side column is written for/, "no breadcrumb");
+    assert.throws(() => galleryOpening(open([ok[0], ok[1], '<p class="lede">a</p>', ...ok.slice(3)])), /side column is written for/, "a classed paragraph");
+    assert.throws(() => galleryOpening("<main>\n<h1>T</h1>\n</main>"), /no <main> followed by an <h2>/);
+  });
+
+  it("the gallery's seat strips are drawn from the gallery's own counts", () => {
+    const counts = seatCounts(read("gallery/index.html"), "gallery/index.html");
+    assert.equal(counts.length, 12, "twelve maps on the gallery page (if the page changed, change this number with it)");
+    assert.equal(counts[0], 171, "OpenHands, the gallery's first entry");
+    const css = build()["gallery.css"];
+    assert.equal([...css.matchAll(/^\.map:nth-of-type\(\d+\) \.facts::before/gm)].length, counts.length, "one light-scheme strip per gallery entry");
+  });
+
+  it("the phone-shift fallback face is in every stylesheet and sits right after Bitter in the display stack", () => {
+    for (const [name, css] of Object.entries(build())) {
+      assert.match(css, /@font-face\{font-family:"Bitter Fallback";font-weight:700;[^}]*src:local\("Georgia Bold"\)[^}]*size-adjust:/, `${name} declares the fallback face`);
+      assert.match(css, /--display:"Bitter","Bitter Fallback",/, `${name}: the fallback face is next after Bitter`);
+    }
+  });
+
+  it("LIMIT: the fallback face's numbers are measured once from the font tables; this test does not re-measure them or the shift", () => {
+    // The shift itself is measured in a browser (layout-shift sources at 390 wide), not here.
+    assert.match(build()["card.css"], /size-adjust:92\.32%/);
   });
 
   it("the stylesheets add no words: no content string other than the empty one", () => {

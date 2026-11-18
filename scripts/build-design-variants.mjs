@@ -2,10 +2,11 @@
 // build-design-variants — writes the site's two layout stylesheets under design/.
 //
 // Design pass 2026-11-17: layout C ("the register") for the front page and the matching
-// card layout. Each file restyles ONE page type on top of that page's own inline <style>.
-// A page uses it only if a <link rel="stylesheet"> names it; at this commit the front page
-// and the twelve cards (written by scripts/render-decides-card.mjs) link their stylesheet
-// immediately after their inline style. Rolling back is deleting that line.
+// card layout; 2026-11-18 adds the gallery page's version of C. Each file restyles ONE page
+// type on top of that page's own inline <style>. A page uses it only if a <link rel="stylesheet">
+// names it; at this commit the front page, the gallery page and the twelve cards (written by
+// scripts/render-decides-card.mjs) link their stylesheet immediately after their inline style.
+// Rolling back is deleting that line.
 // The two layouts not picked (A and B) are not part of this site.
 //
 // The stylesheets add no words. Seat marks are background images on empty pseudo-elements,
@@ -14,7 +15,8 @@
 //
 // Failure posture: fail-closed on its inputs, as far as the stated rules below reach. It
 // rejects unequal totals of literal `<div class="facts">N seats` matches and parsed
-// `<div class="map">` entries, a parsed entry with no matching facts line, a missing font
+// `<div class="map">` entries (on the front page and on the gallery page), a parsed entry with
+// no matching facts line, a gallery opening other than the one galleryOpening states, a missing font
 // file, and font bytes lacking the WOFF2 signature and length field, each with exit 1 before
 // any file is written. An entry whose map AND facts lines are both spelled another way is in
 // neither total, so it is skipped, not refused (a LIMIT test says so). The font is not parsed: a file
@@ -38,14 +40,14 @@ const FONT = path.join(OUT, "bitter-700-latin.woff2.b64.txt");
 // not try to recognise any other spelling. Instead it counts the "N seats" facts lines on the
 // whole page separately; if that count differs from the entries it parsed, some entry is
 // spelled another way, and the build refuses rather than shift strips onto the wrong rows.
-export function seatCounts(html) {
+export function seatCounts(html, page = "index.html") {
   const text = html.replace(/\r\n/g, "\n").replace(/<!--[\s\S]*?-->/g, "");
   const cards = [...text.matchAll(/<div class="map">\n([\s\S]*?)\n<\/div>/g)].map((m) => m[1]);
   const factsLines = [...text.matchAll(/<div class="facts">\d+ seats\b/g)].length;
-  if (factsLines !== cards.length) throw new Error(`index.html has ${factsLines} "<N> seats" facts lines but ${cards.length} map entries written as <div class="map">; write every entry that way`);
+  if (factsLines !== cards.length) throw new Error(`${page} has ${factsLines} "<N> seats" facts lines but ${cards.length} map entries written as <div class="map">; write every entry that way`);
   return cards.map((c, i) => {
     const facts = c.match(/<div class="facts">(\d+) seats\b/);
-    if (!facts) throw new Error(`map entry ${i + 1} on index.html has no "<N> seats" facts line`);
+    if (!facts) throw new Error(`map entry ${i + 1} on ${page} has no "<N> seats" facts line`);
     return Number(facts[1]);
   });
 }
@@ -70,9 +72,20 @@ const LIGHT = "--bg:#ffffff;--fg:#141c20;--muted:#52616a;--line:#cfd8dc;--card:#
 const DARK = "--bg:#11171a;--fg:#e6ecee;--muted:#9aa8af;--line:#2b363b;--card:#182024;--code:#202a2f;--link:#6fb3d4;";
 const INK_LIGHT = "#141c20", INK_DARK = "#e6ecee";
 
+// The phone layout shift (2026-11-17: CLS 0.026 front page, 0.030 card at 390 wide) came from the
+// headline being laid out in the next font in the stack and re-wrapping when Bitter arrived. The
+// "Bitter Fallback" face is local Georgia Bold scaled to Bitter's metrics, so the first layout
+// already has Bitter's line breaks. The numbers come from the two fonts' own tables (head, hhea,
+// cmap, hmtx), not from a browser: size-adjust = Bitter's frequency-weighted average letter width
+// over Georgia Bold's; the overrides are Bitter's hhea ascender, descender and line gap over 1000,
+// divided by size-adjust. Measured 2026-11-18 against C:/Windows/Fonts/georgiab.ttf. A device
+// with no Georgia skips this face and falls through to the rest of the stack, as before.
+const FALLBACK = `@font-face{font-family:"Bitter Fallback";font-weight:700;font-style:normal;src:local("Georgia Bold"),local("Georgia-Bold");size-adjust:92.32%;ascent-override:101.28%;descent-override:28.70%;line-gap-override:0%}`;
+
 function base(fontB64) {
   return `@font-face{font-family:"Bitter";font-weight:700;font-style:normal;font-display:block;src:url(data:font/woff2;base64,${fontB64}) format("woff2")}
-:root{${LIGHT}--display:"Bitter",Rockwell,"Roboto Slab",Georgia,serif}
+${FALLBACK}
+:root{${LIGHT}--display:"Bitter","Bitter Fallback",Rockwell,"Roboto Slab",Georgia,serif}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){${DARK}}}
 :root[data-theme="dark"]{${DARK}}
 code,pre,.map{border-radius:0}
@@ -130,6 +143,50 @@ main>h2{font-size:1.2rem}
 ${strips(counts, 28, 7, 5)}`;
 }
 
+// The gallery page's opening, checked before its side column is written.
+// The rule: inside <main>, everything before the first <h2> is exactly a `<p class="crumbs">`, one
+// `<h1>`, and GALLERY_INTRO plain `<p>` elements, each starting its own line, in that order. The
+// side column's selectors name those elements by position, so any other opening is refused
+// rather than letting the column take the wrong elements or leave one behind.
+const GALLERY_INTRO = 4;
+export function galleryOpening(html) {
+  const text = html.replace(/\r\n/g, "\n").replace(/<!--[\s\S]*?-->/g, "");
+  const m = text.match(/<main>\n([\s\S]*?)\n<h2>/);
+  if (!m) throw new Error("gallery/index.html: no <main> followed by an <h2> line");
+  const starts = m[1].split("\n").filter((l) => l.startsWith("<")).map((l) => (l.match(/^<([a-z0-9]+)(?:\s+class="([^"]*)")?/i) || []).slice(1).join("."));
+  const want = ["p.crumbs", "h1.", ...Array(GALLERY_INTRO).fill("p.")];
+  if (starts.join(" ") !== want.join(" ")) throw new Error(`gallery/index.html opening is [${starts.join(", ")}], the side column is written for [${want.join(", ")}]`);
+  return true;
+}
+
+// The gallery: the front page's register, with the breadcrumb, the headline and the four
+// introduction paragraphs as the side column, and each map's two extra lines in the middle column.
+function gallery(counts) {
+  const intro = Array.from({ length: GALLERY_INTRO }, (_, i) => `main>h1${"+p".repeat(i + 1)}`);
+  return `/* gallery: the register, for the list of maps */
+main{max-width:1240px;padding:0 24px 88px;display:flow-root}
+main>.crumbs{font-size:.9rem;margin:24px 0 12px}
+main>h1{font:700 1.75rem/1.15 var(--display);text-wrap:balance;margin:0 0 16px}
+main>h2{font-size:1.2rem}
+.map{display:grid;grid-template-columns:150px minmax(0,1fr) 196px;column-gap:20px;padding:12px 0 14px}
+.map .name{grid-column:1;grid-row:1/span 3;font-size:1.2rem;line-height:1.2;align-self:start}
+.map .sys,.map .finding{grid-column:2;margin:0 0 6px}
+.map .facts{grid-column:3;grid-row:1/span 3;margin:0;font-size:.88rem}
+@media (min-width:901px){
+  main>*,main>.map{margin-left:356px}
+  main>.crumbs,main>h1,${intro.join(",")}{float:left;clear:left;width:300px;margin-left:0}
+  main>.crumbs{border-top:2px solid var(--fg);padding-top:12px}
+  ${intro[intro.length - 1]}+h2{margin-top:24px}
+}
+@media (max-width:900px){
+  main{padding:0 16px 88px}
+  .map{display:block}
+  .map .name{display:inline-block;margin-bottom:4px}
+  .map .facts{margin-top:8px}
+}
+${strips(counts, 28, 7, 5)}`;
+}
+
 // The short card. Holders are told apart by the SHAPE of a mark; only "a person" takes the accent.
 function card() {
   return `/* card: the key to the plan */
@@ -158,10 +215,15 @@ export function build() {
   // A WOFF2 file starts with the signature "wOF2" and records its own total length at byte 8.
   // Only those two points are checked (see the failure posture above).
   if (bytes.subarray(0, 4).toString("latin1") !== "wOF2" || bytes.readUInt32BE(8) !== bytes.length) throw new Error(`${FONT} does not decode to a WOFF2 font`);
+  const galleryHtml = fs.readFileSync(path.join(root, "gallery", "index.html"), "utf8");
+  galleryOpening(galleryHtml);
+  const galleryCounts = seatCounts(galleryHtml, "gallery/index.html");
+  if (galleryCounts.length === 0) throw new Error("gallery/index.html has no map entries");
   const b = base(fontB64);
   return {
     "plan-c.css": b + planC(counts),
     "card.css": b + card(),
+    "gallery.css": b + gallery(galleryCounts),
   };
 }
 
