@@ -226,6 +226,7 @@ ul.judgments,ol.problems{list-style:none;margin:0;padding:0}
 .status{font-weight:600}
 .full{display:block;text-align:center;font-weight:650;border:1px solid var(--link);border-radius:8px;padding:12px;margin:28px 0 8px;text-decoration:none}
 </style>
+<link rel="stylesheet" href="../../design/card.css">
 </head>
 <body>
 <main>

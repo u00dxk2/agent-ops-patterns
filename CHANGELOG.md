@@ -4,6 +4,10 @@ Changes that matter to anyone who vendors a file from this repo. Each entry name
 
 ## 2026-11-17
 
+### A new layout for the front page and the short cards
+
+`index.html` and the twelve `gallery/<slug>/card.html` pages each have one new line in their `<head>`: a link to a stylesheet under `design/` (`plan-c.css` for the front page, `card.css` for the cards), written by `scripts/build-design-variants.mjs`. No word on any page changed, and the card JSON and its contract are unchanged, so there is nothing to re-pull from `gallery/cards/`. If you copy a `card.html` page, its link points at `../../design/card.css`; without that file the page shows in its old inline style. The display face, Bitter, is carried as text in `design/bitter-700-latin.woff2.b64.txt` under the SIL Open Font License (`design/OFL.txt`). `docs/SCREENS.md` lists every page the site serves and which are in the new layout.
+
 ### Links to the essay
 
 README, `gallery/README.md`, the top of `gallery/findings.md`, `index.html` and `gallery/index.html` each have one new line: the essay's title, linked to its page. No card, map or count changed; nothing to re-pull.
