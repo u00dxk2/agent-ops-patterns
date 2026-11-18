@@ -30,7 +30,7 @@ function htmlPages(dir = root, out = []) {
 // Other mentions of a file name (text, comments, attributes of other elements) are not links.
 const designLinks = (html) => [...html.replace(/<!--[\s\S]*?-->/g, "").matchAll(/<link\b[^>]*>/gi)]
   .map((m) => m[0])
-  .filter((tag) => /(?:^|\s)rel\s*=\s*["']?stylesheet\b/i.test(tag))
+  .filter((tag) => /(?:^|\s)rel\s*=\s*["']?stylesheet(?=["'\s>]|$)/i.test(tag))
   .map((tag) => (tag.match(/(?:^|\s)href\s*=\s*["']?([^"'\s>]+)/i) || [])[1] || "")
   .filter((href) => /(^|\/)design\//.test(href) || /plan-[abc]\.css/.test(href))
   .map((href) => href.replace(/^(\.\.?\/)+/, ""));
@@ -79,6 +79,7 @@ describe("design-pass stylesheets", () => {
     assert.deepEqual(contentValues('.x::before{content/**/:"Seat key"}'), ['"Seat key"']);
     assert.deepEqual(contentValues('.x::before{content:"" "Seat key"}'), ['"" "Seat key"'], "words after an empty string are part of the value");
     assert.deepEqual(designLinks('<link rel="canonical" data-rel="stylesheet" href="./design/plan-c.css">'), [], "data-rel is not rel");
+    assert.deepEqual(designLinks('<link rel="stylesheet-disabled" href="./design/plan-c.css">'), [], "a longer rel word is not stylesheet");
   });
 
   it("the builder refuses a map entry written another way, and font bytes without the WOFF2 signature", () => {
@@ -105,10 +106,10 @@ describe("design-pass stylesheets", () => {
   });
 
   it("LIMIT: the font check reads the WOFF2 signature and length field only; it does not parse the font", () => {
-    // A zero-filled buffer carrying "wOF2" and the right length would be embedded. A bad font
-    // shows in frames as the fallback face, not in this test.
-    const src = fs.readFileSync(path.join(root, "scripts", "build-design-variants.mjs"), "utf8");
-    assert.match(src, /readUInt32BE\(8\)/);
+    // Bytes that are zero apart from those two fields are accepted and embedded. A bad font
+    // shows in a browser as the next font in the stack, not in this test.
+    const fake = Buffer.alloc(2000); fake.write("wOF2", 0, "latin1"); fake.writeUInt32BE(fake.length, 8);
+    assert.doesNotThrow(() => buildFrom(read("index.html"), fake.toString("base64")));
   });
 
   it("the two layouts not picked are gone: design/ holds only what is served", () => {
@@ -160,6 +161,8 @@ describe("design-pass stylesheets", () => {
     assert.ok(buildFrom(html, font)["plan-c.css"], "the real inputs build");
     assert.throws(() => buildFrom("<main></main>", font), /no map entries/);
     assert.throws(() => buildFrom(html, "not base64!"), /is not base64 font data/);
+    assert.throws(() => buildFrom(html, "!".repeat(2000)), /is not base64 font data/, "long text that is not base64");
+    assert.throws(() => buildFrom(html, font.replace(/\s+/g, "") + "="), /is not base64 font data/, "one stray padding character");
     const bytes = Buffer.from(font.replace(/\s+/g, ""), "base64");
     const sig = Buffer.from(bytes); sig.write("XXXX", 0, "latin1");
     assert.throws(() => buildFrom(html, sig.toString("base64")), /does not decode to a WOFF2 font/, "wrong signature");

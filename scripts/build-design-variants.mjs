@@ -205,8 +205,10 @@ export function buildFrom(indexHtml, fontText) {
   const counts = seatCounts(indexHtml);
   if (counts.length === 0) throw new Error("index.html has no map entries");
   const fontB64 = fontText.replace(/\s+/g, "");
-  if (!/^[A-Za-z0-9+/]+=*$/.test(fontB64) || fontB64.length < 1000) throw new Error(`${FONT} is not base64 font data`);
+  // The rule: the text must decode and re-encode to itself (canonical base64), so stray padding
+  // or characters a browser's decoder would reject are refused here rather than in the page.
   const bytes = Buffer.from(fontB64, "base64");
+  if (fontB64.length < 1000 || bytes.toString("base64") !== fontB64) throw new Error(`${FONT} is not base64 font data`);
   // A WOFF2 file starts with the signature "wOF2" and records its own total length at byte 8.
   // Only those two points are checked (see the failure posture above).
   if (bytes.subarray(0, 4).toString("latin1") !== "wOF2" || bytes.readUInt32BE(8) !== bytes.length) throw new Error(`${FONT} does not decode to a WOFF2 font`);
