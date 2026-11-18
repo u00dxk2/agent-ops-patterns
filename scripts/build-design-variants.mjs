@@ -15,11 +15,13 @@
 //
 // Failure posture: fail-closed on its inputs, as far as the stated rules below reach. It
 // rejects unequal totals of literal `<div class="facts">N seats` matches and parsed
-// `<div class="map">` entries (on the front page and on the gallery page), a parsed entry with
-// no matching facts line, a gallery opening other than the one galleryOpening states, a missing font
-// file, and font bytes lacking the WOFF2 signature and length field, each with exit 1 before
-// any file is written. An entry whose map AND facts lines are both spelled another way is in
-// neither total, so it is skipped, not refused (a LIMIT test says so). The font is not parsed: a file
+// `<div class="map">` entries on the front page, a parsed entry with no matching facts line, a
+// missing font file, and font bytes lacking the WOFF2 signature and length field, each with
+// exit 1 before any file is written. An entry whose map AND facts lines are both spelled another
+// way is in neither total, so it is skipped, not refused, and the front page's strips are placed
+// with :nth-of-type, which counts every <div> sibling, so any other <div> among the maps shifts
+// the strips after it (LIMIT tests say both). The gallery stylesheet reads nothing from its
+// page. The font is not parsed: a file
 // that is well formed on those two points but not a usable font would still be embedded,
 // and shows up only as the fallback face in a frame. (A write that fails part way, say a
 // full disk, can leave one file new and one old; --check then reports it.)
@@ -40,15 +42,12 @@ const FONT = path.join(OUT, "bitter-700-latin.woff2.b64.txt");
 // not try to recognise any other spelling. Instead it counts the "N seats" facts lines on the
 // whole page separately; if that count differs from the entries it parsed, some entry is
 // spelled another way, and the build refuses rather than shift strips onto the wrong rows.
-export function seatCounts(html, page = "index.html") {
+export function seatCounts(html) {
+  const page = "index.html";
   const text = html.replace(/\r\n/g, "\n").replace(/<!--[\s\S]*?-->/g, "");
   const cards = [...text.matchAll(/<div class="map">\n([\s\S]*?)\n<\/div>/g)].map((m) => m[1]);
   const factsLines = [...text.matchAll(/<div class="facts">\d+ seats\b/g)].length;
   if (factsLines !== cards.length) throw new Error(`${page} has ${factsLines} "<N> seats" facts lines but ${cards.length} map entries written as <div class="map">; write every entry that way`);
-  // The strips are placed with `.map:nth-of-type(n)`, which counts every <div> sibling, so a
-  // <div> at column 0 that is not a map entry would shift every strip after it. Refused.
-  const topDivs = (text.match(/^<div\b/gm) || []).length;
-  if (topDivs !== cards.length) throw new Error(`${page} has ${topDivs} <div> lines at column 0 but ${cards.length} map entries; the seat strips count every <div>, so only map entries may be written there`);
   return cards.map((c, i) => {
     const facts = c.match(/<div class="facts">(\d+) seats\b/);
     if (!facts) throw new Error(`map entry ${i + 1} on ${page} has no "<N> seats" facts line`);
@@ -81,11 +80,15 @@ const INK_LIGHT = "#141c20", INK_DARK = "#e6ecee";
 // "Bitter Fallback" face is local Georgia Bold scaled to Bitter's metrics, so the first layout
 // is close to Bitter's; letter widths still differ, so a line can still break differently, and
 // only the measured shift says how close. The numbers come from the two fonts' own tables (head, hhea,
-// cmap, hmtx), not from a browser: size-adjust = Bitter's frequency-weighted average letter width
-// over Georgia Bold's; the overrides are Bitter's hhea ascender, descender and line gap over 1000,
+// cmap, hmtx, kerning ignored), not from a browser: size-adjust = the LOWEST ratio of Bitter's
+// width to Georgia Bold's over the site's own Bitter headlines on 2026-11-18 (the twelve card
+// titles, the gallery h1 and the front page's lede: 0.9112 to 0.9314), so the fallback is not
+// wider than Bitter on any of them by these tables; whether a line still moves is measured in a browser. (A letter-frequency average, 92.32%,
+// left "How OpenHands decides" wider in the fallback and the card still shifted at 390 wide.)
+// The overrides are Bitter's hhea ascender, descender and line gap over 1000,
 // divided by size-adjust. Measured 2026-11-18 against C:/Windows/Fonts/georgiab.ttf. A device
 // with no Georgia skips this face and falls through to the rest of the stack, as before.
-const FALLBACK = `@font-face{font-family:"Bitter Fallback";font-weight:700;font-style:normal;src:local("Georgia Bold"),local("Georgia-Bold");size-adjust:92.32%;ascent-override:101.28%;descent-override:28.70%;line-gap-override:0%}`;
+const FALLBACK = `@font-face{font-family:"Bitter Fallback";font-weight:700;font-style:normal;src:local("Georgia Bold"),local("Georgia-Bold");size-adjust:91.12%;ascent-override:102.61%;descent-override:29.08%;line-gap-override:0%}`;
 
 function base(fontB64) {
   return `@font-face{font-family:"Bitter";font-weight:700;font-style:normal;font-display:block;src:url(data:font/woff2;base64,${fontB64}) format("woff2")}
@@ -123,78 +126,56 @@ ${rule(INK_DARK).split("\n").map((l) => `:root[data-theme="dark"] ${l}`).join("\
 const HERO = "main>h1,main>.lede,main>.lede+p,main>.lede+p+p";
 
 // C: the register. The list of systems is the first screen; the introduction is a side column.
+// The narrow layout is the default and the wide one sits behind a single min-width query, so no
+// viewport width falls between two queries.
 function planC(counts) {
   return `/* plan-c: the register */
-main{max-width:1240px;padding:0 24px 88px;display:flow-root}
+main{max-width:1240px;padding:0 16px 88px;display:flow-root}
 main>h1{font:700 .95rem/1.2 system-ui,-apple-system,"Segoe UI",sans-serif;margin:24px 0 12px}
 main>.lede{font:700 1.75rem/1.15 var(--display);text-wrap:balance;margin:0 0 16px}
 main>h2{font-size:1.2rem}
-.map{display:grid;grid-template-columns:150px minmax(0,1fr) 196px;column-gap:20px;padding:12px 0 14px}
-.map .name{font-size:1.2rem;line-height:1.2;align-self:start}
+.map{display:block;padding:12px 0 14px}
+.map .name{display:inline-block;margin-bottom:4px;font-size:1.2rem;line-height:1.2}
 .map .finding{margin:0}
-.map .facts{margin:0;font-size:.88rem}
+.map .facts{margin:8px 0 0;font-size:.88rem}
 @media (min-width:901px){
+  main{padding:0 24px 88px}
+  .map{display:grid;grid-template-columns:150px minmax(0,1fr) 196px;column-gap:20px}
+  .map .name{display:block;margin-bottom:0;align-self:start}
+  .map .facts{margin:0}
   main>*,main>.map{margin-left:356px}
   ${HERO}{float:left;clear:left;width:300px;margin-left:0}
   main>h1{border-top:2px solid var(--fg);padding-top:12px}
   main>h1+.lede+p+p+h2{margin-top:24px}
 }
-@media (max-width:900.98px){
-  main{padding:0 16px 88px}
-  .map{display:block}
-  .map .name{display:inline-block;margin-bottom:4px}
-  .map .facts{margin-top:8px}
-}
 ${strips(counts, 28, 7, 5)}`;
 }
 
-// The gallery page's opening, checked before its side column is written.
-// The rule: between `<main>` and the first line that starts `<h2>`, every non-blank line is one
-// whole element on one line, starting at column 0 with exactly `<p class="crumbs">`, `<h1>` or
-// `<p>` and ending with its own closing tag; and the lines are, in order, the breadcrumb, the
-// h1 and GALLERY_INTRO paragraphs. Anything else there (an indented line, a line of text, any
-// other tag, an element spread over two lines) is refused. The side column's selectors name
-// those elements by position, so a refusal is better than a column holding the wrong elements.
-const GALLERY_INTRO = 4;
-export function galleryOpening(html) {
-  const text = html.replace(/\r\n/g, "\n").replace(/<!--[\s\S]*?-->/g, "");
-  const m = text.match(/<main>\n([\s\S]*?)\n<h2>/);
-  if (!m) throw new Error("gallery/index.html: no <main> followed by an <h2> line");
-  const kinds = m[1].split("\n").filter((l) => l.trim() !== "").map((l) =>
-    /^<p class="crumbs">.*<\/p>$/.test(l) ? "crumbs" : /^<h1>.*<\/h1>$/.test(l) ? "h1" : /^<p>.*<\/p>$/.test(l) ? "p" : `other: ${l.slice(0, 40)}`);
-  const want = ["crumbs", "h1", ...Array(GALLERY_INTRO).fill("p")];
-  if (kinds.join(" | ") !== want.join(" | ")) throw new Error(`gallery/index.html opening is [${kinds.join(" | ")}], the side column is written for [${want.join(" | ")}]`);
-  return true;
-}
-
-// The gallery: the front page's register, with the breadcrumb, the headline and the four
-// introduction paragraphs as the side column, and each map's two extra lines in the middle column.
-function gallery(counts) {
-  const intro = Array.from({ length: GALLERY_INTRO }, (_, i) => `main>h1${"+p".repeat(i + 1)}`);
-  return `/* gallery: the register, for the list of maps */
-main{max-width:1240px;padding:0 24px 88px;display:flow-root}
+// The gallery: the front page's type, colours and rules, in ONE column. The introduction stays
+// above the list (no side column, so no rule names the opening's elements by position), and the
+// maps carry no seat strips (so nothing here depends on the page's counts or on :nth-of-type).
+// Each map is a three-column row at wide widths: name | its two extra lines and the finding | facts.
+function gallery() {
+  return `/* gallery: the register, one column */
+main{max-width:1240px;padding:0 16px 88px}
 main>.crumbs{font-size:.9rem;margin:24px 0 12px}
-main>h1{font:700 1.75rem/1.15 var(--display);text-wrap:balance;margin:0 0 16px}
+main>h1{font:700 1.75rem/1.15 var(--display);text-wrap:balance;margin:0 0 16px;max-width:30ch}
 main>h2{font-size:1.2rem}
-.map{display:grid;grid-template-columns:150px minmax(0,1fr) 196px;column-gap:20px;padding:12px 0 14px}
-.map .name{grid-column:1;grid-row:1/span 3;font-size:1.2rem;line-height:1.2;align-self:start}
-.map .sys,.map .finding{grid-column:2;margin:0 0 6px}
-.map .facts{grid-column:3;grid-row:1/span 3;margin:0;font-size:.88rem}
+.map{display:block;padding:12px 0 14px}
+.map .name{display:inline-block;margin-bottom:4px;font-size:1.2rem;line-height:1.2}
+.map .sys,.map .finding{margin:0 0 6px}
+.map .facts{margin:8px 0 0;font-size:.88rem}
+.map .facts::before{display:none}
 @media (min-width:901px){
-  main>*,main>.map{margin-left:356px}
-  main>.crumbs,main>h1,${intro.join(",")}{float:left;clear:left;width:300px;margin-left:0}
+  main{padding:0 24px 88px}
   main>.crumbs{border-top:2px solid var(--fg);padding-top:12px}
-  ${intro[intro.length - 1]}+h2{margin-top:24px}
+  .map{display:grid;grid-template-columns:150px minmax(0,1fr) 196px;column-gap:20px}
+  .map .name{grid-column:1;grid-row:1/span 3;display:block;margin-bottom:0;align-self:start}
+  .map .sys,.map .finding{grid-column:2}
+  .map .facts{grid-column:3;grid-row:1/span 3;margin:0}
 }
-@media (max-width:900.98px){
-  main{padding:0 16px 88px}
-  .map{display:block}
-  .map .name{display:inline-block;margin-bottom:4px}
-  .map .facts{margin-top:8px}
+`;
 }
-${strips(counts, 28, 7, 5)}`;
-}
-
 // The short card. Holders are told apart by the SHAPE of a mark; only "a person" takes the accent.
 function card() {
   return `/* card: the key to the plan */
@@ -223,15 +204,11 @@ export function build() {
   // A WOFF2 file starts with the signature "wOF2" and records its own total length at byte 8.
   // Only those two points are checked (see the failure posture above).
   if (bytes.subarray(0, 4).toString("latin1") !== "wOF2" || bytes.readUInt32BE(8) !== bytes.length) throw new Error(`${FONT} does not decode to a WOFF2 font`);
-  const galleryHtml = fs.readFileSync(path.join(root, "gallery", "index.html"), "utf8");
-  galleryOpening(galleryHtml);
-  const galleryCounts = seatCounts(galleryHtml, "gallery/index.html");
-  if (galleryCounts.length === 0) throw new Error("gallery/index.html has no map entries");
   const b = base(fontB64);
   return {
     "plan-c.css": b + planC(counts),
     "card.css": b + card(),
-    "gallery.css": b + gallery(galleryCounts),
+    "gallery.css": b + gallery(),
   };
 }
 

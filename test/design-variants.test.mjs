@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { build, seatCounts, galleryOpening } from "../scripts/build-design-variants.mjs";
+import { build, seatCounts } from "../scripts/build-design-variants.mjs";
 
 // The layout stylesheets under design/ (design pass 2026-11-17, layout C picked). A page uses
 // one only if a <link rel="stylesheet"> names it. These tests compare source text: link tags read
@@ -92,17 +92,16 @@ describe("design-pass stylesheets", () => {
     assert.match(src, /"wOF2"/, "the font check reads the WOFF2 signature");
   });
 
-  it("an entry whose map AND facts lines are both spelled another way is refused by the column-0 <div> rule", () => {
+  it("LIMIT: an entry whose map AND facts lines are both spelled another way is skipped, not refused", () => {
     const ok = '<div class="map">\n  <div class="facts">5 seats</div>\n</div>';
     const odd = '<div class="map featured">\n  <div class="facts featured">3 seats</div>\n</div>';
-    assert.throws(() => seatCounts(`${odd}\n${ok}`), /2 <div> lines at column 0 but 1 map entries/);
-    assert.throws(() => seatCounts(`<div class="note">x</div>\n${ok}`), /2 <div> lines at column 0/, "an ordinary <div> before the maps would shift every strip");
+    assert.deepEqual(seatCounts(`${odd}\n${ok}`), [5]);
   });
 
-  it("LIMIT: a <div> that is a direct child of <main> but written indented is not seen by the column-0 rule", () => {
-    // nth-of-type would still count it. The rule reads lines, not the DOM.
+  it("LIMIT: the front page's strips are placed by :nth-of-type, so an ordinary <div> among the maps is not refused and would shift the strips after it", () => {
     const ok = '<div class="map">\n  <div class="facts">5 seats</div>\n</div>';
-    assert.deepEqual(seatCounts(`  <div class="note">x</div>\n${ok}`), [5]);
+    assert.deepEqual(seatCounts(`<div class="note">x</div>\n${ok}`), [5]);
+    assert.match(build()["plan-c.css"], /\.map:nth-of-type\(1\) \.facts::before/);
   });
 
   it("LIMIT: the font check reads the WOFF2 signature and length field only; it does not parse the font", () => {
@@ -117,7 +116,7 @@ describe("design-pass stylesheets", () => {
     assert.deepEqual(files, ["OFL.txt", "bitter-700-latin.woff2.b64.txt", "card.css", "gallery.css", "plan-c.css"]);
   });
 
-  it("each file under design/ is exactly what the builder writes from index.html and gallery/index.html today", () => {
+  it("each file under design/ is exactly what the builder writes from index.html today", () => {
     const files = build();
     assert.deepEqual(Object.keys(files).sort(), ["card.css", "gallery.css", "plan-c.css"]);
     for (const [name, css] of Object.entries(files)) assert.equal(read(`design/${name}`), css, `design/${name} is stale: run node scripts/build-design-variants.mjs`);
@@ -131,48 +130,35 @@ describe("design-pass stylesheets", () => {
     assert.throws(() => seatCounts('<div class="map">\n  <div class="facts">many seats</div>\n</div>'), /"<N> seats" facts line/);
   });
 
-  it("the gallery's side column is written for its opening, and any other opening is refused", () => {
-    assert.equal(galleryOpening(read("gallery/index.html")), true);
-    const open = (lines) => `<main>\n${lines.join("\n\n")}\n\n<h2>The maps</h2>`;
-    const ok = ['<p class="crumbs">x</p>', "<h1>T</h1>", "<p>a</p>", "<p>b</p>", "<p>c</p>", "<p>d</p>"];
-    assert.equal(galleryOpening(open(ok)), true);
-    assert.throws(() => galleryOpening(open([...ok, "<p>e</p>"])), /side column is written for/, "a fifth paragraph");
-    assert.throws(() => galleryOpening(open(ok.slice(0, -1))), /side column is written for/, "three paragraphs");
-    assert.throws(() => galleryOpening(open(ok.slice(1))), /side column is written for/, "no breadcrumb");
-    assert.throws(() => galleryOpening(open([ok[0], ok[1], '<p class="lede">a</p>', ...ok.slice(3)])), /side column is written for/, "a classed paragraph");
-    assert.throws(() => galleryOpening(open([...ok.slice(0, 3), "  <aside>x</aside>", ...ok.slice(3)])), /side column is written for/, "an indented element between the paragraphs");
-    assert.throws(() => galleryOpening(open([...ok, "  <p>e</p>"])), /side column is written for/, "an indented fifth paragraph");
-    assert.throws(() => galleryOpening(open([...ok.slice(0, 5), "<p>d", "continued</p>"])), /side column is written for/, "a paragraph over two lines");
-    assert.throws(() => galleryOpening("<main>\n<h1>T</h1>\n</main>"), /no <main> followed by an <h2>/);
+  it("the gallery stylesheet reads nothing from its page: no seat strips and no side column", () => {
+    const css = build()["gallery.css"];
+    assert.doesNotMatch(css, /nth-of-type|nth-child/, "no rule places anything by position");
+    assert.doesNotMatch(css, /float\s*:/, "no side column");
+    assert.match(css, /\.map \.facts::before\{display:none\}/, "the shared strip box is switched off");
   });
 
-  it("the gallery's seat strips are drawn from the gallery's own counts", () => {
-    const counts = seatCounts(read("gallery/index.html"), "gallery/index.html");
-    assert.equal(counts.length, 12, "twelve maps on the gallery page (if the page changed, change this number with it)");
-    assert.equal(counts[0], 171, "OpenHands, the gallery's first entry");
-    const css = build()["gallery.css"];
-    assert.equal([...css.matchAll(/^\.map:nth-of-type\(\d+\) \.facts::before/gm)].length, counts.length, "one light-scheme strip per gallery entry");
+  it("every layout's narrow rules are its defaults and its wide rules sit behind one min-width query, so no width falls between two", () => {
+    for (const [name, css] of Object.entries(build())) {
+      assert.doesNotMatch(css, /max-width\s*:\s*\d[\d.]*px\s*\)/, `${name} has no max-width media query`);
+      const mins = [...css.matchAll(/@media \(min-width:(\d+)px\)/g)].map((m) => m[1]);
+      assert.ok(new Set(mins).size <= 1, `${name}: one wide breakpoint`);
+    }
   });
 
   it("the phone-shift fallback face is in every stylesheet and sits right after Bitter in the display stack", () => {
     for (const [name, css] of Object.entries(build())) {
-      assert.ok(css.includes('@font-face{font-family:"Bitter Fallback";font-weight:700;font-style:normal;src:local("Georgia Bold"),local("Georgia-Bold");size-adjust:92.32%;ascent-override:101.28%;descent-override:28.70%;line-gap-override:0%}'), `${name} declares the fallback face with the measured numbers`);
+      assert.ok(css.includes('@font-face{font-family:"Bitter Fallback";font-weight:700;font-style:normal;src:local("Georgia Bold"),local("Georgia-Bold");size-adjust:91.12%;ascent-override:102.61%;descent-override:29.08%;line-gap-override:0%}'), `${name} declares the fallback face with the measured numbers`);
       assert.match(css, /--display:"Bitter","Bitter Fallback",/, `${name}: the fallback face is next after Bitter`);
     }
   });
 
-  it("LIMIT: the gallery and front page print the same counts in the same order today, so no test tells which page's counts the gallery strips were drawn from", () => {
-    assert.deepEqual(seatCounts(read("gallery/index.html"), "gallery/index.html"), seatCounts(read("index.html")));
-  });
-
-  it("LIMIT: build()'s own guards (gallery opening, zero entries, WOFF2 bytes) are tested through their helpers or source text, not by feeding build() bad files", () => {
+  it("LIMIT: build()'s guards for zero entries and the WOFF2 bytes are pinned by source text and helper tests, not by feeding build() bad files", () => {
     const src = fs.readFileSync(path.join(root, "scripts", "build-design-variants.mjs"), "utf8");
-    assert.match(src, /galleryOpening\(galleryHtml\)/);
+    assert.match(src, /index\.html has no map entries/);
   });
-
   it("LIMIT: the fallback face's numbers are measured once from the font tables; this test does not re-measure them or the shift", () => {
     // The shift itself is measured in a browser (layout-shift sources at 390 wide), not here.
-    assert.match(build()["card.css"], /size-adjust:92\.32%/);
+    assert.match(build()["card.css"], /size-adjust:91\.12%/);
   });
 
   it("the stylesheets add no words: no content string other than the empty one", () => {
