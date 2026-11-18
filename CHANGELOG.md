@@ -6,7 +6,7 @@ Changes that matter to anyone who vendors a file from this repo. Each entry name
 
 ### The gallery page in the new layout; a fallback face for the headline font
 
-`gallery/index.html` has one new line in its `<head>`, a link to `design/gallery.css` (written by `scripts/build-design-variants.mjs`). No word on the page changed. `design/plan-c.css` and `design/card.css` gain a fallback face, local Georgia Bold scaled to Bitter's measurements, so the first layout is closer to the one Bitter gives and the page moves less when Bitter finishes loading. If you copy a `card.html` page, re-pull `design/card.css`. The card JSON and its contract are unchanged.
+`gallery/index.html` has one new line in its `<head>`, a link to `design/gallery.css` (written by `scripts/build-design-variants.mjs`). No word on the page changed. `design/plan-c.css` and `design/card.css` gain a fallback face, local Georgia Bold scaled to Bitter's measurements, sized so that, on a device with Georgia, the text laid out before Bitter loads takes about the room Bitter will. If you copy a `card.html` page, re-pull `design/card.css`. The card JSON and its contract are unchanged.
 
 ## 2026-11-17
 

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { build, seatCounts } from "../scripts/build-design-variants.mjs";
+import { build, buildFrom, seatCounts } from "../scripts/build-design-variants.mjs";
 
 // The layout stylesheets under design/ (design pass 2026-11-17, layout C picked). A page uses
 // one only if a <link rel="stylesheet"> names it. These tests compare source text: link tags read
@@ -130,18 +130,20 @@ describe("design-pass stylesheets", () => {
     assert.throws(() => seatCounts('<div class="map">\n  <div class="facts">many seats</div>\n</div>'), /"<N> seats" facts line/);
   });
 
-  it("the gallery stylesheet reads nothing from its page: no seat strips and no side column", () => {
+  it("the gallery stylesheet has no seat strips, no float and no nth- selector, and build() passes it nothing from the page", () => {
     const css = build()["gallery.css"];
     assert.doesNotMatch(css, /nth-of-type|nth-child/, "no rule places anything by position");
     assert.doesNotMatch(css, /float\s*:/, "no side column");
     assert.match(css, /\.map \.facts::before\{display:none\}/, "the shared strip box is switched off");
+    const src = fs.readFileSync(path.join(root, "scripts", "build-design-variants.mjs"), "utf8");
+    assert.match(src, /"gallery\.css": b \+ gallery\(\)/, "gallery() takes no argument");
   });
 
-  it("every layout's narrow rules are its defaults and its wide rules sit behind one min-width query, so no width falls between two", () => {
+  it("no stylesheet has a max-width query; plan-c and gallery each have exactly one, at min-width 901px", () => {
     for (const [name, css] of Object.entries(build())) {
       assert.doesNotMatch(css, /max-width\s*:\s*\d[\d.]*px\s*\)/, `${name} has no max-width media query`);
       const mins = [...css.matchAll(/@media \(min-width:(\d+)px\)/g)].map((m) => m[1]);
-      assert.ok(new Set(mins).size <= 1, `${name}: one wide breakpoint`);
+      assert.deepEqual(mins, name === "card.css" ? [] : ["901"], `${name}: its min-width queries`);
     }
   });
 
@@ -152,11 +154,18 @@ describe("design-pass stylesheets", () => {
     }
   });
 
-  it("LIMIT: build()'s guards for zero entries and the WOFF2 bytes are pinned by source text and helper tests, not by feeding build() bad files", () => {
-    const src = fs.readFileSync(path.join(root, "scripts", "build-design-variants.mjs"), "utf8");
-    assert.match(src, /index\.html has no map entries/);
-  });
-  it("LIMIT: the fallback face's numbers are measured once from the font tables; this test does not re-measure them or the shift", () => {
+  it("the build refuses no map entries, text that is not base64, and bytes without the WOFF2 signature or with the wrong length", () => {
+    const html = read("index.html");
+    const font = read("design/bitter-700-latin.woff2.b64.txt");
+    assert.ok(buildFrom(html, font)["plan-c.css"], "the real inputs build");
+    assert.throws(() => buildFrom("<main></main>", font), /no map entries/);
+    assert.throws(() => buildFrom(html, "not base64!"), /is not base64 font data/);
+    const bytes = Buffer.from(font.replace(/\s+/g, ""), "base64");
+    const sig = Buffer.from(bytes); sig.write("XXXX", 0, "latin1");
+    assert.throws(() => buildFrom(html, sig.toString("base64")), /does not decode to a WOFF2 font/, "wrong signature");
+    const len = Buffer.from(bytes); len.writeUInt32BE(len.length + 1, 8);
+    assert.throws(() => buildFrom(html, len.toString("base64")), /does not decode to a WOFF2 font/, "wrong length field");
+  });  it("LIMIT: the fallback face's numbers are measured once from the font tables; this test does not re-measure them or the shift", () => {
     // The shift itself is measured in a browser (layout-shift sources at 390 wide), not here.
     assert.match(build()["card.css"], /size-adjust:91\.12%/);
   });

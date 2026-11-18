@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// build-design-variants — writes the site's two layout stylesheets under design/.
+// build-design-variants — writes the site's three layout stylesheets under design/.
 //
 // Design pass 2026-11-17: layout C ("the register") for the front page and the matching
 // card layout; 2026-11-18 adds the gallery page's version of C. Each file restyles ONE page
@@ -23,7 +23,7 @@
 // the strips after it (LIMIT tests say both). The gallery stylesheet reads nothing from its
 // page. The font is not parsed: a file
 // that is well formed on those two points but not a usable font would still be embedded,
-// and shows up only as the fallback face in a frame. (A write that fails part way, say a
+// and a browser that rejects it would use the next font in the stack. (A write that fails part way, say a
 // full disk, can leave one file new and one old; --check then reports it.)
 //
 // Usage: node scripts/build-design-variants.mjs [--check]
@@ -125,7 +125,8 @@ ${rule(INK_DARK).split("\n").map((l) => `:root[data-theme="dark"] ${l}`).join("\
 
 const HERO = "main>h1,main>.lede,main>.lede+p,main>.lede+p+p";
 
-// C: the register. The list of systems is the first screen; the introduction is a side column.
+// C: the register. At 901px and wider the introduction is a side column beside the list of
+// systems; narrower, it sits above the list.
 // The narrow layout is the default and the wide one sits behind a single min-width query, so no
 // viewport width falls between two queries.
 function planC(counts) {
@@ -196,9 +197,14 @@ main p{max-width:64ch}
 }
 
 export function build() {
-  const counts = seatCounts(fs.readFileSync(path.join(root, "index.html"), "utf8"));
+  return buildFrom(fs.readFileSync(path.join(root, "index.html"), "utf8"), fs.readFileSync(FONT, "utf8"));
+}
+
+// The same build from given inputs, so the refusals can be tested by feeding it bad ones.
+export function buildFrom(indexHtml, fontText) {
+  const counts = seatCounts(indexHtml);
   if (counts.length === 0) throw new Error("index.html has no map entries");
-  const fontB64 = fs.readFileSync(FONT, "utf8").replace(/\s+/g, "");
+  const fontB64 = fontText.replace(/\s+/g, "");
   if (!/^[A-Za-z0-9+/]+=*$/.test(fontB64) || fontB64.length < 1000) throw new Error(`${FONT} is not base64 font data`);
   const bytes = Buffer.from(fontB64, "base64");
   // A WOFF2 file starts with the signature "wOF2" and records its own total length at byte 8.
