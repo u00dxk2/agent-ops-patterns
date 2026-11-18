@@ -2,18 +2,20 @@
 // build-design-variants — writes the site's two layout stylesheets under design/.
 //
 // Design pass 2026-11-17: layout C ("the register") for the front page and the matching
-// card layout, picked on a blind review. Each file is a complete stylesheet for ONE page
-// type. A page uses it only if its <head> carries a <link rel="stylesheet"> to it AFTER
-// the page's own <style>: index.html links plan-c.css, and every card page written by
+// card layout. Each file restyles ONE page type on top of that page's own inline <style>.
+// A page uses it only if its <head> carries a <link rel="stylesheet"> to it AFTER that
+// <style>: index.html links plan-c.css, and every card page written by
 // scripts/render-decides-card.mjs links card.css. Rolling back is deleting that line.
-// The two layouts not picked (A and B) were removed; nothing unlinked is served.
+// The two layouts not picked (A and B) were removed from the repository.
 //
 // The stylesheets add no words. Seat marks are background images on empty pseudo-elements,
 // drawn from the seat counts index.html already prints ("171 seats …"), so a count that
 // changes on the page changes the drawing on the next build, and --check goes red until then.
 //
-// Failure posture: fail-closed. A map entry with no readable seat count, or a missing font
-// file, stops the build with exit 1 and writes nothing.
+// Failure posture: fail-closed on its inputs. A map entry the reader cannot parse, a map
+// entry with no readable seat count, or a font file that is missing or is not WOFF2 data
+// stops the build with exit 1 before any file is written. (A write that fails part way,
+// say a full disk, can still leave one file new and one old; --check then reports it.)
 //
 // Usage: node scripts/build-design-variants.mjs [--check]
 //   exit 0 written / up to date · 1 failed or (with --check) a file differs · 2 usage
@@ -26,8 +28,13 @@ const OUT = path.join(root, "design");
 const FONT = path.join(OUT, "bitter-700-latin.woff2.b64.txt");
 
 // Seat counts, in page order, read from the front page's own "facts" lines.
+// Every element whose class list holds "map" must be one this reader parses; a map entry it
+// would skip shifts every later strip onto the wrong row, so that is an error, not a skip.
 export function seatCounts(html) {
-  const cards = [...html.replace(/\r\n/g, "\n").matchAll(/<div class="map">\n([\s\S]*?)\n<\/div>/g)].map((m) => m[1]);
+  const text = html.replace(/\r\n/g, "\n").replace(/<!--[\s\S]*?-->/g, "");
+  const cards = [...text.matchAll(/<div class="map">\n([\s\S]*?)\n<\/div>/g)].map((m) => m[1]);
+  const marked = [...text.matchAll(/class\s*=\s*["'][^"']*\bmap\b[^"']*["']/g)].length;
+  if (marked !== cards.length) throw new Error(`index.html has ${marked} map entries but this reader parses ${cards.length}; change the reader with the markup`);
   return cards.map((c, i) => {
     const facts = c.match(/<div class="facts">(\d+) seats\b/);
     if (!facts) throw new Error(`map entry ${i + 1} on index.html has no "<N> seats" facts line`);
@@ -139,6 +146,9 @@ export function build() {
   if (counts.length === 0) throw new Error("index.html has no map entries");
   const fontB64 = fs.readFileSync(FONT, "utf8").replace(/\s+/g, "");
   if (!/^[A-Za-z0-9+/]+=*$/.test(fontB64) || fontB64.length < 1000) throw new Error(`${FONT} is not base64 font data`);
+  const bytes = Buffer.from(fontB64, "base64");
+  // A WOFF2 file starts with the signature "wOF2" and records its own total length at byte 8.
+  if (bytes.subarray(0, 4).toString("latin1") !== "wOF2" || bytes.readUInt32BE(8) !== bytes.length) throw new Error(`${FONT} does not decode to a WOFF2 font`);
   const b = base(fontB64);
   return {
     "plan-c.css": b + planC(counts),

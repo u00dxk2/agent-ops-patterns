@@ -6,10 +6,11 @@ import { fileURLToPath } from "node:url";
 import { build, seatCounts } from "../scripts/build-design-variants.mjs";
 
 // The layout stylesheets under design/ (design pass 2026-11-17, layout C picked). A page uses
-// one only if its <head> links it. These tests pin WHICH pages link WHICH stylesheet (the front
-// page links plan-c.css, every card page links card.css, nothing else links either), keep the
-// two layouts not picked out of the served tree, and keep the drawn seat marks equal to the
-// counts the front page prints.
+// one only if its <head> links it. These tests read source files: they pin WHICH pages name
+// WHICH stylesheet outside an HTML comment (the front page plan-c.css, every card page
+// card.css, nothing else either), that design/ holds only those files, that the stylesheets
+// carry no content string, and that the builder reads one seat count per map entry. They do
+// not decode the drawn marks; see the LIMIT test.
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (rel) => fs.readFileSync(path.join(root, rel), "utf8").replace(/\r\n/g, "\n");
@@ -25,7 +26,8 @@ function htmlPages(dir = root, out = []) {
 }
 
 // Every design-folder stylesheet a page source names, in order.
-const designLinks = (html) => [...html.matchAll(/design\/[\w-]+\.css|plan-[abc]\.css/g)].map((m) => m[0]);
+const designLinks = (html) => [...html.replace(/<!--[\s\S]*?-->/g, "").matchAll(/design\/[\w-]+\.css|plan-[abc]\.css/g)].map((m) => m[0]);
+const contentValues = (css) => [...css.matchAll(/content\s*:\s*("[^"]*"|'[^']*'|[^;}]+)/g)].map((m) => m[1].trim());
 const FRONT_LINK = '</style>\n<link rel="stylesheet" href="./design/plan-c.css">\n</head>';
 const CARD_LINK = '</style>\n<link rel="stylesheet" href="../../design/card.css">\n</head>';
 
@@ -56,6 +58,16 @@ describe("design-pass stylesheets", () => {
     assert.deepEqual(designLinks('<link rel="stylesheet" href="./design/plan-a.css">'), ["design/plan-a.css"]);
     assert.deepEqual(designLinks('<link rel="stylesheet" href="../../design/card.css">'), ["design/card.css"]);
     assert.deepEqual(designLinks("<p>the design of the plan</p>"), []);
+    assert.deepEqual(designLinks('<!-- <link rel="stylesheet" href="./design/plan-c.css"> -->'), [], "a link inside a comment is not a link");
+    assert.deepEqual(contentValues('.x::before{content : "Seat key"}'), ['"Seat key"'], "spacing around the colon does not hide a content string");
+  });
+
+  it("the builder refuses a map entry it would skip, and a font file that is not WOFF2", () => {
+    const entry = (cls, n) => `<div class="${cls}">\n  <div class="facts">${n} seats</div>\n</div>`;
+    assert.deepEqual(seatCounts(`${entry("map", 3)}\n${entry("map", 5)}`), [3, 5]);
+    assert.throws(() => seatCounts(`${entry("map featured", 3)}\n${entry("map", 5)}`), /2 map entries but this reader parses 1/);
+    const src = fs.readFileSync(path.join(root, "scripts", "build-design-variants.mjs"), "utf8");
+    assert.match(src, /"wOF2"/, "the font check reads the WOFF2 signature");
   });
 
   it("the two layouts not picked are gone: design/ holds only what is served", () => {
@@ -79,7 +91,7 @@ describe("design-pass stylesheets", () => {
 
   it("the stylesheets add no words: no content string other than the empty one", () => {
     for (const css of Object.values(build())) {
-      const contents = [...css.matchAll(/content:\s*("[^"]*"|'[^']*'|[^;}]+)/g)].map((m) => m[1].trim());
+      const contents = contentValues(css);
       assert.ok(contents.length > 0, "found content declarations (if none, the pattern stopped matching)");
       for (const c of contents) assert.equal(c, '""', `a pseudo-element carries content ${c}`);
     }
@@ -87,8 +99,15 @@ describe("design-pass stylesheets", () => {
 
   it("LIMIT: the no-words check reads content declarations only; text drawn inside a background image is not seen", () => {
     const css = '.x::before{content:"";background:url("data:image/svg+xml,%3Csvg%3E%3Ctext%3Ehello%3C/text%3E%3C/svg%3E")}';
-    const contents = [...css.matchAll(/content:\s*("[^"]*"|'[^']*'|[^;}]+)/g)].map((m) => m[1].trim());
-    assert.deepEqual(contents, ['""']);
+    assert.deepEqual(contentValues(css), ['""']);
+  });
+
+  it("LIMIT: the drawn marks are not decoded; a builder that drew one mark too many would still match its own output", () => {
+    // The file-equals-build test pins design/ to the builder, and the seat-count test pins what
+    // the builder READS; neither counts the squares in the SVG it writes. (Codex counted all
+    // strips against the printed counts by hand on 2026-11-17; that is not a standing check.)
+    const css = fs.readFileSync(path.join(root, "design", "plan-c.css"), "utf8");
+    assert.match(css, /data:image\/svg\+xml/);
   });
 
   it("LIMIT: this reads files on disk; whether a browser renders a variant as drawn is checked by frames, not here", () => {
