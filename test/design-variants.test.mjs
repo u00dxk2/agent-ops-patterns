@@ -40,9 +40,12 @@ const contentValues = (css) => [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll
 const FRONT_LINK = '</style>\n<link rel="stylesheet" href="./design/plan-c.css">\n</head>';
 const CARD_LINK = '</style>\n<link rel="stylesheet" href="../../design/card.css">\n</head>';
 const GALLERY_LINK = '</style>\n<link rel="stylesheet" href="../design/gallery.css">\n</head>';
-// Map pages: their builders write </head> straight after the link (gallery/<slug>/) or on the next
-// line (edition 1, written once on 2026-10-13); both are "right after </style>, before </head>".
-const mapLink = (prefix) => new RegExp(`</style>\\n<link rel="stylesheet" href="${prefix.replace(/\./g, "\\.")}design/map\\.css">\\n?</head>`);
+// Map pages: the exact bytes around the link. The twelve builders write </head><body><main> straight
+// after it; edition 1 (written once on 2026-10-13) has </head> on the next line. The rule is these
+// exact bytes plus ONE mention of map.css in the whole raw file, so a copy in a comment, a second
+// link, or a link spelled another way fails rather than being parsed.
+const MAP_LINK = '</style>\n<link rel="stylesheet" href="../../design/map.css"></head><body><main>';
+const EDITION_LINK = '</style>\n<link rel="stylesheet" href="../../../design/map.css">\n</head>';
 const MAP_PAGES = ["agno", "anythingllm", "browser-use", "cline", "codex", "deer-flow", "goose", "hermes", "langchain", "opencode", "openhands", "pi"];
 
 describe("design-pass stylesheets", () => {
@@ -67,8 +70,8 @@ describe("design-pass stylesheets", () => {
       } else if (MAP_PAGES.some((s) => rel === `gallery/${s}/index.html`) || rel === "gallery/openhands/edition-1/index.html") {
         maps++;
         assert.deepEqual(links, ["design/map.css"], `${rel} links map.css once`);
-        const prefix = rel.endsWith("edition-1/index.html") ? "../../../" : "../../";
-        assert.match(html.replace(/<!--[\s\S]*?-->/g, ""), mapLink(prefix), `${rel}: the link sits right after </style>, before </head> (comments removed first)`);
+        assert.ok(html.includes(rel.endsWith("edition-1/index.html") ? EDITION_LINK : MAP_LINK), `${rel}: the link is written exactly as expected, right after </style>`);
+        assert.equal(html.split("map.css").length - 1, 1, `${rel}: map.css is mentioned exactly once in the raw file`);
       } else {
         assert.deepEqual(links, [], `${rel} links a design stylesheet`);
       }
@@ -170,40 +173,31 @@ describe("design-pass stylesheets", () => {
     }
   });
 
-  // The map rules may use only these selectors and properties. The rule is a list, not a pattern:
-  // anything not listed is refused, so a positional selector, a hiding property or a re-ordering one
-  // cannot pass by being spelled in a way a pattern did not foresee. Adding to a list is a decision.
-  const MAP_SELECTORS = new Set([":root", ':root:not([data-theme="light"])', ':root[data-theme="dark"]', "h1", "h2", "h3", "a",
-    ".banner", ".box", "details.seat", "details.fold", "pre", ".q", ".flow span.node", "nav.sticky a", "nav.sticky button", "#dl",
-    "details.seat>summary", "nav.sticky", "th"]);
-  const MAP_PROPERTIES = new Set(["--chip", "font", "font-family", "font-weight", "text-wrap", "margin", "padding", "color",
-    "border-radius", "border-top", "border-right", "border-bottom", "background"]);
-  const mapRules = (css) => {
-    const body = css.replace(/\/\*[\s\S]*?\*\//g, "").replace(/@media[^{]*\{([^{}]*\{[^{}]*\})\s*\}/g, "$1");
-    return [...body.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({
-      selectors: m[1].split(",").map((s) => s.trim()),
-      properties: m[2].split(";").map((d) => d.split(":")[0].trim().toLowerCase()).filter(Boolean),
-    }));
-  };
-  const mapViolations = (css) => mapRules(css).flatMap((r) => [
-    ...r.selectors.filter((s) => !MAP_SELECTORS.has(s)).map((s) => `selector ${s}`),
-    ...r.properties.filter((p) => !MAP_PROPERTIES.has(p)).map((p) => `property ${p}`),
-  ]);
-  const mapPart = (css) => css.split("/* map: a full decision map in the register */")[1];
+  // The map rules are pinned to the text that was reviewed (Codex rounds 1-3, 2026-11-20). Two rounds
+  // found ways past a parser-based guard, so this is not a parser: any change to the rules, however
+  // spelled, fails here until the text below is changed with it, which is the review point. What the
+  // reviewed text does (no positional or sibling selector, nothing hidden, added or reordered, the
+  // seat colours untouched) was judged by reading it, not by this test.
+  const MAP_RULES_REVIEWED = `/* map: a full decision map in the register */
+:root{--chip:#e8eef0}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--chip:#202a2f}}
+:root[data-theme="dark"]{--chip:#202a2f}
+h1{font:700 clamp(1.9rem,4.6vw,2.6rem)/1.1 var(--display);text-wrap:balance;margin:24px 0 12px}
+h2{margin:48px 0 12px}
+h3{font-family:var(--display);font-weight:700}
+a{color:var(--link)}
+.banner,.box,details.seat,details.fold,pre,.q,.flow span.node,nav.sticky a,nav.sticky button,#dl{border-radius:0}
+details.seat{border-top:0;border-right:0;border-bottom:1px solid var(--line);background:none;margin:0}
+details.seat>summary{padding:12px 0}
+nav.sticky{border-bottom:2px solid var(--fg)}
+th{background:none;border-bottom:2px solid var(--fg)}
+`;
 
-  it("the map stylesheet uses only the listed selectors and properties", () => {
-    const css = mapPart(build()["map.css"]);
-    assert.ok(css && mapRules(css).length >= 10, "found the map rules (if not, the marker comment changed)");
-    assert.deepEqual(mapViolations(css), []);
-  });
-
-  it("the selector and property lists refuse what they should", () => {
-    for (const bad of ["details:last-of-type{margin:0}", "div:only-child{margin:0}", "main{DISPLAY:none}", "main{flex-direction:column-reverse}",
-      "h2+p{margin:0}", "main{order:2}", "h1::before{content:\"x\"}", ":root{--mr:#000}", "@media (min-width:1px){main{visibility:hidden}}"]) {
-      assert.notDeepEqual(mapViolations(bad), [], bad);
-    }
-    assert.deepEqual(mapViolations("h2{margin:calc(1rem + 2px)}"), [], "a value with + is not a selector");
-    assert.deepEqual(mapViolations("details.seat>summary{padding:0}"), [], "the child combinator in a listed selector");
+  it("map.css is the shared base followed by exactly the reviewed map rules", () => {
+    const files = build();
+    const base = files["card.css"].slice(0, files["card.css"].indexOf("/* card: the key to the plan */"));
+    assert.ok(base.length > 1000, "found the shared base (if not, the card marker comment changed)");
+    assert.equal(files["map.css"], base + MAP_RULES_REVIEWED);
   });
 
   it("the phone-shift fallback face is in every stylesheet and sits right after Bitter in the display stack", () => {

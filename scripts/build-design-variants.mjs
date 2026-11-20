@@ -8,7 +8,7 @@
 // page, the twelve cards (written by scripts/render-decides-card.mjs) and the thirteen map pages
 // (twelve maps and OpenHands edition 1, written by builders outside this repository) link their
 // stylesheet immediately after their inline style.
-// Rolling back is reverting the commit that added the link. (On the front page, gallery and cards
+// Rolling back is reverting the commits that added the link, newest first. (On the front page, gallery and cards
 // the link is a line of its own; on twelve map pages it shares its line with </head><body><main>,
 // so deleting that whole line would also delete the page's <main>.)
 // The two layouts not picked (A and B) are not part of this site.
@@ -202,8 +202,8 @@ main p{max-width:64ch}
 
 // A full map page: the register's palette, display type and rules over the map's own layout. Its
 // selectors are element, class, one id (#dl, the download button) and :root with the theme attribute;
-// none is positional or picks by a sibling, and nothing hides, adds or reorders content. The test
-// holds these rules to a fixed list of selectors and properties, so a new one is refused until listed.
+// none is positional or picks by a sibling, and nothing hides, adds or reorders content (judged by
+// reading the rules). The test pins this text exactly, so any change to it fails until reviewed.
 // The seat colours (--mr, --ml, --hr) keep their meaning and are not redefined; --chip follows the
 // register's neutral.
 function map() {
