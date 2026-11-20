@@ -12,8 +12,8 @@ new layout only if its `<head>` links one of them.
 No page's words changed when it moved; the visible text and the accessibility tree were compared against `main`
 before each move.
 
-Status: **DONE** = in the new layout and live · **DONE pending live read** = in the new layout on `main`, not yet read
-on the live site · **NEXT** = to move, with a date to re-check · **HOLD** = not moving
+Status: **DONE** = in the new layout and live · **DONE pending live read** = in the new layout in source, awaiting a
+live-site check · **NEXT** = to move, with a date to re-check · **HOLD** = not moving
 yet, and why · **UNREACHED** = served, but not a page this repository designs.
 
 Built from the served tree (`git ls-files`) on 2026-11-17.

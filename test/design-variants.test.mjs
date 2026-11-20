@@ -40,9 +40,9 @@ const contentValues = (css) => [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll
 const FRONT_LINK = '</style>\n<link rel="stylesheet" href="./design/plan-c.css">\n</head>';
 const CARD_LINK = '</style>\n<link rel="stylesheet" href="../../design/card.css">\n</head>';
 const GALLERY_LINK = '</style>\n<link rel="stylesheet" href="../design/gallery.css">\n</head>';
-// Map pages: the exact bytes around the link. The twelve builders write </head><body><main> straight
-// after it; edition 1 (written once on 2026-10-13) has </head> on the next line. The rule is these
-// exact bytes plus ONE literal "map.css" in the raw file. This is a text check, not an HTML parse:
+// Map pages: the snippet around the link. The twelve builders write </head><body><main> straight
+// after it; edition 1 (written once on 2026-10-13) has </head> on the next line. The check matches the
+// expected snippet after line-ending normalization and counts one literal `map.css`. This is a text check, not an HTML parse:
 // it catches a missing, edited or doubled link written the ordinary way, and the LIMIT test below
 // names what it cannot see. Whether a browser loads the sheet is checked by the frames run.
 const MAP_LINK = '</style>\n<link rel="stylesheet" href="../../design/map.css"></head><body><main>';
@@ -194,7 +194,7 @@ nav.sticky{border-bottom:2px solid var(--fg)}
 th{background:none;border-bottom:2px solid var(--fg)}
 `;
 
-  it("LIMIT: the map link check reads text, so markup a browser would not load as a link can still pass", () => {
+  it("LIMIT: an inert script and an off-site <base> can satisfy the snippet and literal-count checks", () => {
     // Each of these holds the expected bytes and one literal "map.css", so the text check accepts it,
     // although a browser would load no stylesheet (inert script) or a different one (<base>).
     const ok = (html) => html.includes(MAP_LINK) && html.split("map.css").length - 1 === 1;
@@ -202,9 +202,9 @@ th{background:none;border-bottom:2px solid var(--fg)}
     assert.ok(ok(`<base href="https://example.invalid/"><style>${MAP_LINK}`), "behind a <base> that redirects the href");
   });
 
-  it("LIMIT: the shared base is whatever card.css carries; only the map rules after it are pinned here", () => {
-    // A change to the shared base reaches all four stylesheets and passes this file's map pin. The
-    // base was reviewed with the front page and cards (2026-11-17, 2026-11-18), not in this test.
+  it("LIMIT: the first 500 characters of generated map.css and card.css match; the shared base itself is not pinned here", () => {
+    // The following test derives the shared prefix from generated card.css and pins the map suffix.
+    // The base was reviewed with the front page and cards (2026-11-17, 2026-11-18), not in this test.
     const files = build();
     assert.ok(files["map.css"].startsWith(files["card.css"].slice(0, 500)));
   });
