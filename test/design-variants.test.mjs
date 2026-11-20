@@ -68,7 +68,7 @@ describe("design-pass stylesheets", () => {
         maps++;
         assert.deepEqual(links, ["design/map.css"], `${rel} links map.css once`);
         const prefix = rel.endsWith("edition-1/index.html") ? "../../../" : "../../";
-        assert.match(html, mapLink(prefix), `${rel}: the link sits right after </style>, before </head>`);
+        assert.match(html.replace(/<!--[\s\S]*?-->/g, ""), mapLink(prefix), `${rel}: the link sits right after </style>, before </head> (comments removed first)`);
       } else {
         assert.deepEqual(links, [], `${rel} links a design stylesheet`);
       }
@@ -77,11 +77,11 @@ describe("design-pass stylesheets", () => {
     assert.equal(maps, 13, "twelve map pages and OpenHands edition 1 link map.css");
   });
 
-  it("every map page under gallery/ is one the list above names (a new map must be added there)", () => {
-    const found = fs.readdirSync(path.join(root, "gallery"), { withFileTypes: true })
-      .filter((d) => d.isDirectory() && fs.existsSync(path.join(root, "gallery", d.name, "index.html")))
-      .map((d) => d.name).sort();
-    assert.deepEqual(found, [...MAP_PAGES].sort());
+  it("every index.html under gallery/, at any depth, is the gallery page or one of the 13 listed map pages", () => {
+    const found = htmlPages(path.join(root, "gallery"))
+      .map((p) => path.relative(root, p).split(path.sep).join("/"))
+      .filter((rel) => rel.endsWith("/index.html") && rel !== "gallery/index.html").sort();
+    assert.deepEqual(found, [...MAP_PAGES.map((s) => `gallery/${s}/index.html`), "gallery/openhands/edition-1/index.html"].sort());
   });
 
   it("the link check reads what it should", () => {
@@ -97,6 +97,11 @@ describe("design-pass stylesheets", () => {
     assert.deepEqual(contentValues('.x::before{content:"" "Seat key"}'), ['"" "Seat key"'], "words after an empty string are part of the value");
     assert.deepEqual(designLinks('<link rel="canonical" data-rel="stylesheet" href="./design/plan-c.css">'), [], "data-rel is not rel");
     assert.deepEqual(designLinks('<link rel="stylesheet-disabled" href="./design/plan-c.css">'), [], "a longer rel word is not stylesheet");
+  });
+
+  it("LIMIT: a rel value with spaces inside its quotes is valid HTML but is not read as a stylesheet link here", () => {
+    // So a stray link written that way on another page would not be caught by the link test above.
+    assert.deepEqual(designLinks('<link rel=" stylesheet " href="./design/plan-c.css">'), []);
   });
 
   it("the builder refuses a map entry written another way, and font bytes without the WOFF2 signature", () => {
@@ -165,12 +170,40 @@ describe("design-pass stylesheets", () => {
     }
   });
 
-  it("the map stylesheet places nothing by position and hides nothing", () => {
-    const css = build()["map.css"].split("/* map: a full decision map in the register */")[1];
-    assert.ok(css && css.length > 100, "found the map rules (if not, the marker comment changed)");
-    assert.doesNotMatch(css, /nth-of-type|nth-child|first-child|last-child|:has\(|[+~]/, "no rule picks an element by position or by a sibling");
-    assert.doesNotMatch(css, /display\s*:\s*none|visibility\s*:\s*hidden|content\s*:|order\s*:/, "no rule hides, adds or reorders content");
-    assert.doesNotMatch(css, /--(mr|ml|hr)\s*:/, "the seat colours keep their meaning");
+  // The map rules may use only these selectors and properties. The rule is a list, not a pattern:
+  // anything not listed is refused, so a positional selector, a hiding property or a re-ordering one
+  // cannot pass by being spelled in a way a pattern did not foresee. Adding to a list is a decision.
+  const MAP_SELECTORS = new Set([":root", ':root:not([data-theme="light"])', ':root[data-theme="dark"]', "h1", "h2", "h3", "a",
+    ".banner", ".box", "details.seat", "details.fold", "pre", ".q", ".flow span.node", "nav.sticky a", "nav.sticky button", "#dl",
+    "details.seat>summary", "nav.sticky", "th"]);
+  const MAP_PROPERTIES = new Set(["--chip", "font", "font-family", "font-weight", "text-wrap", "margin", "padding", "color",
+    "border-radius", "border-top", "border-right", "border-bottom", "background"]);
+  const mapRules = (css) => {
+    const body = css.replace(/\/\*[\s\S]*?\*\//g, "").replace(/@media[^{]*\{([^{}]*\{[^{}]*\})\s*\}/g, "$1");
+    return [...body.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({
+      selectors: m[1].split(",").map((s) => s.trim()),
+      properties: m[2].split(";").map((d) => d.split(":")[0].trim().toLowerCase()).filter(Boolean),
+    }));
+  };
+  const mapViolations = (css) => mapRules(css).flatMap((r) => [
+    ...r.selectors.filter((s) => !MAP_SELECTORS.has(s)).map((s) => `selector ${s}`),
+    ...r.properties.filter((p) => !MAP_PROPERTIES.has(p)).map((p) => `property ${p}`),
+  ]);
+  const mapPart = (css) => css.split("/* map: a full decision map in the register */")[1];
+
+  it("the map stylesheet uses only the listed selectors and properties", () => {
+    const css = mapPart(build()["map.css"]);
+    assert.ok(css && mapRules(css).length >= 10, "found the map rules (if not, the marker comment changed)");
+    assert.deepEqual(mapViolations(css), []);
+  });
+
+  it("the selector and property lists refuse what they should", () => {
+    for (const bad of ["details:last-of-type{margin:0}", "div:only-child{margin:0}", "main{DISPLAY:none}", "main{flex-direction:column-reverse}",
+      "h2+p{margin:0}", "main{order:2}", "h1::before{content:\"x\"}", ":root{--mr:#000}", "@media (min-width:1px){main{visibility:hidden}}"]) {
+      assert.notDeepEqual(mapViolations(bad), [], bad);
+    }
+    assert.deepEqual(mapViolations("h2{margin:calc(1rem + 2px)}"), [], "a value with + is not a selector");
+    assert.deepEqual(mapViolations("details.seat>summary{padding:0}"), [], "the child combinator in a listed selector");
   });
 
   it("the phone-shift fallback face is in every stylesheet and sits right after Bitter in the display stack", () => {
