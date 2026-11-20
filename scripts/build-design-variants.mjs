@@ -1,11 +1,13 @@
 #!/usr/bin/env node
-// build-design-variants — writes the site's three layout stylesheets under design/.
+// build-design-variants — writes the site's four layout stylesheets under design/.
 //
 // Design pass 2026-11-17: layout C ("the register") for the front page and the matching
-// card layout; 2026-11-18 adds the gallery page's version of C. Each file restyles ONE page
-// type on top of that page's own inline <style>. A page uses it only if a <link rel="stylesheet">
-// names it; at this commit the front page, the gallery page and the twelve cards (written by
-// scripts/render-decides-card.mjs) link their stylesheet immediately after their inline style.
+// card layout; 2026-11-18 adds the gallery page's version of C; 2026-11-20 adds map.css for the
+// full map pages. Each file restyles ONE page type on top of that page's own inline <style>. A page
+// uses it only if a <link rel="stylesheet"> names it; at this commit the front page, the gallery
+// page, the twelve cards (written by scripts/render-decides-card.mjs) and the thirteen map pages
+// (twelve maps and OpenHands edition 1, written by builders outside this repository) link their
+// stylesheet immediately after their inline style.
 // Rolling back is deleting that line.
 // The two layouts not picked (A and B) are not part of this site.
 //
@@ -196,6 +198,27 @@ main p{max-width:64ch}
 `;
 }
 
+// A full map page: the register's palette, display type and rules over the map's own layout. Element
+// and class selectors only, so nothing is placed by position; nothing hides, adds or reorders content.
+// The seat colours (--mr, --ml, --hr) keep their meaning and are not redefined; --chip follows the
+// register's neutral.
+function map() {
+  return `/* map: a full decision map in the register */
+:root{--chip:#e8eef0}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--chip:#202a2f}}
+:root[data-theme="dark"]{--chip:#202a2f}
+h1{font:700 clamp(1.9rem,4.6vw,2.6rem)/1.1 var(--display);text-wrap:balance;margin:24px 0 12px}
+h2{margin:48px 0 12px}
+h3{font-family:var(--display);font-weight:700}
+a{color:var(--link)}
+.banner,.box,details.seat,details.fold,pre,.q,.flow span.node,nav.sticky a,nav.sticky button,#dl{border-radius:0}
+details.seat{border-top:0;border-right:0;border-bottom:1px solid var(--line);background:none;margin:0}
+details.seat>summary{padding:12px 0}
+nav.sticky{border-bottom:2px solid var(--fg)}
+th{background:none;border-bottom:2px solid var(--fg)}
+`;
+}
+
 export function build() {
   return buildFrom(fs.readFileSync(path.join(root, "index.html"), "utf8"), fs.readFileSync(FONT, "utf8"));
 }
@@ -217,6 +240,7 @@ export function buildFrom(indexHtml, fontText) {
     "plan-c.css": b + planC(counts),
     "card.css": b + card(),
     "gallery.css": b + gallery(),
+    "map.css": b + map(),
   };
 }
 

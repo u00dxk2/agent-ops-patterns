@@ -2,6 +2,12 @@
 
 Changes that matter to anyone who vendors a file from this repo. Each entry names the files to re-pull.
 
+## 2026-11-20
+
+### The map pages in the new layout
+
+The twelve `gallery/<slug>/index.html` map pages and `gallery/openhands/edition-1/index.html` each have one new line in their `<head>`: a link to `design/map.css` (written by `scripts/build-design-variants.mjs`). No word on any page changed. If you copy a map page, its link points at `../../design/map.css` (`../../../` for edition 1); without that file the page shows in its old inline style. The card JSON and its contract are unchanged; nothing to re-pull from `gallery/cards/`.
+
 ## 2026-11-18
 
 ### The gallery page in the new layout; a fallback face for the headline font

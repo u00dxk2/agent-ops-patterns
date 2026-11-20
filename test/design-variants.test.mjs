@@ -40,12 +40,16 @@ const contentValues = (css) => [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll
 const FRONT_LINK = '</style>\n<link rel="stylesheet" href="./design/plan-c.css">\n</head>';
 const CARD_LINK = '</style>\n<link rel="stylesheet" href="../../design/card.css">\n</head>';
 const GALLERY_LINK = '</style>\n<link rel="stylesheet" href="../design/gallery.css">\n</head>';
+// Map pages: their builders write </head> straight after the link (gallery/<slug>/) or on the next
+// line (edition 1, written once on 2026-10-13); both are "right after </style>, before </head>".
+const mapLink = (prefix) => new RegExp(`</style>\\n<link rel="stylesheet" href="${prefix.replace(/\./g, "\\.")}design/map\\.css">\\n?</head>`);
+const MAP_PAGES = ["agno", "anythingllm", "browser-use", "cline", "codex", "deer-flow", "goose", "hermes", "langchain", "opencode", "openhands", "pi"];
 
 describe("design-pass stylesheets", () => {
-  it("only the front page, the gallery page and the card pages link a layout, each exactly once, after the page's own style", () => {
+  it("only the front page, the gallery page, the card pages and the map pages link a layout, each exactly once, after the page's own style", () => {
     const pages = htmlPages();
     assert.ok(pages.length >= 14, `found ${pages.length} pages (if fewer, the walk stopped matching)`);
-    let cards = 0;
+    let cards = 0, maps = 0;
     for (const p of pages) {
       const rel = path.relative(root, p).split(path.sep).join("/");
       const html = fs.readFileSync(p, "utf8").replace(/\r\n/g, "\n");
@@ -60,11 +64,24 @@ describe("design-pass stylesheets", () => {
         cards++;
         assert.deepEqual(links, ["design/card.css"], `${rel} links card.css once`);
         assert.ok(html.includes(CARD_LINK), `${rel}: the link sits right after </style>, before </head>`);
+      } else if (MAP_PAGES.some((s) => rel === `gallery/${s}/index.html`) || rel === "gallery/openhands/edition-1/index.html") {
+        maps++;
+        assert.deepEqual(links, ["design/map.css"], `${rel} links map.css once`);
+        const prefix = rel.endsWith("edition-1/index.html") ? "../../../" : "../../";
+        assert.match(html, mapLink(prefix), `${rel}: the link sits right after </style>, before </head>`);
       } else {
         assert.deepEqual(links, [], `${rel} links a design stylesheet`);
       }
     }
     assert.equal(cards, fs.readdirSync(path.join(root, "gallery", "cards")).filter((f) => f.endsWith(".json")).length, "one linked card page per card JSON");
+    assert.equal(maps, 13, "twelve map pages and OpenHands edition 1 link map.css");
+  });
+
+  it("every map page under gallery/ is one the list above names (a new map must be added there)", () => {
+    const found = fs.readdirSync(path.join(root, "gallery"), { withFileTypes: true })
+      .filter((d) => d.isDirectory() && fs.existsSync(path.join(root, "gallery", d.name, "index.html")))
+      .map((d) => d.name).sort();
+    assert.deepEqual(found, [...MAP_PAGES].sort());
   });
 
   it("the link check reads what it should", () => {
@@ -114,12 +131,12 @@ describe("design-pass stylesheets", () => {
 
   it("the two layouts not picked are gone: design/ holds only what is served", () => {
     const files = fs.readdirSync(path.join(root, "design")).sort();
-    assert.deepEqual(files, ["OFL.txt", "bitter-700-latin.woff2.b64.txt", "card.css", "gallery.css", "plan-c.css"]);
+    assert.deepEqual(files, ["OFL.txt", "bitter-700-latin.woff2.b64.txt", "card.css", "gallery.css", "map.css", "plan-c.css"]);
   });
 
   it("each file under design/ is exactly what the builder writes from index.html today", () => {
     const files = build();
-    assert.deepEqual(Object.keys(files).sort(), ["card.css", "gallery.css", "plan-c.css"]);
+    assert.deepEqual(Object.keys(files).sort(), ["card.css", "gallery.css", "map.css", "plan-c.css"]);
     for (const [name, css] of Object.entries(files)) assert.equal(read(`design/${name}`), css, `design/${name} is stale: run node scripts/build-design-variants.mjs`);
   });
 
@@ -144,8 +161,16 @@ describe("design-pass stylesheets", () => {
     for (const [name, css] of Object.entries(build())) {
       assert.doesNotMatch(css, /max-width\s*:\s*\d[\d.]*px\s*\)/, `${name} has no max-width media query`);
       const mins = [...css.matchAll(/@media \(min-width:(\d+)px\)/g)].map((m) => m[1]);
-      assert.deepEqual(mins, name === "card.css" ? [] : ["901"], `${name}: its min-width queries`);
+      assert.deepEqual(mins, name === "card.css" || name === "map.css" ? [] : ["901"], `${name}: its min-width queries`);
     }
+  });
+
+  it("the map stylesheet places nothing by position and hides nothing", () => {
+    const css = build()["map.css"].split("/* map: a full decision map in the register */")[1];
+    assert.ok(css && css.length > 100, "found the map rules (if not, the marker comment changed)");
+    assert.doesNotMatch(css, /nth-of-type|nth-child|first-child|last-child|:has\(|[+~]/, "no rule picks an element by position or by a sibling");
+    assert.doesNotMatch(css, /display\s*:\s*none|visibility\s*:\s*hidden|content\s*:|order\s*:/, "no rule hides, adds or reorders content");
+    assert.doesNotMatch(css, /--(mr|ml|hr)\s*:/, "the seat colours keep their meaning");
   });
 
   it("the phone-shift fallback face is in every stylesheet and sits right after Bitter in the display stack", () => {
