@@ -42,8 +42,9 @@ const CARD_LINK = '</style>\n<link rel="stylesheet" href="../../design/card.css"
 const GALLERY_LINK = '</style>\n<link rel="stylesheet" href="../design/gallery.css">\n</head>';
 // Map pages: the exact bytes around the link. The twelve builders write </head><body><main> straight
 // after it; edition 1 (written once on 2026-10-13) has </head> on the next line. The rule is these
-// exact bytes plus ONE mention of map.css in the whole raw file, so a copy in a comment, a second
-// link, or a link spelled another way fails rather than being parsed.
+// exact bytes plus ONE literal "map.css" in the raw file. This is a text check, not an HTML parse:
+// it catches a missing, edited or doubled link written the ordinary way, and the LIMIT test below
+// names what it cannot see. Whether a browser loads the sheet is checked by the frames run.
 const MAP_LINK = '</style>\n<link rel="stylesheet" href="../../design/map.css"></head><body><main>';
 const EDITION_LINK = '</style>\n<link rel="stylesheet" href="../../../design/map.css">\n</head>';
 const MAP_PAGES = ["agno", "anythingllm", "browser-use", "cline", "codex", "deer-flow", "goose", "hermes", "langchain", "opencode", "openhands", "pi"];
@@ -70,8 +71,8 @@ describe("design-pass stylesheets", () => {
       } else if (MAP_PAGES.some((s) => rel === `gallery/${s}/index.html`) || rel === "gallery/openhands/edition-1/index.html") {
         maps++;
         assert.deepEqual(links, ["design/map.css"], `${rel} links map.css once`);
-        assert.ok(html.includes(rel.endsWith("edition-1/index.html") ? EDITION_LINK : MAP_LINK), `${rel}: the link is written exactly as expected, right after </style>`);
-        assert.equal(html.split("map.css").length - 1, 1, `${rel}: map.css is mentioned exactly once in the raw file`);
+        assert.ok(html.includes(rel.endsWith("edition-1/index.html") ? EDITION_LINK : MAP_LINK), `${rel}: the expected link text follows </style>`);
+        assert.equal(html.split("map.css").length - 1, 1, `${rel}: the text map.css occurs exactly once in the raw file`);
       } else {
         assert.deepEqual(links, [], `${rel} links a design stylesheet`);
       }
@@ -192,6 +193,21 @@ details.seat>summary{padding:12px 0}
 nav.sticky{border-bottom:2px solid var(--fg)}
 th{background:none;border-bottom:2px solid var(--fg)}
 `;
+
+  it("LIMIT: the map link check reads text, so markup a browser would not load as a link can still pass", () => {
+    // Each of these holds the expected bytes and one literal "map.css", so the text check accepts it,
+    // although a browser would load no stylesheet (inert script) or a different one (<base>).
+    const ok = (html) => html.includes(MAP_LINK) && html.split("map.css").length - 1 === 1;
+    assert.ok(ok(`<script type="text/plain">${MAP_LINK}</script>`), "inside an inert script");
+    assert.ok(ok(`<base href="https://example.invalid/"><style>${MAP_LINK}`), "behind a <base> that redirects the href");
+  });
+
+  it("LIMIT: the shared base is whatever card.css carries; only the map rules after it are pinned here", () => {
+    // A change to the shared base reaches all four stylesheets and passes this file's map pin. The
+    // base was reviewed with the front page and cards (2026-11-17, 2026-11-18), not in this test.
+    const files = build();
+    assert.ok(files["map.css"].startsWith(files["card.css"].slice(0, 500)));
+  });
 
   it("map.css is the shared base followed by exactly the reviewed map rules", () => {
     const files = build();

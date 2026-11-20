@@ -12,12 +12,13 @@ new layout only if its `<head>` links one of them.
 No page's words changed when it moved; the visible text and the accessibility tree were compared against `main`
 before each move.
 
-Status: **DONE** = in the new layout and live · **NEXT** = to move, with a date to re-check · **HOLD** = not moving
+Status: **DONE** = in the new layout and live · **DONE pending live read** = in the new layout on `main`, not yet read
+on the live site · **NEXT** = to move, with a date to re-check · **HOLD** = not moving
 yet, and why · **UNREACHED** = served, but not a page this repository designs.
 
 Built from the served tree (`git ls-files`) on 2026-11-17.
 
-Count (rows of the table below): DONE 4 (one pending a live read) · NEXT 0 · HOLD 1 · UNREACHED 2.
+Count (rows of the table below): DONE 3 · DONE pending live read 1 · NEXT 0 · HOLD 1 · UNREACHED 2.
 
 | Page (address under `https://u00dxk2.github.io/agent-ops-patterns/`) | Who sees it | What it is for | Last touched | Status |
 |---|---|---|---|---|
