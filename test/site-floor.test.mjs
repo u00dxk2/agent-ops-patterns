@@ -9,13 +9,21 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { SITE, EXCLUDED, urlFor, readableText, servedPages, isNoindex } from "../scripts/build-sitemap.mjs";
+import { SITE, EXCLUDED, NOT_PAGES, urlFor, readableText, servedPages, isNoindex } from "../scripts/build-sitemap.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const pages = servedPages(root);
 const read = (rel) => fs.readFileSync(path.join(root, rel), "utf8");
 // Any canonical-shaped token anywhere in the file, however it is spaced, quoted or placed.
 const canonicalTokens = (html) => html.match(/rel\s*=\s*["']?\s*canonical/gi) ?? [];
+
+test("each served non-page file holds exactly its stated content and is neither a page nor listed", () => {
+  for (const [rel, content] of NOT_PAGES) {
+    assert.equal(read(rel), content, `${rel} is byte for byte the vendor's file`);
+    assert.ok(!pages.includes(rel), `${rel} is not treated as a page`);
+    assert.ok(!read("sitemap.xml").includes(rel), `${rel} is not in the sitemap`);
+  }
+});
 
 test("the site serves the pages this test expects to cover", () => {
   assert.ok(pages.includes("index.html") && pages.includes("gallery/index.html"), "home and gallery are listed");

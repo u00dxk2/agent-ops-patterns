@@ -36,6 +36,11 @@ export const EXCLUDED = new Map([
   ["gallery/openhands/edition-1/index.html",
     "superseded first edition of the OpenHands map; it keeps its own canonical, but the sitemap points crawlers at the current map"],
 ]);
+// Served .html files that are NOT pages: vendor-issued files that must be served byte for byte, so they carry
+// no canonical tag and are never listed. Each must match its stated content exactly (pinned by the test).
+export const NOT_PAGES = new Map([
+  ["google45610b69cae7202a.html", "google-site-verification: google45610b69cae7202a.html"],
+]);
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -73,7 +78,7 @@ export function readableText(html) {
 const git = (root, args) => execFileSync("git", ["-C", root, ...args], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
 
 export function servedPages(root = ROOT) {
-  return git(root, ["ls-files", "*.html"]).split("\n").map((s) => s.replace(/\r$/, "")).filter((s) => s !== "").sort();
+  return git(root, ["ls-files", "*.html"]).split("\n").map((s) => s.replace(/\r$/, "")).filter((s) => s !== "" && !NOT_PAGES.has(s)).sort();
 }
 
 // --first-parent: dates follow main's own line, so a merge that brought a changed page in is dated at the
