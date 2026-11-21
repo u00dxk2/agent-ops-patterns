@@ -35,6 +35,9 @@ export const SITE = "https://u00dxk2.github.io/agent-ops-patterns/";
 export const EXCLUDED = new Map([
   ["gallery/openhands/edition-1/index.html",
     "superseded first edition of the OpenHands map; it keeps its own canonical, but the sitemap points crawlers at the current map"],
+  ["patterns/fail-soft-detectors.html", "held out until its live JS-off fetch (2026-11-21)"],
+  ["patterns/shadow-screen-states.html", "held out until its live JS-off fetch (2026-11-21)"],
+  ["patterns/durability-tiered-write-governance.html", "held out until its live JS-off fetch (2026-11-21)"],
 ]);
 // Served .html files that are NOT pages: vendor-issued files that must be served byte for byte, so they carry
 // no canonical tag and are never listed. Each must match its stated content exactly (pinned by the test).
