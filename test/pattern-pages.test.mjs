@@ -71,7 +71,7 @@ test("every link target on the pages resolves to a file in this repo or an absol
   }
 });
 
-test("FAIL-CLOSED: unsupported Markdown is refused with its line number, never approximated", () => {
+test("FAIL-CLOSED: every construct on the named refusal list is refused with its line number", () => {
   for (const bad of ["# T\n\n```\ncode\n```", "# T\n\n> quote", "# T\n\n- a\n  - nested", "# T\n\n<div>x</div>", "# T\n\n![alt](x.png)", "# T\n\nan `open code span",
     "# T\n\n#### deep", "# T\n\n- ", "# T\n\n1. ", "# T\n\n- a\n- ", "# T\n\nprose\n+ item", "# T\n\n7. seven", "# T\n\n[guide](https://example.com/a(b)c)",
     "# T\n\n[x](#limits)", "# T\n\n[x](./shadow-screen-states.md#the-helper)", "# **Bold title**"]) {
@@ -89,6 +89,11 @@ test("inline formatting escapes HTML-significant characters in text and code", (
 
 test("LIMIT: underscore emphasis is printed as written, not as emphasis", () => {
   assert.equal(inline("_not emphasis_"), "_not emphasis_");
+});
+
+test("LIMIT: a construct outside both the subset and the refusal list prints as text (not a Markdown parser)", () => {
+  assert.match(renderBody("# T\n\nSetext heading\n===", "t.md").body, /<p>Setext heading ===<\/p>/);
+  assert.match(renderBody("# T\n\n~~~\ncode\n~~~", "t.md").body, /<p>~~~ code ~~~<\/p>/);
 });
 
 test("LIMIT: only the three patterns with tested code in lib/ get a page", () => {

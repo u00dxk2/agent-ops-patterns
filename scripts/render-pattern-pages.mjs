@@ -8,15 +8,21 @@
 // word for word. Links are rewritten only in their target: a relative link to a file the site does not
 // serve as a page goes to that file on github.com.
 //
-// Failure posture: FAIL-CLOSED. The renderer handles one small Markdown subset (headings #-###, paragraphs,
-// bulleted and numbered lists starting at 1, one-level tables, **bold**, *italic*, `code`, [links](url)).
-// Anything else (a fence, a quote, an indented block, an HTML tag, an image, a #### heading, an empty list
-// item, a `+`/`*` item, a link target with a parenthesis, a fragment link, markup in the H1) stops the run
-// with the file and line number; every page is rendered before any is written, so nothing changes on a
-// failed run.
+// Failure posture: FAIL-CLOSED for a NAMED list only, not for Markdown in general. This is not a Markdown
+// parser: it renders the subset the three committed files use (headings #-###, paragraphs, bulleted and
+// numbered lists, one-level tables, **bold**, *italic*, `code`, [links](url)). It refuses, with the file and
+// line number: ``` fences, > quotes, indented lines, HTML tags, images, #### headings, empty `- `/`1. ` items,
+// `+ `/`* ` lines, numbered lists not starting at `1.`, link targets containing `(`, fragment links into a
+// served page or `#` alone, and markup in the H1. Any OTHER construct (a setext heading, a ~~~ fence, a
+// reference-link definition, `7)` numbering, table alignment) may print as plain text instead of being
+// refused (four Codex rounds found such cases; the claim was narrowed rather than the parser grown).
+// The real guard for what ships is test/pattern-pages.test.mjs: each committed page equals the render of
+// its committed .md and carries the .md's words word for word. Every page is rendered before any is
+// written, so a REFUSED source changes nothing; a write that fails part way can still leave earlier
+// outputs changed.
 //
 // Limits, on purpose (pinned as LIMIT tests in test/pattern-pages.test.mjs):
-// - No nested lists, no fenced code, no block quotes, no images, no raw HTML: refused, never approximated.
+// - Constructs outside the subset and outside the refusal list print as text (see above).
 // - Underscore emphasis (_x_) is not emphasis here; it is printed as written.
 // - Only the patterns named in PAGES get a page. The others stay on github.com.
 import fs from "node:fs";
