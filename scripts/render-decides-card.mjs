@@ -196,6 +196,7 @@ export function renderCard(card) {
 <meta property="og:title" content="How ${esc(agent.name)} decides">
 <meta property="og:description" content="${esc(card.summary)}">
 <meta property="og:url" content="${esc(card.fullMapUrl)}card.html">
+<link rel="canonical" href="${esc(card.fullMapUrl)}card.html">
 <meta name="twitter:card" content="summary">
 <style>
 :root{--bg:#fbfaf7;--fg:#1d1d1b;--muted:#5d5b55;--line:#dedad0;--card:#ffffff;--code:#f2efe8;--link:#2f6f8f;
