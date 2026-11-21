@@ -3,9 +3,9 @@
 //   node scripts/build-sitemap.mjs            write sitemap.xml at the repo root
 //   node scripts/build-sitemap.mjs --check    exit 1 if sitemap.xml differs from what it would write
 //
-// Failure posture: FAIL-CLOSED. A shallow clone, any git error, a listed page with no history, a page missing
-// on disk, a page marked noindex, or a path that is not a plain URL path stops the run with a message and
-// exit 1; nothing is written on a failed run.
+// Failure posture: FAIL-CLOSED. A shallow clone, an uncommitted .html change, any git error, a listed page
+// with no history, a page missing on disk, a page carrying a noindex-shaped token anywhere, or a path that is
+// not a plain URL path stops the run with a message and exit 1; nothing is written on a failed run.
 //
 // What it lists: every committed .html page the site serves, minus EXCLUDED (each with its reason).
 // lastmod is the committer date (YYYY-MM-DD) of the newest commit that changed the page's READABLE TEXT:
@@ -20,6 +20,10 @@
 // - A change to an href, an alt text or a title attribute is not "readable text" and does not move lastmod.
 // - Markup that splits a word (alpha<span>bet</span>) reads as two words, so it moves lastmod.
 // - History follows the path, not the content: a rename dates the page from the rename.
+// - Whitespace is collapsed, so re-indenting a <pre> excerpt does not move lastmod.
+// - It lists any committed page that passes the token rule; it does not judge whether a page is worth
+//   indexing (an empty page with a correct canonical is listed).
+// - The noindex rule reads the files only; an X-Robots-Tag HTTP header is outside it (Pages sends none).
 // - lastmod is a date, not a time: two changes on one day read the same.
 import fs from "node:fs";
 import path from "node:path";
@@ -42,15 +46,12 @@ export function urlFor(rel) {
   return SITE + rel;
 }
 
-// The <head> element only, with comments removed: where a crawler reads canonical and robots tags.
-export function activeHead(html) {
-  const h = html.replace(/<!--[\s\S]*?-->/g, " ");
-  const m = h.match(/<head[\s>][\s\S]*?<\/head>/i);
-  return m ? m[0] : "";
-}
-
+// Whole-file token rules, not HTML parsing (round 2 found a second class of head-parsing gaps, so the
+// check claims less): a page that carries ANY of these tokens anywhere, in any tag, comment or script,
+// is refused from the sitemap. A page whose text legitimately needs one goes in EXCLUDED with a reason.
+export const NOINDEX_TOKENS = /noindex|googlebot|content\s*=\s*["']?none\b/i;
 export function isNoindex(html) {
-  return /<meta\s+name=["']robots["'][^>]*content=["'][^"']*noindex/i.test(activeHead(html));
+  return NOINDEX_TOKENS.test(html);
 }
 
 export function readableText(html) {
@@ -68,11 +69,13 @@ export function readableText(html) {
 const git = (root, args) => execFileSync("git", ["-C", root, ...args], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
 
 export function servedPages(root = ROOT) {
-  return git(root, ["ls-files", "*.html"]).split("\n").map((s) => s.trim()).filter(Boolean).sort();
+  return git(root, ["ls-files", "*.html"]).split("\n").map((s) => s.replace(/\r$/, "")).filter((s) => s !== "").sort();
 }
 
+// --first-parent: dates follow main's own line, so a merge that brought a changed page in is dated at the
+// merge, and a side branch's commits are never compared with each other.
 export function lastReadableChange(root, rel) {
-  const log = git(root, ["log", "--format=%H %cs", "--", rel]).trim();
+  const log = git(root, ["log", "--first-parent", "--format=%H %cs", "--", rel]).trim();
   if (!log) throw new Error(`no git history for ${rel}`);
   const versions = log.split("\n").map((l) => { const [sha, date] = l.split(" "); return { sha, date }; });
   // A commit that deleted the path has no blob there: its text is null (absent), never a git error.
@@ -93,6 +96,9 @@ export function buildSitemap(root = ROOT) {
   if (git(root, ["rev-parse", "--is-shallow-repository"]).trim() !== "false") {
     throw new Error("shallow clone: history is cut off, so lastmod cannot be derived (run in a full clone)");
   }
+  // Dates come from commits, so a page edited on disk but not committed would be listed with its OLD date.
+  const dirty = git(root, ["status", "--porcelain", "--", "*.html"]).trim();
+  if (dirty) throw new Error(`commit the page changes first; uncommitted: ${dirty.split("\n").join(", ")}`);
   const rows = [];
   for (const rel of servedPages(root)) {
     if (EXCLUDED.has(rel)) continue;

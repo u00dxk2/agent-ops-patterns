@@ -1,5 +1,7 @@
 // Search floor for the GitHub Pages site (2026-11-21, item TM-1): every served page names its own canonical
 // URL, and sitemap.xml lists exactly the served pages minus the declared exclusions.
+// The checks are whole-file token rules, not HTML parsing: two review rounds found gaps in head parsing,
+// so the test claims less and refuses more (a canonical-shaped token in a comment or script counts too).
 // Dates in sitemap.xml are NOT re-derived here: CI checks out at depth 1, so history is not there.
 // `node scripts/build-sitemap.mjs --check` is the local check of the dates (it refuses a shallow clone).
 import { test } from "node:test";
@@ -7,43 +9,44 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { SITE, EXCLUDED, urlFor, readableText, servedPages, activeHead, isNoindex } from "../scripts/build-sitemap.mjs";
+import { SITE, EXCLUDED, urlFor, readableText, servedPages, isNoindex } from "../scripts/build-sitemap.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const pages = servedPages(root);
 const read = (rel) => fs.readFileSync(path.join(root, rel), "utf8");
-const canonicalTags = (html) => activeHead(html).match(/<link\b[^>]*\brel=["']canonical["'][^>]*>/gi) ?? [];
+// Any canonical-shaped token anywhere in the file, however it is spaced, quoted or placed.
+const canonicalTokens = (html) => html.match(/rel\s*=\s*["']?\s*canonical/gi) ?? [];
 
 test("the site serves the pages this test expects to cover", () => {
   assert.ok(pages.includes("index.html") && pages.includes("gallery/index.html"), "home and gallery are listed");
   assert.ok(pages.length >= 27, `at least 27 served pages, found ${pages.length}`);
 });
 
-test("every served page has exactly one canonical tag in its <head>, naming its own URL", () => {
+test("every served page carries exactly one canonical token anywhere, and it is the expected tag for its own URL", () => {
   for (const rel of pages) {
     const html = read(rel);
-    const tags = canonicalTags(html);
-    assert.equal(tags.length, 1, `${rel}: expected 1 canonical tag in the active <head>, found ${tags.length}`);
-    assert.equal(tags[0], `<link rel="canonical" href="${urlFor(rel)}">`, `${rel}: canonical names ${urlFor(rel)}`);
-    const og = activeHead(html).match(/<meta property="og:url" content="([^"]*)">/);
+    assert.equal(canonicalTokens(html).length, 1, `${rel}: expected exactly 1 canonical token in the whole file, found ${canonicalTokens(html).length}`);
+    assert.ok(html.includes(`<link rel="canonical" href="${urlFor(rel)}">`), `${rel}: the one canonical is <link rel="canonical" href="${urlFor(rel)}">`);
+    const og = html.match(/<meta property="og:url" content="([^"]*)">/);
     if (og) assert.equal(og[1], urlFor(rel), `${rel}: og:url and canonical agree`);
   }
 });
 
-test("a canonical inside a comment, or outside <head>, does not count", () => {
-  const tag = '<link rel="canonical" href="https://x/">';
-  assert.equal(canonicalTags(`<html><head><!-- ${tag} --></head><body></body></html>`).length, 0);
-  assert.equal(canonicalTags(`<html><head></head><body>${tag}</body></html>`).length, 0);
-  assert.equal(canonicalTags(`<html><head><link href="https://y/" rel="canonical"></head></html>`).length, 1, "attribute order does not hide a second canonical");
+test("a second canonical in a comment, a script or with odd spacing is counted", () => {
+  const ok = '<link rel="canonical" href="https://x/">';
+  assert.equal(canonicalTokens(`${ok}<!-- <link rel="canonical" href="https://y/"> -->`).length, 2);
+  assert.equal(canonicalTokens(`${ok}<script>"</head>"</script><link rel = "canonical" href="https://y/">`).length, 2);
+  assert.equal(canonicalTokens(`${ok}<link href="https://y/" rel=canonical>`).length, 2);
 });
 
-test("sitemap.xml lists exactly the served pages minus the exclusions, with real dates", () => {
+test("sitemap.xml is exactly the rows it lists, the served pages minus the exclusions, with real dates", () => {
   const xml = read("sitemap.xml").replace(/\r\n/g, "\n");
-  assert.ok(xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'), "XML declaration and urlset open");
-  assert.ok(xml.endsWith("</urlset>\n"), "urlset closes");
-  const rows = [...xml.matchAll(/<url><loc>([^<]+)<\/loc><lastmod>([^<]+)<\/lastmod><\/url>/g)];
-  assert.equal(rows.length, xml.split("<url>").length - 1, "every <url> row has the loc + lastmod shape");
+  const rows = [...xml.matchAll(/  <url><loc>([^<]+)<\/loc><lastmod>([^<]+)<\/lastmod><\/url>\n/g)];
+  const rebuilt = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    + rows.map((r) => r[0]).join("") + "</urlset>\n";
+  assert.equal(xml, rebuilt, "nothing in the file outside the declaration, the urlset and the matched rows");
   const listed = rows.map((r) => r[1]).sort();
+  assert.equal(new Set(listed).size, listed.length, "no URL is listed twice");
   const expected = pages.filter((p) => !EXCLUDED.has(p)).map(urlFor).sort();
   assert.deepEqual(listed, expected);
   const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
@@ -55,10 +58,13 @@ test("sitemap.xml lists exactly the served pages minus the exclusions, with real
   }
 });
 
-test("no page listed in the sitemap is marked noindex, and the check can see a noindex", () => {
-  for (const rel of pages.filter((p) => !EXCLUDED.has(p))) assert.equal(isNoindex(read(rel)), false, `${rel} is noindex but listed`);
-  assert.equal(isNoindex('<html><head><meta name="robots" content="noindex, follow"></head></html>'), true);
-  assert.equal(isNoindex('<html><head><!-- <meta name="robots" content="noindex"> --></head></html>'), false);
+test("no listed page carries a noindex-shaped token anywhere, and the rule sees each shape", () => {
+  for (const rel of pages.filter((p) => !EXCLUDED.has(p))) assert.equal(isNoindex(read(rel)), false, `${rel} carries a noindex-shaped token but is listed`);
+  for (const bad of ['<meta name="robots" content="noindex">', '<meta content="noindex" name="robots">',
+    '<meta name="googlebot" content="nofollow">', '<meta name="robots" content="none">', '<!-- <meta name="robots" content="noindex"> -->']) {
+    assert.equal(isNoindex(bad), true, bad);
+  }
+  assert.equal(isNoindex('<meta name="robots" content="index, follow">'), false);
 });
 
 test("each exclusion is a served page and carries a reason", () => {
@@ -69,7 +75,7 @@ test("each exclusion is a served page and carries a reason", () => {
 });
 
 test("urlFor refuses a path that is not a plain URL path", () => {
-  for (const bad of ["r&d.html", "a#b.html", "a?b.html", "../x.html", "a b.html"]) assert.throws(() => urlFor(bad), /not a plain URL path/, bad);
+  for (const bad of ["r&d.html", "a#b.html", "a?b.html", "../x.html", "a b.html", " page.html"]) assert.throws(() => urlFor(bad), /not a plain URL path/, JSON.stringify(bad));
   assert.equal(urlFor("gallery/pi/card.html"), SITE + "gallery/pi/card.html");
   assert.equal(urlFor("gallery/pi/index.html"), SITE + "gallery/pi/");
 });
@@ -93,6 +99,12 @@ test("LIMIT: markup that splits a word reads as a change", () => {
   const a = "<html><head></head><body><p>alphabet</p></body></html>";
   const b = "<html><head></head><body><p>alpha<span>bet</span></p></body></html>";
   assert.notEqual(readableText(a), readableText(b));
+});
+
+test("LIMIT: re-indenting a <pre> block does not count as a readable change", () => {
+  const a = "<html><head></head><body><pre>if x:\n    y()</pre></body></html>";
+  const b = "<html><head></head><body><pre>if x:\n  y()</pre></body></html>";
+  assert.equal(readableText(a), readableText(b));
 });
 
 test("LIMIT: entities are compared as written, not decoded", () => {
