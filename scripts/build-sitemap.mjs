@@ -50,8 +50,12 @@ export function urlFor(rel) {
 // check claims less): a page that carries ANY of these tokens anywhere, in any tag, comment or script,
 // is refused from the sitemap. A page whose text legitimately needs one goes in EXCLUDED with a reason.
 export const NOINDEX_TOKENS = /noindex|googlebot|content\s*=\s*["']?none\b/i;
+// Numeric character references are decoded first, so `no&#105;ndex` cannot hide the token (round 3).
+const decodeNumeric = (s) => s
+  .replace(/&#x([0-9a-f]+);?/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+  .replace(/&#(\d+);?/g, (_, d) => String.fromCodePoint(Number(d)));
 export function isNoindex(html) {
-  return NOINDEX_TOKENS.test(html);
+  return NOINDEX_TOKENS.test(html) || NOINDEX_TOKENS.test(decodeNumeric(html));
 }
 
 export function readableText(html) {

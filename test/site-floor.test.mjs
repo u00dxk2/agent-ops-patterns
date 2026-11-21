@@ -26,7 +26,8 @@ test("every served page carries exactly one canonical token anywhere, and it is 
   for (const rel of pages) {
     const html = read(rel);
     assert.equal(canonicalTokens(html).length, 1, `${rel}: expected exactly 1 canonical token in the whole file, found ${canonicalTokens(html).length}`);
-    assert.ok(html.includes(`<link rel="canonical" href="${urlFor(rel)}">`), `${rel}: the one canonical is <link rel="canonical" href="${urlFor(rel)}">`);
+    assert.ok(html.replace(/<!--[\s\S]*?-->/g, " ").includes(`<link rel="canonical" href="${urlFor(rel)}">`),
+      `${rel}: the one canonical is <link rel="canonical" href="${urlFor(rel)}">, outside any comment`);
     const og = html.match(/<meta property="og:url" content="([^"]*)">/);
     if (og) assert.equal(og[1], urlFor(rel), `${rel}: og:url and canonical agree`);
   }
@@ -61,7 +62,8 @@ test("sitemap.xml is exactly the rows it lists, the served pages minus the exclu
 test("no listed page carries a noindex-shaped token anywhere, and the rule sees each shape", () => {
   for (const rel of pages.filter((p) => !EXCLUDED.has(p))) assert.equal(isNoindex(read(rel)), false, `${rel} carries a noindex-shaped token but is listed`);
   for (const bad of ['<meta name="robots" content="noindex">', '<meta content="noindex" name="robots">',
-    '<meta name="googlebot" content="nofollow">', '<meta name="robots" content="none">', '<!-- <meta name="robots" content="noindex"> -->']) {
+    '<meta name="googlebot" content="nofollow">', '<meta name="robots" content="none">', '<!-- <meta name="robots" content="noindex"> -->',
+    '<meta name="robots" content="no&#105;ndex">', '<meta name="robots" content="no&#x69;ndex">']) {
     assert.equal(isNoindex(bad), true, bad);
   }
   assert.equal(isNoindex('<meta name="robots" content="index, follow">'), false);
