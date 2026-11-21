@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fail-soft detectors: zero-LLM health monitoring for agent fleets</title>
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="agent-ops-patterns">
+<meta property="og:title" content="Fail-soft detectors: zero-LLM health monitoring for agent fleets">
+<meta property="og:url" content="https://u00dxk2.github.io/agent-ops-patterns/patterns/fail-soft-detectors.html">
+<link rel="canonical" href="https://u00dxk2.github.io/agent-ops-patterns/patterns/fail-soft-detectors.html">
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1d1b;--muted:#5d5b55;--line:#dedad0;--code:#f2efe8;--link:#2f6f8f}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--code:#262520;--link:#6fb3d4}}
+:root[data-theme="dark"]{--bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--code:#262520;--link:#6fb3d4}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:17px/1.6 Georgia,"Times New Roman",serif}
+main{max-width:72ch;margin:0 auto;padding:0 16px 80px}
+h1{font-size:1.75rem;line-height:1.2;margin:24px 0 16px}
+h2{font-size:1.3rem;margin:36px 0 10px;padding-top:10px;border-top:1px solid var(--line)}
+h3{font-size:1.08rem;margin:24px 0 8px}
+a{color:var(--link)}
+code{background:var(--code);padding:1px 4px;border-radius:4px;font-size:.86em;overflow-wrap:anywhere}
+table{border-collapse:collapse;display:block;overflow-x:auto;font-size:.95rem}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top}
+.meta{color:var(--muted);font:.92rem/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;margin:20px 0 0}
+</style>
+</head>
+<body>
+<main>
+<p class="meta"><a href="../">agent-ops-patterns</a></p>
+<h1>Fail-soft detectors: zero-LLM health monitoring for agent fleets</h1>
+<p>The operational failure modes of LLM-agent systems — silent stalls, wedged listeners, dead schedulers, half-delivered work — are boring, mechanical, and constant. The instinct is to point another LLM at them (&quot;a watchdog agent&quot;). That instinct is wrong, and this document is the discipline that replaces it, extracted from a system that runs dozens of concurrent coding-agent sessions across a 22-product portfolio with one human operator.</p>
+<p>Independent corroboration that the LLM-watchdog path fails comes from a source we did not author: Katherine Cass's public retrospective of her 11-agent system, <a href="https://k4therin2.github.io/agent-system-v1-retrospective.html"><em>Field Notes From an Eng Manager Building Her First Autonomous Agent System</em></a>. It documents multi-hour silent outages — one ran &quot;28+ hours&quot;, another hung with &quot;no heartbeat detection&quot;; a watchdog agent that would &quot;detect the same error 15 minutes later. Same investigation. Same report. Burning tokens on repeat,&quot; on which her verdict is <em>&quot;this 100% should have been code, not an LLM call. Simple logic like 'have I seen this exact error in the last hour?' doesn't need intelligence — it needs a counter and a timestamp&quot;</em>; and watchdog-of-watchdog stacking — &quot;Sophie (watchdog) monitoring Grace, a watchdog for Sophie monitoring Grace&quot; — of which she concludes: &quot;The complexity just created more failure modes.&quot;</p>
+<h2>The rules</h2>
+<h3>1. Detectors observe PRESENCE, never JUDGMENT</h3>
+<p>A detector answers &quot;is the signal there?&quot; — a heartbeat file is stale, a queue row sat unconsumed, a report section is absent, a deploy event never arrived. It never answers &quot;is the work good?&quot; Correctness judgments stay with humans (or with explicitly separate judge components that are themselves evaluated). This split is what lets you run detectors on every poll for free and trust a silence.</p>
+<h3>2. Declare a failure posture per detector — and bias to fail-soft</h3>
+<p>Three postures, named in the detector's header comment:</p>
+<ul>
+<li><strong>fail-soft</strong> — any ambiguity resolves to NO finding, so the enumerated ambiguous and malformed inputs cause <em>under</em>-reporting rather than a fabricated fault. This is the default for anything that pages a human: false alarms burn the operator's trust budget, and a detector that cries wolf gets ignored the week it matters.</li>
+<li><strong>fail-safe</strong> — unknown input resolves to the safe <em>default</em> (e.g., an unrecognized action classifies as &quot;needs human review&quot;, an unknown project counts as &quot;instrument not ready&quot;).</li>
+<li><strong>fail-closed</strong> — the enumerated ambiguous cases all resolve to &quot;no&quot; (for gates in front of irreversible actions: capability grants, publish paths).</li>
+</ul>
+<p>Say those as postures over <em>tested inputs</em>, never as guarantees about bugs. &quot;A bug can only fail safely&quot; is not a claim any of these can support: a posture describes how declared cases are handled, and an unknown implementation error is not a declared case. This repo's own history is the proof — a capability grant that read one command and authorized another, and a redactor that returned a raw secret while reporting itself finished, both while their declared postures were intact and tested.</p>
+<p>The point is not which posture — it's that the posture is <em>chosen and written down</em>, so a reviewer can check every branch against it. Most detector bugs we've caught were branches that violated the declared posture.</p>
+<h3>3. Zero LLM calls on the watch path — enforced structurally, not by convention</h3>
+<p>Detectors, health checks, and delivery guards make no model calls. Ever. Cost is the obvious reason (a detector polls; a poll times N agents times 24h compounds); determinism is the deeper one — a detector must behave identically at 3am on the hundredth identical input.</p>
+<p>Convention decays, so enforce it in CI: a test that fails the suite if any detector module imports an LLM SDK, contains an LLM API hostname, or imports the sanctioned LLM-call wrapper. Deliberate exceptions live in an allowlist inside the test, so growing the list is a visible review event. (Pattern lineage: <a href="https://github.com/CorvinLabs/CorvinOS">CorvinOS</a>'s compute-worker AST lint. The pattern calls for a CI import/string scan with a test-local exception allowlist.)</p>
+<h3>4. Dedup alerts with a counter and a timestamp</h3>
+<p>A detector that fires on a <em>condition</em> will re-fire every poll for as long as the condition holds. Every alert needs: first-seen timestamp, occurrence counter, and a re-alert policy (typically: alert on first detection, then silence until the condition <em>changes</em> — clears, escalates past a threshold, or crosses an age boundary). The dark-clock corollary: age is always computed from first-seen, never reset by re-detection — re-dating never hides rot.</p>
+<h3>5. No watchdog-of-watchdog stacks</h3>
+<p>One liveness anchor (a cheap heartbeat artifact every component touches — a file mtime, a DB row) plus one dead-man mechanism that fires when the anchor goes stale. If you find yourself writing a monitor for the monitor, the design is wrong; make the primary anchor cheaper and more honest instead. Every layer you add is a new component that can wedge, and the stack's failure modes multiply.</p>
+<h3>6. Resurrect-else-reap, as an explicit two-step</h3>
+<p>When a component is detected dead: try to resurrect it once; if resurrection fails, clean up the corpse (release its claims, mark its work re-dispatchable, remove its liveness artifacts) so the system converges instead of accumulating zombies. The two steps are distinct states, logged distinctly. (Corroborated independently by Dan Lorenc's <a href="https://dlorenc.medium.com/a-gentle-introduction-to-multiclaude-36491514ba89">multiclaude</a> daemon design — health-check/resurrect/reap on a fixed cadence.)</p>
+<h3>7. Every detector ships with a kill-switch</h3>
+<p>One env var (<code>X_DISABLED=1</code>) checked at the top. When a detector misbehaves in production, the operator turns it off without a code change, and the switch's existence makes shipping detectors <em>less</em> risky, so more of them ship.</p>
+<h3>8. Distrust the measurement before the system</h3>
+<p>A zero from a probe means one of: a real zero, a dead instrument, or a misconfigured probe (reading a field that doesn't exist). Classify explicitly — &quot;a <code>0</code> read from an ABSENT field is probe-misconfigured, never an outage.&quot; At low volume, treat surprising readings as evidence about the <em>instrument</em> first and the system second. Most of our worst diagnostic detours started by trusting a broken measurement.</p>
+<h2>The shape of a detector module</h2>
+<p>Pure function core (inputs in, findings out, no I/O) + a thin CLI wrapper that does the reading and exits with a distinct code per outcome (0 clean / 3 findings / 4 probe-blind). The pure core gets unit tests, including tests that <em>malformed input produces no finding</em> — the fail-soft posture is itself tested behavior, not a comment.</p>
+<p><code>lib/snippet-redact.mjs</code> and <code>lib/memory-integrity.mjs</code> in this repo demonstrate the <strong>pure core</strong> and nothing else. They ship no CLI, no exit codes, no kill switch, no positive control and no alert dedup - those layers live in the fleet this pattern was extracted from, not in this repo. Read them as the inner half of the shape, and build the wrapper yourself. (<code>snippet-redact</code> is also a transformation rather than a detector; it earns its place here for the pure-core discipline, not because it returns findings.)</p>
+<h2>Limits</h2>
+<ul>
+<li><strong>Presence is the whole scope, and that is a real ceiling.</strong> Rule 1 buys cheap, trustworthy, deterministic monitoring by giving up on quality entirely. A fleet whose every heartbeat is fresh, whose every queue drains, and whose every agent produces confident garbage reads perfectly green here. These detectors tell you the machine is running, never that it is doing the right thing.</li>
+<li><strong>Fail-soft under-reports on purpose.</strong> Rule 2's default resolves enumerated ambiguity to silence, so a genuine fault wearing an ambiguous shape is missed by design. That trade is correct when false alarms cost you an operator's attention; it is wrong in a domain where a miss costs more than a wasted page. Invert the default there, and say so in the header.</li>
+<li><strong>A posture is not a guarantee, and §2 says so for a reason.</strong> Declared postures describe how <em>declared</em> cases are handled. An implementation bug is not a declared case, and this repo's own history — a grant that authorized the wrong command, a redactor that returned a raw secret while reporting success — is what that distinction is made of. Read a posture as a reviewable intent, never as a safety property.</li>
+<li><strong>Written from a one-operator fleet.</strong> The dedup policy (rule 4) and the per-detector kill-switch (rule 7) both assume a single human decides what is noise and what gets turned off. At team scale each needs an owner and an escalation path, neither of which this pattern supplies.</li>
+</ul>
+</main>
+</body>
+</html>

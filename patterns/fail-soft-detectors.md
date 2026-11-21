@@ -26,7 +26,7 @@ The point is not which posture — it's that the posture is *chosen and written 
 
 Detectors, health checks, and delivery guards make no model calls. Ever. Cost is the obvious reason (a detector polls; a poll times N agents times 24h compounds); determinism is the deeper one — a detector must behave identically at 3am on the hundredth identical input.
 
-Convention decays, so enforce it in CI: a test that fails the suite if any detector module imports an LLM SDK, contains an LLM API hostname, or imports the sanctioned LLM-call wrapper. Deliberate exceptions live in an allowlist inside the test, so growing the list is a visible review event. (Pattern lineage: [CorvinOS](https://github.com/CorvinLabs/CorvinOS)'s compute-worker AST lint; ours is a plain import/string scan, which has proven sufficient.)
+Convention decays, so enforce it in CI: a test that fails the suite if any detector module imports an LLM SDK, contains an LLM API hostname, or imports the sanctioned LLM-call wrapper. Deliberate exceptions live in an allowlist inside the test, so growing the list is a visible review event. (Pattern lineage: [CorvinOS](https://github.com/CorvinLabs/CorvinOS)'s compute-worker AST lint. The pattern calls for a CI import/string scan with a test-local exception allowlist.)
 
 ### 4. Dedup alerts with a counter and a timestamp
 

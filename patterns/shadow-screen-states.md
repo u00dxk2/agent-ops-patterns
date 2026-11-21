@@ -15,7 +15,7 @@ Five verdicts. The first four are the mode × outcome grid; the fifth is the one
 
 And separately, in either mode:
 
-- **`unscreened`** — the screener never actually ran: unavailable, timed out, threw, returned garbage. Not `allow`. Not `shadow_allow`. Its own verdict, and one the caller must record on every attempted decision - the helper returns it and logs nothing, so an unscreened action that nobody wrote down is indistinguishable from one that was never attempted.
+- **`unscreened`** — `unscreened` means the helper received no completed screening with a boolean finding: unavailable, timed out, threw, returned garbage. Not `allow`. Not `shadow_allow`. Its own verdict, and one the caller must record on every attempted decision - the helper returns it and logs nothing, so an unscreened action that nobody wrote down is indistinguishable from one that was never attempted.
 
 Credit: [yc-software/qm](https://github.com/yc-software/qm)'s security screen (`src/core/orchestrator/security-screen.ts`) ships exactly this vocabulary, and the explicit `unscreened` verdict is the reason to copy it rather than reinvent it. Most home-grown screens default the unavailable case to allow — usually not by decision, but because the `catch` block had to return *something* and `false` type-checked.
 
@@ -25,7 +25,7 @@ A screener that is down produces the same observable as a screener with nothing 
 
 Two rules make the fifth state do its work:
 
-1. **`unscreened` never counts as a pass.** Whatever tallies pass rates must exclude it (the helper's `isPass` refuses it). A rising `unscreened` count means your *screen* is dark, not that your fleet is clean — alert on it like the outage it is.
+1. **`unscreened` never counts as a pass.** Whatever tallies pass rates must exclude it (the helper's `isPass` refuses it). A rising count means more attempted decisions lacked a completed screen with a boolean result.
 2. **In enforce mode, `unscreened` fails closed by default.** If you need fail-open (screening a path where availability beats screening), you declare it in code — `unscreenedProceeds: true` — where a reviewer can see the choice. The verdict still says `unscreened` either way; fail-open is a policy about *proceeding*, never evidence the screen looked.
 
 ## Reading a shadow window
@@ -38,7 +38,7 @@ The point of shadow mode is the promotion decision, and the vocabulary is what m
 
 ## The helper
 
-[`lib/shadow-screen.mjs`](../lib/shadow-screen.mjs) is the vocabulary as a pure function: `screenDecision({mode, ran, flagged, unscreenedProceeds})` → `{verdict, proceed}`, plus `isPass(verdict)`. Deliberately small — it classifies one decision. Logging every verdict, aggregating the window, and actually wiring `proceed` to enforcement are yours, and the one failure it cannot see is the caller that computes `proceed` and ignores it: that is a shadow screen wearing an enforce label, and only a human reading the wiring catches it.
+[`lib/shadow-screen.mjs`](../lib/shadow-screen.mjs) is the vocabulary as a pure function: `screenDecision({mode, ran, flagged, unscreenedProceeds})` → `{verdict, proceed}`, plus `isPass(verdict)`. Deliberately small — it classifies one decision. Logging every verdict, aggregating the window, and actually wiring `proceed` to enforcement are yours. The helper cannot observe how its caller uses either returned field.
 
 ## Limits
 

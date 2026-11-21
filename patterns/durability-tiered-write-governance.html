@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Durability-tiered write governance: gate actions by how hard they are to undo</title>
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="agent-ops-patterns">
+<meta property="og:title" content="Durability-tiered write governance: gate actions by how hard they are to undo">
+<meta property="og:url" content="https://u00dxk2.github.io/agent-ops-patterns/patterns/durability-tiered-write-governance.html">
+<link rel="canonical" href="https://u00dxk2.github.io/agent-ops-patterns/patterns/durability-tiered-write-governance.html">
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1d1b;--muted:#5d5b55;--line:#dedad0;--code:#f2efe8;--link:#2f6f8f}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--code:#262520;--link:#6fb3d4}}
+:root[data-theme="dark"]{--bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--code:#262520;--link:#6fb3d4}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:17px/1.6 Georgia,"Times New Roman",serif}
+main{max-width:72ch;margin:0 auto;padding:0 16px 80px}
+h1{font-size:1.75rem;line-height:1.2;margin:24px 0 16px}
+h2{font-size:1.3rem;margin:36px 0 10px;padding-top:10px;border-top:1px solid var(--line)}
+h3{font-size:1.08rem;margin:24px 0 8px}
+a{color:var(--link)}
+code{background:var(--code);padding:1px 4px;border-radius:4px;font-size:.86em;overflow-wrap:anywhere}
+table{border-collapse:collapse;display:block;overflow-x:auto;font-size:.95rem}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top}
+.meta{color:var(--muted);font:.92rem/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;margin:20px 0 0}
+</style>
+</head>
+<body>
+<main>
+<p class="meta"><a href="../">agent-ops-patterns</a></p>
+<h1>Durability-tiered write governance: gate actions by how hard they are to undo</h1>
+<p>Agent permission systems accrete as case law. An agent does something scary, a rule appears; six months later you have thirty rules, nobody remembers which incidents produced them, and the list is simultaneously over-gated (human approval burning on trivia) and under-gated (the genuinely irreversible action nobody happened to get burned by yet). The missing organizing principle is not &quot;how risky does this feel&quot; — it is <strong>how durable is the write</strong>.</p>
+<p>Place every action an agent can take on a three-rung ladder, and put the governance where the durability is. The thinking upstream of this is Cliff Rosen's, at Orchestrator Studios - <a href="https://orchestratorstudios.com/articles/the-agent-in-the-middle.html">&quot;The Agent in the Middle&quot;</a> separates the durable substrate from the UX layer frozen on top of it, and <a href="https://orchestratorstudios.com/articles/living-workspace.html">&quot;The Living Workspace&quot;</a> organizes workspace components around presentation (views), access (tools), understanding (schemas and capabilities), and substrate (data). The three-rung ladder below is not his tiering and shouldn't be read as his - it's our operational adaptation. The repository documents the three rungs and tests the capability-grant helper used in the rung-3 example.</p>
+<h2>The ladder</h2>
+<h3>Rung 1 — Reads. Never gated.</h3>
+<p>Deploy-status queries, log reads, metric pulls, campaign reads. Governance here is <em>authentication</em> (who may see), never <em>approval</em> (may this happen). The enforceable rule: <strong>no approval gate may fire on an effect-free, already-authorized read</strong> - every approval pattern in your system should require a mutation verb. Note what that rule does not say. Reads still answer to access control, and some of them need more than that: a read can disclose data the caller shouldn't see, cost real money, exhaust a rate limit, or hit an endpoint that only calls itself a read. Those still get gated - by authentication, cost policy, or a rule of their own. What you're removing is the per-action human click on &quot;check the deploy status,&quot; because the day that prompt fires you have taxed the thing agents do hundreds of times a day and trained your operator to rubber-stamp.</p>
+<h3>Rung 2 — Schema-bounded writes. Machine-approved, human-informed.</h3>
+<p>Writes inside shapes the system already owns: a git push that auto-deploys behind CI, a message appended to a bus, an application-level write through existing code paths. The property that defines this rung is <strong>reversibility by another write of the same shape</strong> - a bad push is reverted by a push, a bad row by an update. Two conditions, and they're easy to assume rather than check: the prior state has to still exist somewhere (an update over an unversioned row is not reversible, it's gone), and the downstream consequences have to be reversible too. A push that auto-deploys can page a customer, run a migration, or leak something - and reverting the commit undoes none of that. When either condition fails, the action isn't rung 2. Classify it by its furthest irreversible consequence, which is the rule the rest of this document runs on.</p>
+<p>Governance: the schema, the CI gate, and revertability do the work. An orchestrating agent's approval is sufficient; the human learns about it in a digest, not a permission prompt. We un-gated <code>git push</code> on exactly this analysis after months of gating it — the gate was burning the scarce resource (operator attention) on the rung whose mistakes are cheap. The discipline cuts both ways: a <em>candidate</em> rule for this rung needs a concrete anchor incident where the ungated action caused unrecoverable harm, not &quot;feels risky.&quot;</p>
+<h3>Rung 3 — Substrate and irreversible writes. Human-direct, grant-minted.</h3>
+<p>Schema migrations against production, one-off mutations of production data, credential minting, changes to a live pipeline or cron, outward sends to real users, spend, and — less obviously — <strong>the agent modifying its own permission config or reducing its own observability</strong>. Self-modification looks like a rung-2 config edit; it is not, because it rewrites the system that does the governing. Same for anything that dims the operator's view of what agents are doing.</p>
+<p>Governance: direct human approval per action — ideally minted as a scoped, single-use, TTL-bounded grant (<a href="https://github.com/u00dxk2/agent-ops-patterns/blob/main/lib/capability-grant.mjs"><code>lib/capability-grant.mjs</code></a>) rather than a &quot;you have approval, proceed&quot; relayed through a chat or bus message, which any layer can replay, garble, or fabricate. Spend gets no carve-out: our ceiling for autonomous spend is zero, and any budget signal keeps the gate even when the surrounding action is otherwise approved.</p>
+<h2>Classify by consequence, not by verb</h2>
+<p>A bus post is rung 2. A bus post that a downstream automation consumes to send email to real users is rung 3 wearing rung-2 clothes. The rung of an action is the rung of <strong>the furthest irreversible consequence on its known path</strong>, not of the proximate verb. This is the clause that keeps the ladder honest — and the reason classification belongs in a reviewed, versioned rule file rather than in each agent's judgment at 2 a.m.</p>
+<h2>The &quot;living workspace&quot; clause</h2>
+<p>A workspace where using it and extending it are the same activity — skills edited freely, no deployment boundary — is a genuine advance for a single operator and a hazard the moment a second person depends on it: a skill edited mid-task silently changes behavior for everyone downstream. The ladder is the resolution. <strong>Presentation stays living</strong> (anyone reshapes reads and views freely). <strong>Capability writes ride their schemas.</strong> <strong>Substrate changes get a ledger</strong> — versioned, attributable, reviewable — even in a system with no other deployment ceremony.</p>
+<h2>Limits</h2>
+<ul>
+<li><strong>The ladder classifies actions, not correctness.</strong> A rung-2 write can still be wrong — just reversibly wrong. Tiering tells you who must approve, not whether the change is good; review is a separate concern.</li>
+<li><strong>Durability is context-dependent.</strong> The same verb sits on different rungs in different deployments (a Render env-var write is rung 2 on a scratch service and rung 3 on the service holding your production keys). The ladder is a lens you apply to <em>your</em> inventory, not a lookup table.</li>
+<li><strong>Single-operator bias.</strong> Everything above assumes one human principal. At team scale the rungs hold but &quot;human-direct&quot; needs a <em>which</em> human — per-principal scopes on rung 3, and the grant lib's operational boundaries (see its <a href="https://github.com/u00dxk2/agent-ops-patterns/blob/main/LIMITS.md#capability-grant">limits</a>) matter more, not less.</li>
+<li><strong>Case law still accumulates.</strong> The ladder doesn't stop new rules; it makes each one pay an admission test — name the rung, name the anchor incident, and show the rule can fire (<a href="https://github.com/u00dxk2/agent-ops-patterns/blob/main/patterns/checks-that-cant-fail.md">checks-that-cant-fail</a> applies to gate rules too: a class no input has ever matched is decorative).</li>
+</ul>
+</main>
+</body>
+</html>

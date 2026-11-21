@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shadow-screen states: four verdicts for a gate, and a fifth for the gate that never ran</title>
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="agent-ops-patterns">
+<meta property="og:title" content="Shadow-screen states: four verdicts for a gate, and a fifth for the gate that never ran">
+<meta property="og:url" content="https://u00dxk2.github.io/agent-ops-patterns/patterns/shadow-screen-states.html">
+<link rel="canonical" href="https://u00dxk2.github.io/agent-ops-patterns/patterns/shadow-screen-states.html">
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1d1b;--muted:#5d5b55;--line:#dedad0;--code:#f2efe8;--link:#2f6f8f}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--code:#262520;--link:#6fb3d4}}
+:root[data-theme="dark"]{--bg:#151513;--fg:#ebe8e0;--muted:#a8a498;--line:#34322d;--code:#262520;--link:#6fb3d4}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:17px/1.6 Georgia,"Times New Roman",serif}
+main{max-width:72ch;margin:0 auto;padding:0 16px 80px}
+h1{font-size:1.75rem;line-height:1.2;margin:24px 0 16px}
+h2{font-size:1.3rem;margin:36px 0 10px;padding-top:10px;border-top:1px solid var(--line)}
+h3{font-size:1.08rem;margin:24px 0 8px}
+a{color:var(--link)}
+code{background:var(--code);padding:1px 4px;border-radius:4px;font-size:.86em;overflow-wrap:anywhere}
+table{border-collapse:collapse;display:block;overflow-x:auto;font-size:.95rem}
+th,td{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top}
+.meta{color:var(--muted);font:.92rem/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;margin:20px 0 0}
+</style>
+</head>
+<body>
+<main>
+<p class="meta"><a href="../">agent-ops-patterns</a></p>
+<h1>Shadow-screen states: four verdicts for a gate, and a fifth for the gate that never ran</h1>
+<p>Most gates you put in front of agent actions - a security classifier, a policy regex, a quality judge - over-fire when they first ship, and you usually don't know the false-positive rate in advance. If you have a labeled replay set, run the gate over it offline first; that gives you a real estimate before anything reaches an operator. When you don't have one (the common case for a gate written this week about behavior nobody logged), the way to learn the rate without burning your operators' trust budget is to ship the gate <em>watching</em> before it ships <em>enforcing</em>: record what it would have done, let the action proceed, and read the log for a while.</p>
+<p>That plan quietly fails if your gate's output is a boolean. &quot;Blocked: false&quot; is four different facts wearing one value — <em>the gate looked and found nothing</em>, <em>the gate found something but we're only watching</em>, <em>the gate is disabled</em>, and <em>the gate crashed</em>. When you later ask &quot;is this gate ready to enforce?&quot;, a boolean log cannot answer, and the crashed-gate rows are sitting in your data disguised as clean ones.</p>
+<h2>The vocabulary</h2>
+<p>Five verdicts. The first four are the mode × outcome grid; the fifth is the one that keeps the other four honest.</p>
+<table>
+<thead><tr><th></th><th>gate fired</th><th>gate quiet</th></tr></thead>
+<tbody>
+<tr><td><strong>watching (shadow)</strong></td><td><code>would_block</code> — recorded; action proceeds</td><td><code>shadow_allow</code> — action proceeds</td></tr>
+<tr><td><strong>enforcing</strong></td><td><code>block</code> — action stopped</td><td><code>allow</code> — action proceeds</td></tr>
+</tbody>
+</table>
+<p>And separately, in either mode:</p>
+<ul>
+<li><strong><code>unscreened</code></strong> — <code>unscreened</code> means the helper received no completed screening with a boolean finding: unavailable, timed out, threw, returned garbage. Not <code>allow</code>. Not <code>shadow_allow</code>. Its own verdict, and one the caller must record on every attempted decision - the helper returns it and logs nothing, so an unscreened action that nobody wrote down is indistinguishable from one that was never attempted.</li>
+</ul>
+<p>Credit: <a href="https://github.com/yc-software/qm">yc-software/qm</a>'s security screen (<code>src/core/orchestrator/security-screen.ts</code>) ships exactly this vocabulary, and the explicit <code>unscreened</code> verdict is the reason to copy it rather than reinvent it. Most home-grown screens default the unavailable case to allow — usually not by decision, but because the <code>catch</code> block had to return <em>something</em> and <code>false</code> type-checked.</p>
+<h2>Why <code>unscreened</code> is the load-bearing state</h2>
+<p>A screener that is down produces the same observable as a screener with nothing to report: silence. If silence maps to <code>allow</code>, an outage in your screening path reads as a run of perfectly clean actions — your gate can go dark for a month and the dashboard gets <em>greener</em>. This is the same failure family as <a href="https://github.com/u00dxk2/agent-ops-patterns/blob/main/patterns/checks-that-cant-fail.md">checks that can't fail</a> — the dead-instrument zero and the config-absent silent disable — arriving independently in a different codebase, which is the kind of convergence that tells you the pattern is real and not a house habit.</p>
+<p>Two rules make the fifth state do its work:</p>
+<ol>
+<li><strong><code>unscreened</code> never counts as a pass.</strong> Whatever tallies pass rates must exclude it (the helper's <code>isPass</code> refuses it). A rising count means more attempted decisions lacked a completed screen with a boolean result.</li>
+<li><strong>In enforce mode, <code>unscreened</code> fails closed by default.</strong> If you need fail-open (screening a path where availability beats screening), you declare it in code — <code>unscreenedProceeds: true</code> — where a reviewer can see the choice. The verdict still says <code>unscreened</code> either way; fail-open is a policy about <em>proceeding</em>, never evidence the screen looked.</li>
+</ol>
+<h2>Reading a shadow window</h2>
+<p>The point of shadow mode is the promotion decision, and the vocabulary is what makes the log decidable:</p>
+<ul>
+<li><strong><code>would_block</code> rows are your backtest.</strong> Review them before enforcing — each one is either a true positive (the gate earns its keep) or a false positive (the gate would have burned trust). Promote to enforce only from a reviewed window, never from &quot;it's been quiet.&quot;</li>
+<li><strong><code>shadow_allow</code> without a proven red is not evidence.</strong> A gate that never fired in shadow might be well-tuned, or might be incapable of firing — feed it a known-bad input and watch it produce <code>would_block</code> before you trust its quiet (<a href="https://github.com/u00dxk2/agent-ops-patterns/blob/main/patterns/checks-that-cant-fail.md">checks-that-cant-fail</a>, mode 1).</li>
+<li><strong><code>unscreened</code> rows in the window cap your confidence.</strong> A shadow window that was 30% unscreened observed 70% of the traffic; say so in the promotion decision.</li>
+</ul>
+<h2>The helper</h2>
+<p><a href="https://github.com/u00dxk2/agent-ops-patterns/blob/main/lib/shadow-screen.mjs"><code>lib/shadow-screen.mjs</code></a> is the vocabulary as a pure function: <code>screenDecision({mode, ran, flagged, unscreenedProceeds})</code> → <code>{verdict, proceed}</code>, plus <code>isPass(verdict)</code>. Deliberately small — it classifies one decision. Logging every verdict, aggregating the window, and actually wiring <code>proceed</code> to enforcement are yours. The helper cannot observe how its caller uses either returned field.</p>
+<h2>Limits</h2>
+<ul>
+<li><strong>The fifth state depends on the caller's discipline, which is exactly backwards from where you want it.</strong> <code>unscreened</code> is what keeps the other four honest, and the helper returns it while logging nothing. A caller that drops the verdict leaves no trace at all — so the state designed to make screening outages visible is itself invisible when the integration is sloppy. Nothing in the vocabulary can detect that; only reading the call site does.</li>
+<li><strong>It classifies one decision and cannot see the window.</strong> Promotion rules live in your aggregation, not here. The helper will happily classify ten thousand decisions without ever telling you the window was 30% unscreened or unrepresentative of real traffic.</li>
+<li><strong>A shadow window inherits the traffic it happened to see.</strong> <code>would_block</code> rows backtest the gate against what arrived, and a quiet window on unrepresentative traffic reads identically to a well-tuned gate. Promotion from it is still a judgment call, better-informed rather than derisked.</li>
+<li><strong>Partial screening has no verdict of its own.</strong> A screener that timed out after examining half its input classifies as <code>unscreened</code>, which is the safe answer and a lossy one — you lose the fact that half of it <em>was</em> screened, and the diagnosis of a slow screener looks the same as a dead one.</li>
+</ul>
+</main>
+</body>
+</html>
